@@ -1,0 +1,71 @@
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+require('dotenv').config();
+
+const authRoutes = require('./routes/authRoutes');
+const occupancyRoutes = require('./routes/occupancyRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const feedbackRoutes = require('./routes/feedbackRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const errorMiddleware = require('./middlewares/errorMiddleware');
+
+const app = express();
+
+// Trust proxy
+app.set('trust proxy', 1);
+
+// Middleware
+app.use(helmet());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true,
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ message: 'API is running', timestamp: new Date() });
+});
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/occupancy', occupancyRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/admin', adminRoutes);
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'MatatuConnect: Smart Feedback, Payment, and Occupancy Awareness Platform',
+    version: '1.0.0',
+    status: 'operational',
+    description: 'Digital platform for informal public transport in Kenya',
+    endpoints: {
+      auth: '/api/auth (register, login, profile management)',
+      feedback: '/api/feedback (FR1 - Feedback management)',
+      occupancy: '/api/occupancy (FR3 - Occupancy reporting)',
+      payments: '/api/payments (FR2 - Payment simulation)',
+      admin: '/api/admin (FR5 - Administrative oversight)',
+    },
+    requirements: {
+      FR1: 'Feedback Management (route, vehicle, type, comment)',
+      FR2: 'Payment Simulation (M-Pesa sandbox)',
+      FR3: 'Occupancy Reporting (Seats Available/Full)',
+      FR4: 'Notification Service (SMS/WhatsApp)',
+      FR5: 'Administrative Oversight (dashboard with filters)',
+    },
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' });
+});
+
+// Error handler
+app.use(errorMiddleware);
+
+module.exports = app;
