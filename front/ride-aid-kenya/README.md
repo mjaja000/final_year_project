@@ -1,73 +1,86 @@
-# Welcome to your Lovable project
+# Ride Aid Kenya — Final Year Project
 
-## Project info
+A lightweight admin dashboard and frontend for Ride Aid Kenya — a transit occupancy, payment simulation, and feedback system built with React, TypeScript, Vite and Tailwind CSS.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Table of Contents
 
-## How can I edit this code?
+- Project overview
+- Features
+- Tech stack
+- Repo layout
+- Getting started
+- Development
+- Build
+- Contributing
+- License & Contact
 
-There are several ways of editing your application.
+## Project overview
 
-**Use Lovable**
+This repository contains the frontend for the Ride Aid Kenya project (final year project). The main UI is located in `front/ride-aid-kenya` and includes pages for admin dashboard, occupancy management, payment simulation and feedback.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Features
 
-Changes made via Lovable will be committed automatically to this repo.
+- Admin dashboard and login
+- Occupancy display and update components
+- Payment simulation flow and ticket QR generation
+- Feedback form and data table components
 
-**Use your preferred IDE**
+## Tech stack
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Frontend: React + TypeScript
+- Bundler: Vite
+- Styling: Tailwind CSS
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Repo layout (important paths)
 
-Follow these steps:
+- `front/ride-aid-kenya` — frontend application
+  - `src/` — React source
+    - `pages/` — page components (AdminDashboard, AdminLogin, etc.)
+    - `components/` — UI components and shared primitives
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## Getting started
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Prerequisites:
 
-# Step 3: Install the necessary dependencies.
-npm i
+- Node.js 18+ (or compatible)
+- npm or pnpm
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+Quick start:
+
+1. Open a terminal at the workspace root.
+2. Install dependencies and start the dev server:
+
+```
+cd front/ride-aid-kenya
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app runs on the port shown by Vite (usually `http://localhost:5173`).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Development
 
-**Use GitHub Codespaces**
+- Linting and formatting are configured in the frontend package; run commands from `front/ride-aid-kenya` as needed.
+- Add components in `src/components` and pages in `src/pages`.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Build
 
-## What technologies are used for this project?
+To create a production build and preview it:
 
-This project is built with:
+```
+cd front/ride-aid-kenya
+npm run build
+npm run preview
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Contributing
 
-## How can I deploy this project?
+- Create a branch per feature/fix.
+- Open a pull request describing your changes.
+- Keep changes focused and add small, testable commits.
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## License & Contact
 
-## Can I connect a custom domain to my Lovable project?
+This project is provided for academic purposes. Add a license file if you plan to publish it publicly.
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+For questions or help, contact the project owner.
