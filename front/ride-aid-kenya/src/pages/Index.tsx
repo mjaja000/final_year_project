@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api";
 
 export default function Index() {
   const navigate = useNavigate();
@@ -10,6 +12,12 @@ export default function Index() {
   const [date, setDate] = useState(() => {
     const d = new Date();
     return d.toISOString().slice(0, 10);
+  });
+
+  // Fetch routes from backend
+  const { data: routes, isLoading, error } = useQuery({
+    queryKey: ['routes'],
+    queryFn: api.routes.getAll,
   });
 
   const handleSearch = (e?: React.FormEvent) => {
@@ -66,23 +74,36 @@ export default function Index() {
             </p>
 
             <div className="grid gap-4">
-              {/* Example route cards — replace with dynamic data as needed */}
-              {[
-                { name: "Route 23", from: "CBD Nairobi", to: "Westlands", price: "KES 50" },
-                { name: "Route 46", from: "CBD Nairobi", to: "Eastleigh", price: "KES 40" },
-                { name: "Route 58", from: "CBD Nairobi", to: "South B", price: "KES 60" },
-              ].map((r) => (
-                <div key={r.name} className="flex items-center justify-between border rounded-lg p-4">
-                  <div>
-                    <div className="text-sm text-green-700 font-medium mb-1">{r.name}</div>
-                    <div className="text-sm text-muted-foreground">{r.from} → {r.to}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold">{r.price}</div>
-                    <div className="text-xs text-muted-foreground">3 vehicles</div>
-                  </div>
+              {isLoading && (
+                <div className="text-center py-8 text-muted-foreground">Loading routes...</div>
+              )}
+              
+              {error && (
+                <div className="text-center py-8 text-red-500">
+                  Error loading routes. Please make sure the backend is running.
                 </div>
-              ))}
+              )}
+              
+              {routes && routes.length > 0 ? (
+                routes.map((route: any) => (
+                  <div key={route.id} className="flex items-center justify-between border rounded-lg p-4">
+                    <div>
+                      <div className="text-sm text-green-700 font-medium mb-1">{route.route_name}</div>
+                      <div className="text-sm text-muted-foreground">{route.start_location} → {route.end_location}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold">KES {route.price}</div>
+                      <div className="text-xs text-muted-foreground">{route.distance_km} km</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                !isLoading && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No routes available. Add routes from the admin dashboard.
+                  </div>
+                )
+              )}
             </div>
           </section>
 
