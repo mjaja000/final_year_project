@@ -26,9 +26,9 @@ class RouteModel {
 
   // Get all routes
   static async getAllRoutes() {
-    const query = 'SELECT * FROM routes WHERE status = $1 ORDER BY route_name;';
+    const query = 'SELECT * FROM routes ORDER BY route_name;';
     try {
-      const result = await pool.query(query, ['active']);
+      const result = await pool.query(query);
       return result.rows;
     } catch (error) {
       throw error;
@@ -47,14 +47,55 @@ class RouteModel {
   }
 
   // Create route (admin only)
-  static async createRoute(routeName, startLocation, endLocation, baseFare) {
+  static async createRoute(routeName, startLocation, endLocation, baseFare, description = null) {
     const query = `
-      INSERT INTO routes (route_name, start_location, end_location, base_fare)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO routes (route_name, start_location, end_location, base_fare, description)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
     `;
     try {
-      const result = await pool.query(query, [routeName, startLocation, endLocation, baseFare]);
+      const result = await pool.query(query, [routeName, startLocation, endLocation, baseFare, description]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Update route
+  static async updateRoute(id, { routeName, startLocation, endLocation, baseFare, description, status }) {
+    const query = `
+      UPDATE routes
+      SET
+        route_name = COALESCE($1, route_name),
+        start_location = COALESCE($2, start_location),
+        end_location = COALESCE($3, end_location),
+        base_fare = COALESCE($4, base_fare),
+        description = COALESCE($5, description),
+        status = COALESCE($6, status),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING *;
+    `;
+
+    try {
+      const result = await pool.query(query, [routeName, startLocation, endLocation, baseFare, description, status, id]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Delete (soft-delete) route
+  static async deleteRoute(id) {
+    const query = `
+      UPDATE routes
+      SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *;
+    `;
+
+    try {
+      const result = await pool.query(query, [id]);
       return result.rows[0];
     } catch (error) {
       throw error;

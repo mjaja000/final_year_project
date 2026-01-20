@@ -61,11 +61,32 @@ process.on('SIGINT', () => {
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err);
-  server.close(async () => {
-    await pool.end();
-    process.exit(1);
-  });
+  console.error('❌ Unhandled Rejection:', err);
+  console.error('Stack:', err.stack);
+  // Don't exit - just log the error for debugging
+  // server.close(async () => {
+  //   await pool.end();
+  //   process.exit(1);
+  // });
 });
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  console.error('Stack:', err.stack);
+  // Don't exit - just log the error for debugging
+});
+
+// Log when process is about to exit
+process.on('exit', (code) => {
+  console.log(`🛑 Process exiting with code: ${code}`);
+});
+
+// Log when process receives termination signals
+process.on('beforeExit', (code) => {
+  console.log(`⚠️ Process beforeExit event with code: ${code}`);
+});
+
+console.log('🔄 Server initialization complete. Listening for requests...');
 
 module.exports = server;

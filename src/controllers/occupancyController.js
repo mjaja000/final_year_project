@@ -67,6 +67,35 @@ class OccupancyController {
     }
   }
 
+  // Public: update numeric occupancy for a vehicle (used by frontend PUT /api/occupancy/:vehicleId)
+  static async updateOccupancyCount(req, res) {
+    try {
+      const { vehicleId } = req.params;
+      const { current_occupancy } = req.body;
+
+      if (current_occupancy === undefined || current_occupancy === null) {
+        return res.status(400).json({ message: 'Missing required field: current_occupancy' });
+      }
+
+      const vehicle = await VehicleModel.getVehicleById(vehicleId);
+      if (!vehicle) {
+        return res.status(404).json({ message: 'Vehicle not found' });
+      }
+
+      const capacity = vehicle.capacity || 14;
+      const driverId = vehicle.user_id || null;
+      const occupancy = await OccupancyModel.updateOccupancyCount(vehicleId, driverId, Number(current_occupancy), capacity);
+
+      res.json({
+        message: 'Vehicle occupancy updated',
+        occupancy,
+      });
+    } catch (error) {
+      console.error('Update occupancy count error:', error);
+      res.status(500).json({ message: 'Failed to update occupancy', error: error.message });
+    }
+  }
+
   // Get all vehicle occupancy statuses
   static async getAllOccupancyStatuses(req, res) {
     try {

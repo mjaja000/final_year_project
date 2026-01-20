@@ -6,17 +6,27 @@ class FeedbackModel {
     const query = `
       CREATE TABLE IF NOT EXISTS feedback (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
+        user_id INTEGER,
         route_id INTEGER NOT NULL,
         vehicle_id INTEGER NOT NULL,
         feedback_type VARCHAR(50) NOT NULL,
         comment TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
         FOREIGN KEY (route_id) REFERENCES routes(id) ON DELETE CASCADE,
         FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
       );
+      -- Allow user_id to be nullable for public feedback
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='user_id' AND is_nullable='NO') THEN
+          ALTER TABLE feedback ALTER COLUMN user_id DROP NOT NULL;
+          ALTER TABLE feedback DROP CONSTRAINT IF EXISTS feedback_user_id_fkey;
+          ALTER TABLE feedback ADD CONSTRAINT feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+        END IF;
+      END
+      $$;
     `;
     try {
       await pool.query(query);
@@ -59,7 +69,7 @@ class FeedbackModel {
       FROM feedback f
       JOIN routes r ON f.route_id = r.id
       JOIN vehicles v ON f.vehicle_id = v.id
-      JOIN users u ON f.user_id = u.id
+      LEFT JOIN users u ON f.user_id = u.id
       WHERE f.user_id = $1 
       ORDER BY f.created_at DESC;
     `;
@@ -78,7 +88,7 @@ class FeedbackModel {
       FROM feedback f
       JOIN routes r ON f.route_id = r.id
       JOIN vehicles v ON f.vehicle_id = v.id
-      JOIN users u ON f.user_id = u.id
+      LEFT JOIN users u ON f.user_id = u.id
       WHERE 1=1
     `;
     const params = [];

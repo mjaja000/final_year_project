@@ -4,9 +4,12 @@ const helmet = require('helmet');
 require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
 const occupancyRoutes = require('./routes/occupancyRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
+const routeRoutes = require('./routes/routeRoutes');
+const vehicleRoutes = require('./routes/vehicleRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
@@ -31,9 +34,12 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/occupancy', occupancyRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/routes', routeRoutes);
+app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Root route

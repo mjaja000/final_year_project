@@ -6,7 +6,7 @@ class PaymentModel {
     const query = `
       CREATE TABLE IF NOT EXISTS payments (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
+        user_id INTEGER,
         route_id INTEGER NOT NULL,
         amount DECIMAL(10, 2) NOT NULL,
         phone_number VARCHAR(20) NOT NULL,
@@ -14,9 +14,19 @@ class PaymentModel {
         transaction_id VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
         FOREIGN KEY (route_id) REFERENCES routes(id) ON DELETE CASCADE
       );
+      -- Allow user_id to be nullable for public payments
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payments' AND column_name='user_id' AND is_nullable='NO') THEN
+          ALTER TABLE payments ALTER COLUMN user_id DROP NOT NULL;
+          ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_user_id_fkey;
+          ALTER TABLE payments ADD CONSTRAINT payments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+        END IF;
+      END
+      $$;
     `;
     try {
       await pool.query(query);
@@ -91,7 +101,7 @@ class PaymentModel {
       SELECT p.*, r.route_name, u.name as passenger_name
       FROM payments p
       JOIN routes r ON p.route_id = r.id
-      JOIN users u ON p.user_id = u.id
+      LEFT JOIN users u ON p.user_id = u.id
       WHERE 1=1
     `;
     const params = [];

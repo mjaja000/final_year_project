@@ -6,18 +6,39 @@ class VehicleModel {
     const query = `
       CREATE TABLE IF NOT EXISTS vehicles (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
+        user_id INTEGER,
         registration_number VARCHAR(50) UNIQUE NOT NULL,
         vehicle_type VARCHAR(50),
         color VARCHAR(50),
         make VARCHAR(100),
         model VARCHAR(100),
         year INTEGER,
+        route_id INTEGER,
+        capacity INTEGER DEFAULT 14,
         status VARCHAR(20) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (route_id) REFERENCES routes(id) ON DELETE SET NULL
       );
+      -- Ensure newer columns exist if table was created previously
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vehicles' AND column_name='route_id') THEN
+          ALTER TABLE vehicles ADD COLUMN route_id INTEGER;
+          ALTER TABLE vehicles ADD CONSTRAINT vehicles_route_id_fkey FOREIGN KEY (route_id) REFERENCES routes(id) ON DELETE SET NULL;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vehicles' AND column_name='capacity') THEN
+          ALTER TABLE vehicles ADD COLUMN capacity INTEGER DEFAULT 14;
+        END IF;
+        -- Allow user_id to be nullable for public vehicle creation
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vehicles' AND column_name='user_id' AND is_nullable='NO') THEN
+          ALTER TABLE vehicles ALTER COLUMN user_id DROP NOT NULL;
+          ALTER TABLE vehicles DROP CONSTRAINT IF EXISTS vehicles_user_id_fkey;
+          ALTER TABLE vehicles ADD CONSTRAINT vehicles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+        END IF;
+      END
+      $$;
     `;
     try {
       await pool.query(query);
@@ -28,14 +49,14 @@ class VehicleModel {
   }
 
   // Add new vehicle
-  static async addVehicle(userId, registrationNumber, vehicleType, color, make, model, year) {
+  static async addVehicle({ userId = null, registrationNumber, vehicleType, color, make, model, year, routeId = null, capacity = 14 }) {
     const query = `
-      INSERT INTO vehicles (user_id, registration_number, vehicle_type, color, make, model, year)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO vehicles (user_id, registration_number, vehicle_type, color, make, model, year, route_id, capacity)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *;
     `;
     try {
-      const result = await pool.query(query, [userId, registrationNumber, vehicleType, color, make, model, year]);
+      const result = await pool.query(query, [userId, registrationNumber, vehicleType, color, make, model, year, routeId, capacity]);
       return result.rows[0];
     } catch (error) {
       throw error;
@@ -76,15 +97,23 @@ class VehicleModel {
   }
 
   // Update vehicle
-  static async updateVehicle(id, vehicleType, color, make, model, year) {
+  static async updateVehicle(id, { vehicleType, color, make, model, year, routeId, capacity }) {
     const query = `
       UPDATE vehicles
-      SET vehicle_type = $1, color = $2, make = $3, model = $4, year = $5, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
+      SET
+        vehicle_type = COALESCE($1, vehicle_type),
+        color = COALESCE($2, color),
+        make = COALESCE($3, make),
+        model = COALESCE($4, model),
+        year = COALESCE($5, year),
+        route_id = COALESCE($6, route_id),
+        capacity = COALESCE($7, capacity),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8
       RETURNING *;
     `;
     try {
-      const result = await pool.query(query, [vehicleType, color, make, model, year, id]);
+      const result = await pool.query(query, [vehicleType, color, make, model, year, routeId, capacity, id]);
       return result.rows[0];
     } catch (error) {
       throw error;
@@ -104,9 +133,34 @@ class VehicleModel {
 
   // Get all vehicles
   static async getAllVehicles() {
-    const query = 'SELECT v.*, u.name, u.email FROM vehicles v JOIN users u ON v.user_id = u.id WHERE v.status = $1;';
+    const query = `
+      SELECT v.*, u.name, u.email, r.route_name
+      FROM vehicles v
+      LEFT JOIN users u ON v.user_id = u.id
+      LEFT JOIN routes r ON v.route_id = r.id
+      WHERE v.status = $1
+      ORDER BY v.created_at DESC;
+    `;
     try {
       const result = await pool.query(query, ['active']);
+      return result.rows;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get vehicles by route
+  static async getVehiclesByRoute(routeId) {
+    const query = `
+      SELECT v.*, u.name, u.email, r.route_name
+      FROM vehicles v
+      LEFT JOIN users u ON v.user_id = u.id
+      LEFT JOIN routes r ON v.route_id = r.id
+      WHERE v.status = $1 AND v.route_id = $2
+      ORDER BY v.created_at DESC;
+    `;
+    try {
+      const result = await pool.query(query, ['active', routeId]);
       return result.rows;
     } catch (error) {
       throw error;

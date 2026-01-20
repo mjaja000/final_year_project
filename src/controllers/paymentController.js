@@ -6,7 +6,7 @@ class PaymentController {
   // Simulate M-Pesa payment (FR2)
   static async simulatePayment(req, res) {
     try {
-      const userId = req.userId;
+      const userId = req.userId || null;
       const { routeId, amount, phoneNumber } = req.body;
 
       // Validate required fields
@@ -115,6 +115,21 @@ class PaymentController {
     } catch (error) {
       console.error('Get payment stats error:', error);
       res.status(500).json({ message: 'Failed to fetch payment statistics', error: error.message });
+    }
+  }
+
+  // Public: get all payments (for dashboards)
+  static async getAllPaymentsPublic(req, res) {
+    try {
+      const payments = await PaymentModel.getAllPayments(100, 0, {});
+      res.json({
+        message: 'Payments fetched',
+        total: payments.length,
+        payments,
+      });
+    } catch (error) {
+      console.error('Get all payments error:', error);
+      res.status(500).json({ message: 'Failed to fetch payments', error: error.message });
     }
   }
 }

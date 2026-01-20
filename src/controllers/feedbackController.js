@@ -6,7 +6,7 @@ class FeedbackController {
   // Submit feedback (FR1: route, vehicle, feedback type, comment)
   static async submitFeedback(req, res) {
     try {
-      const userId = req.userId;
+      const userId = req.userId || null;
       const { routeId, vehicleId, feedbackType, comment, phoneNumber } = req.body;
 
       // Validate required fields
@@ -68,6 +68,21 @@ class FeedbackController {
       });
     } catch (error) {
       console.error('Get user feedback error:', error);
+      res.status(500).json({ message: 'Failed to fetch feedback', error: error.message });
+    }
+  }
+
+  // Public: list feedback (for dashboard)
+  static async getAllPublic(req, res) {
+    try {
+      const feedback = await FeedbackModel.getAllFeedback(100, 0, {});
+      res.json({
+        message: 'Feedback fetched',
+        total: feedback.length,
+        feedback,
+      });
+    } catch (error) {
+      console.error('Get feedback error:', error);
       res.status(500).json({ message: 'Failed to fetch feedback', error: error.message });
     }
   }
