@@ -171,6 +171,12 @@ async function loadStatisticsData() {
         document.getElementById('availableVehicles').textContent = Math.ceil(totalVehicles * 0.4);
         document.getElementById('fullVehicles').textContent = Math.floor(totalVehicles * 0.6);
         
+        // Load route statistics
+        await loadRouteStatistics();
+        
+        // Load system metrics
+        await loadSystemMetrics();
+        
         // System uptime
         document.getElementById('uptime').textContent = '99.8%';
         
@@ -181,16 +187,59 @@ async function loadStatisticsData() {
     }
 }
 
-async function loadClientsData() {
+async function loadRouteStatistics() {
     try {
-        // Generate mock client data based on actual users
-        const response = await fetch(`${API_URL}/admin/dashboard`);
+        const response = await fetch(`${API_URL}/admin/routes/stats`);
         const data = await response.json();
         
-        allClients = generateMockClients(data.totalUsers || 5);
+        const topRoutesDiv = document.getElementById('topRoutes');
+        if (data.topRoutes && data.topRoutes.length > 0) {
+            topRoutesDiv.innerHTML = data.topRoutes.map(route => 
+                `<p class="stat-item">${route.route_name || 'Route ' + route.id}: <strong>${route.vehicles_count || 0} vehicles</strong></p>`
+            ).join('');
+        }
+    } catch (error) {
+        console.error('Error loading route statistics:', error);
+    }
+}
+
+async function loadSystemMetrics() {
+    try {
+        const response = await fetch(`${API_URL}/admin/metrics`);
+        const data = await response.json();
+        
+        if (data.serverUptime) {
+            document.getElementById('serverUptime').textContent = data.serverUptime;
+        }
+    } catch (error) {
+        console.error('Error loading system metrics:', error);
+    }
+}
+
+async function loadClientsData() {
+    try {
+        // Fetch real user activity data from backend
+        const response = await fetch(`${API_URL}/admin/users/activity`);
+        const data = await response.json();
+        
+        // Transform backend user data to client table format
+        allClients = (data.users || []).map(user => ({
+            username: user.name || 'Unknown',
+            email: user.email || '--',
+            phone: user.phone || '--',
+            status: user.is_online ? 'online' : 'offline',
+            lastActivity: user.last_activity || user.updated_at,
+            sessions: 1
+        }));
+        
         displayClientsTable(allClients);
     } catch (error) {
         console.error('Error loading clients:', error);
+        // Fallback to generating mock data
+        const response = await fetch(`${API_URL}/admin/dashboard`);
+        const data = await response.json();
+        allClients = generateMockClients(data.totalUsers || 5);
+        displayClientsTable(allClients);
     }
 }
 
@@ -225,10 +274,20 @@ async function loadRoutesData() {
 
 async function loadOccupancyData() {
     try {
-        const response = await fetch(`${API_URL}/occupancy/all`);
+        // Fetch real occupancy data with vehicle and route details
+        const response = await fetch(`${API_URL}/admin/occupancy/details`);
         const data = await response.json();
         
-        allOccupancy = data.occupancyStatuses || [];
+        // Transform backend occupancy data to table format
+        allOccupancy = (data.occupancy || []).map(item => ({
+            vehicleId: item.vehicle_id || item.id,
+            vehicleRegistration: item.registration_number || '--',
+            route: item.route_name || '--',
+            status: item.occupancy_status === 'full' ? 'Full' : 'Available',
+            updatedAt: item.updated_at,
+            updatedBy: item.driver_name || 'System'
+        }));
+        
         displayOccupancyTable(allOccupancy);
     } catch (error) {
         console.error('Error loading occupancy:', error);
@@ -240,7 +299,18 @@ async function loadFeedbackData() {
         const response = await fetch(`${API_URL}/admin/feedback`);
         const data = await response.json();
         
-        allFeedback = data.feedback || [];
+        // Transform feedback with all details including status
+        allFeedback = (data.feedback || []).map(item => ({
+            id: item.id,
+            userId: item.user_id || item.passenger_name || 'Anonymous',
+            type: item.feedback_type || 'Feedback',
+            comment: item.comment,
+            route: item.route_name || 'N/A',
+            vehicleRegistration: item.registration_number || 'N/A',
+            createdAt: item.created_at,
+            status: item.status || 'pending'
+        }));
+        
         displayFeedback(allFeedback);
     } catch (error) {
         console.error('Error loading feedback:', error);
@@ -306,11 +376,13 @@ function displayFeedback(feedback) {
     feedback.forEach(item => {
         const feedbackCard = document.createElement('div');
         const type = item.type || 'Complaint';
+        const status = item.status || 'pending';
         feedbackCard.className = `feedback-card ${type.toLowerCase()}`;
         feedbackCard.innerHTML = `
             <div class="feedback-header">
                 <span class="feedback-type ${type.toLowerCase()}">${type}</span>
                 <span class="feedback-user">${item.userId || 'Anonymous'}</span>
+                <span class="feedback-status ${status.toLowerCase()}" style="margin-left: auto; padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${status === 'resolved' ? '#10b981' : status === 'reviewed' ? '#f59e0b' : '#e5e7eb'}; color: ${status === 'resolved' || status === 'reviewed' ? '#fff' : '#666'};">${status.toUpperCase()}</span>
             </div>
             <div class="feedback-comment">"${item.comment}"</div>
             <div class="feedback-meta">
@@ -683,6 +755,7 @@ async function checkDatabaseStatus() {
     // Display table information if on database tab
     if (document.getElementById('database')?.classList.contains('active')) {
         displayTableInfo();
+        loadDatabaseStatistics();
     }
 }
 
@@ -708,6 +781,50 @@ function displayTableInfo() {
     
     // Update table details
     displayTableDetails();
+}
+
+// ===== DATABASE STATISTICS =====
+async function loadDatabaseStatistics() {
+    try {
+        const response = await fetch(`${API_URL}/admin/database/stats`);
+        const data = await response.json();
+        
+        if (data.health && data.health.statistics) {
+            const stats = data.health.statistics;
+            const size = data.health.size;
+            
+            // Update total records
+            const totalRecords = Object.values(stats.tables).reduce((sum, val) => sum + val, 0);
+            document.getElementById('totalRecords').textContent = totalRecords;
+            
+            // Update database size
+            if (size && size.database_size) {
+                document.getElementById('dbSize').textContent = size.database_size;
+            }
+            
+            // Update table information with real data
+            const tableInfo = document.getElementById('tableInfo');
+            if (tableInfo) {
+                tableInfo.innerHTML = '';
+                Object.entries(stats.tables).forEach(([table, count]) => {
+                    const item = document.createElement('p');
+                    item.style.cssText = 'margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #eee;';
+                    item.innerHTML = `<strong>${table}</strong> - ${count} records`;
+                    tableInfo.appendChild(item);
+                });
+            }
+        }
+        
+        if (data.backup_info) {
+            const backupInfo = data.backup_info;
+            if (backupInfo.last_backup) {
+                const lastBackupDate = new Date(backupInfo.last_backup);
+                document.getElementById('lastBackup').textContent = lastBackupDate.toLocaleDateString();
+            }
+        }
+    } catch (error) {
+        console.error('Error loading database statistics:', error);
+    }
 }
 
 function displayTableDetails() {
@@ -778,6 +895,13 @@ function startRealtimeUpdates() {
             loadOccupancyData();
         }
     }, 10000);
+    
+    // Load database statistics if tab is visible
+    setInterval(() => {
+        if (document.getElementById('database').classList.contains('active')) {
+            loadDatabaseStatistics();
+        }
+    }, 15000);
 }
 
 // ===== UTILITY FUNCTIONS =====

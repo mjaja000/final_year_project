@@ -87,10 +87,11 @@ class OccupancyModel {
   // Get all occupancy statuses
   static async getAllOccupancyStatuses() {
     const query = `
-      SELECT vo.*, v.registration_number, v.vehicle_type, u.name as driver_name
+      SELECT vo.*, v.registration_number, v.vehicle_type, u.name as driver_name, r.route_name
       FROM vehicle_occupancy vo
       JOIN vehicles v ON vo.vehicle_id = v.id
-      JOIN users u ON vo.driver_id = u.id
+      LEFT JOIN users u ON vo.driver_id = u.id
+      LEFT JOIN routes r ON v.route_id = r.id
       ORDER BY vo.updated_at DESC;
     `;
     try {

@@ -14,9 +14,22 @@ class UserModel {
         role VARCHAR(20) DEFAULT 'user',
         status VARCHAR(20) DEFAULT 'active',
         profile_image VARCHAR(255),
+        last_activity TIMESTAMP,
+        last_login TIMESTAMP,
+        is_online BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      -- Safe migration for existing tables
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='last_activity') THEN
+          ALTER TABLE users ADD COLUMN last_activity TIMESTAMP;
+          ALTER TABLE users ADD COLUMN last_login TIMESTAMP;
+          ALTER TABLE users ADD COLUMN is_online BOOLEAN DEFAULT false;
+        END IF;
+      END
+      $$;
     `;
     try {
       await pool.query(query);
@@ -122,6 +135,96 @@ class UserModel {
   // Verify password
   static async verifyPassword(plainPassword, hashedPassword) {
     return bcrypt.compare(plainPassword, hashedPassword);
+  }
+
+  // Get total count of users
+  static async getTotalCount() {
+    const query = 'SELECT COUNT(*) as count FROM users;';
+    try {
+      const result = await pool.query(query);
+      return result.rows[0].count || 0;
+    } catch (error) {
+      console.error('Error getting user count:', error);
+      return 0;
+    }
+  }
+
+  // Track user activity (login, logout, etc)
+  static async trackActivity(userId) {
+    const query = `
+      UPDATE users
+      SET last_activity = CURRENT_TIMESTAMP, is_online = true
+      WHERE id = $1
+      RETURNING id, name, email, last_activity, is_online;
+    `;
+    try {
+      const result = await pool.query(query, [userId]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Record user login
+  static async recordLogin(userId) {
+    const query = `
+      UPDATE users
+      SET last_login = CURRENT_TIMESTAMP, is_online = true, last_activity = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING id, name, email, last_login, is_online;
+    `;
+    try {
+      const result = await pool.query(query, [userId]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Record user logout
+  static async recordLogout(userId) {
+    const query = `
+      UPDATE users
+      SET is_online = false
+      WHERE id = $1
+      RETURNING id, name, email, is_online;
+    `;
+    try {
+      const result = await pool.query(query, [userId]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get online users count
+  static async getOnlineUsersCount() {
+    const query = 'SELECT COUNT(*) as count FROM users WHERE is_online = true;';
+    try {
+      const result = await pool.query(query);
+      return result.rows[0].count || 0;
+    } catch (error) {
+      console.error('Error getting online users count:', error);
+      return 0;
+    }
+  }
+
+  // Get users with activity info
+  static async getUsersWithActivity() {
+    const query = `
+      SELECT 
+        id, name, email, phone, role, status, 
+        last_activity, last_login, is_online, 
+        created_at, updated_at
+      FROM users
+      ORDER BY last_activity DESC;
+    `;
+    try {
+      const result = await pool.query(query);
+      return result.rows;
+    } catch (error) {
+      throw error;
+    }
   }
 }
 

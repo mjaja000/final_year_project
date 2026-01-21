@@ -11,12 +11,21 @@ class FeedbackModel {
         vehicle_id INTEGER NOT NULL,
         feedback_type VARCHAR(50) NOT NULL,
         comment TEXT NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
         FOREIGN KEY (route_id) REFERENCES routes(id) ON DELETE CASCADE,
         FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
       );
+      -- Add status column if table exists without it
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='status') THEN
+          ALTER TABLE feedback ADD COLUMN status VARCHAR(50) DEFAULT 'pending';
+        END IF;
+      END
+      $$;
       -- Allow user_id to be nullable for public feedback
       DO $$
       BEGIN
@@ -174,6 +183,33 @@ class FeedbackModel {
     try {
       const result = await pool.query(query, params);
       return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Update feedback status
+  static async updateFeedbackStatus(id, status) {
+    const query = `
+      UPDATE feedback
+      SET status = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *;
+    `;
+    try {
+      const result = await pool.query(query, [status, id]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get feedback by status
+  static async getFeedbackByStatus(status) {
+    const query = 'SELECT * FROM feedback WHERE status = $1 ORDER BY created_at DESC;';
+    try {
+      const result = await pool.query(query, [status]);
+      return result.rows;
     } catch (error) {
       throw error;
     }

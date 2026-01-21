@@ -166,6 +166,65 @@ class VehicleModel {
       throw error;
     }
   }
+
+  // Get total count of vehicles
+  static async getTotalCount() {
+    const query = 'SELECT COUNT(*) as count FROM vehicles;';
+    try {
+      const result = await pool.query(query);
+      return result.rows[0].count || 0;
+    } catch (error) {
+      console.error('Error getting vehicle count:', error);
+      return 0;
+    }
+  }
+
+  // Get vehicle status summary
+  static async getVehicleStatusSummary() {
+    const query = `
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
+        COUNT(CASE WHEN status = 'inactive' THEN 1 END) as inactive
+      FROM vehicles;
+    `;
+    try {
+      const result = await pool.query(query);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get vehicles with occupancy info
+  static async getVehiclesWithOccupancy() {
+    const query = `
+      SELECT 
+        v.id,
+        v.registration_number,
+        v.vehicle_type,
+        v.capacity,
+        v.status,
+        v.route_id,
+        r.route_name,
+        u.name as driver_name,
+        vo.occupancy_status,
+        vo.current_occupancy,
+        vo.updated_at as occupancy_updated_at
+      FROM vehicles v
+      LEFT JOIN routes r ON v.route_id = r.id
+      LEFT JOIN users u ON v.user_id = u.id
+      LEFT JOIN vehicle_occupancy vo ON v.id = vo.vehicle_id
+      WHERE v.status = 'active'
+      ORDER BY v.created_at DESC;
+    `;
+    try {
+      const result = await pool.query(query);
+      return result.rows;
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 module.exports = VehicleModel;

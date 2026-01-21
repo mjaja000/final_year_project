@@ -8,18 +8,32 @@ class PaymentModel {
         id SERIAL PRIMARY KEY,
         user_id INTEGER,
         route_id INTEGER NOT NULL,
+        vehicle_id INTEGER,
         amount DECIMAL(10, 2) NOT NULL,
         phone_number VARCHAR(20) NOT NULL,
         status VARCHAR(20) DEFAULT 'pending',
+        payment_method VARCHAR(50) DEFAULT 'M-Pesa',
+        failure_reason VARCHAR(255),
         transaction_id VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
-        FOREIGN KEY (route_id) REFERENCES routes(id) ON DELETE CASCADE
+        FOREIGN KEY (route_id) REFERENCES routes(id) ON DELETE CASCADE,
+        FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL
       );
-      -- Allow user_id to be nullable for public payments
+      -- Add missing columns if they don't exist
       DO $$
       BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payments' AND column_name='vehicle_id') THEN
+          ALTER TABLE payments ADD COLUMN vehicle_id INTEGER;
+          ALTER TABLE payments ADD CONSTRAINT payments_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payments' AND column_name='payment_method') THEN
+          ALTER TABLE payments ADD COLUMN payment_method VARCHAR(50) DEFAULT 'M-Pesa';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payments' AND column_name='failure_reason') THEN
+          ALTER TABLE payments ADD COLUMN failure_reason VARCHAR(255);
+        END IF;
         IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payments' AND column_name='user_id' AND is_nullable='NO') THEN
           ALTER TABLE payments ALTER COLUMN user_id DROP NOT NULL;
           ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_user_id_fkey;
@@ -181,6 +195,42 @@ class PaymentModel {
     try {
       const result = await pool.query(query, params);
       return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Update payment with failure reason
+  static async updatePaymentWithReason(paymentId, status, failureReason = null) {
+    const query = `
+      UPDATE payments
+      SET status = $1, failure_reason = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING *;
+    `;
+    try {
+      const result = await pool.query(query, [status, failureReason, paymentId]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get payment failure statistics
+  static async getFailureStatistics() {
+    const query = `
+      SELECT 
+        COUNT(*) as total_failures,
+        failure_reason,
+        COUNT(*) as count
+      FROM payments
+      WHERE status = 'failed'
+      GROUP BY failure_reason
+      ORDER BY count DESC;
+    `;
+    try {
+      const result = await pool.query(query);
+      return result.rows;
     } catch (error) {
       throw error;
     }

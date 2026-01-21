@@ -101,6 +101,18 @@ class RouteModel {
       throw error;
     }
   }
+
+  // Get total count of routes
+  static async getTotalCount() {
+    const query = 'SELECT COUNT(*) as count FROM routes;';
+    try {
+      const result = await pool.query(query);
+      return result.rows[0].count || 0;
+    } catch (error) {
+      console.error('Error getting route count:', error);
+      return 0;
+    }
+  }
 }
 
 module.exports = RouteModel;

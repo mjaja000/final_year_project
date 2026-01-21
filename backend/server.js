@@ -11,6 +11,8 @@ const initializeTables = async () => {
     const OccupancyModel = require('./src/models/occupancyModel');
     const PaymentModel = require('./src/models/paymentModel');
     const FeedbackModel = require('./src/models/feedbackModel');
+    const ActivityLogModel = require('./src/models/activityLogModel');
+    const DatabaseStatsModel = require('./src/models/databaseStatsModel');
 
     // Create tables in dependency order
     await UserModel.createTable();
@@ -19,6 +21,7 @@ const initializeTables = async () => {
     await OccupancyModel.createTable();
     await PaymentModel.createTable();
     await FeedbackModel.createTable();
+    await ActivityLogModel.createTable();
 
     console.log('✓ All database tables initialized successfully');
   } catch (error) {
