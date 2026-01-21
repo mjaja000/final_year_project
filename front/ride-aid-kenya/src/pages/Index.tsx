@@ -1,0 +1,137 @@
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import Header from "@/components/Header";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api";
+
+export default function Index() {
+  const navigate = useNavigate();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [date, setDate] = useState(() => {
+    const d = new Date();
+    return d.toISOString().slice(0, 10);
+  });
+
+  // Fetch routes from backend
+  const { data: routes, isLoading, error } = useQuery({
+    queryKey: ['routes'],
+    queryFn: api.routes.getAll,
+  });
+
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const q = new URLSearchParams({ from, to, date }).toString();
+    navigate(`/occupancy?${q}`);
+  };
+
+  return (
+    <>
+      <Helmet>
+        <title>MatatuConnect — Book & Track</title>
+        <meta
+          name="description"
+          content="Find routes, check vehicle occupancy in real-time and pay seamlessly with MatatuConnect."
+        />
+      </Helmet>
+
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+
+        <header className="relative bg-gradient-to-r from-pink-500 via-orange-400 to-yellow-400 text-white">
+          <div className="max-w-6xl mx-auto py-20 px-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div className="max-w-2xl">
+                <h1 className="text-4xl md:text-5xl font-extrabold leading-tight mb-4">
+                  Book the best matatu rides — fast, safe, and cashless
+                </h1>
+                <p className="text-lg opacity-90 mb-6">
+                  Discover routes, view live occupancy and pay securely with M‑PESA or card — all in one simple flow.
+                </p>
+
+                <div className="flex flex-wrap gap-3">
+                  <Link to="/occupancy" className="bg-white text-black px-5 py-3 rounded-lg font-medium shadow">
+                    View Routes
+                  </Link>
+                  <Link to="/payment" className="border border-white/70 text-white px-5 py-3 rounded-lg">
+                    Pay Now
+                  </Link>
+                  <Link to="/admin" className="px-4 py-3 text-white underline">
+                    Admin Login
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-6xl mx-auto py-12 px-6">
+          <section className="bg-white rounded-xl shadow p-6 -mt-12">
+            <h2 className="text-2xl font-bold mb-4">Select Your Route</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Choose a matatu route to get started — view live occupancy and available vehicles.
+            </p>
+
+            <div className="grid gap-4">
+              {isLoading && (
+                <div className="text-center py-8 text-muted-foreground">Loading routes...</div>
+              )}
+              
+              {error && (
+                <div className="text-center py-8 text-red-500">
+                  Error loading routes. Please make sure the backend is running.
+                </div>
+              )}
+              
+              {routes && routes.length > 0 ? (
+                routes.map((route: any) => (
+                  <div key={route.id} className="flex items-center justify-between border rounded-lg p-4">
+                    <div>
+                      <div className="text-sm text-green-700 font-medium mb-1">{route.route_name}</div>
+                      <div className="text-sm text-muted-foreground">{route.start_location} → {route.end_location}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold">KES {route.price}</div>
+                      <div className="text-xs text-muted-foreground">{route.distance_km} km</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                !isLoading && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No routes available. Add routes from the admin dashboard.
+                  </div>
+                )
+              )}
+            </div>
+          </section>
+
+          <section className="mt-10 grid md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-lg p-6 shadow text-center">
+              <div className="mx-auto w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-4">🚍</div>
+              <h3 className="font-semibold mb-2">Flexible payments</h3>
+              <p className="text-sm text-muted-foreground">Pay with M‑PESA, card or bank — secure and simple.</p>
+            </div>
+
+            <div className="bg-white rounded-lg p-6 shadow text-center">
+              <div className="mx-auto w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-4">💬</div>
+              <h3 className="font-semibold mb-2">Great customer care</h3>
+              <p className="text-sm text-muted-foreground">Support available 8:00 AM to 10:00 PM via phone, chat or email.</p>
+            </div>
+
+            <div className="bg-white rounded-lg p-6 shadow text-center">
+              <div className="mx-auto w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-4">⚡</div>
+              <h3 className="font-semibold mb-2">Enjoy convenience</h3>
+              <p className="text-sm text-muted-foreground">Book anytime from your office, home or market.</p>
+            </div>
+          </section>
+
+          <footer className="mt-12 text-center text-sm text-muted-foreground">
+            © {new Date().getFullYear()} MatatuConnect. Improving public transport in Kenya.
+          </footer>
+        </main>
+      </div>
+    </>
+  );
+}
