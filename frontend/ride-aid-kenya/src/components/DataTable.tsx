@@ -45,20 +45,20 @@ function DataTable<T extends { id: string }>({
             placeholder={searchPlaceholder}
             value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9"
+            className="pl-9 text-sm"
           />
         </div>
       )}
 
       {/* Table */}
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
               {columns.map((column) => (
                 <TableHead
                   key={String(column.key)}
-                  className={cn("font-semibold", column.className)}
+                  className={cn("font-semibold text-xs sm:text-sm", column.className)}
                 >
                   {column.header}
                 </TableHead>
@@ -70,7 +70,7 @@ function DataTable<T extends { id: string }>({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center text-muted-foreground"
+                  className="h-24 text-center text-muted-foreground text-xs sm:text-sm"
                 >
                   {emptyMessage}
                 </TableCell>
@@ -79,7 +79,7 @@ function DataTable<T extends { id: string }>({
               data.map((item) => (
                 <TableRow key={item.id} className="hover:bg-muted/30">
                   {columns.map((column) => (
-                    <TableCell key={String(column.key)} className={column.className}>
+                    <TableCell key={String(column.key)} className={cn("text-xs sm:text-sm", column.className)}>
                       {column.render
                         ? column.render(item)
                         : String(item[column.key as keyof T] ?? '')}
@@ -93,7 +93,7 @@ function DataTable<T extends { id: string }>({
       </div>
 
       {/* Count */}
-      <p className="text-sm text-muted-foreground">
+      <p className="text-xs sm:text-sm text-muted-foreground">
         Showing {data.length} {data.length === 1 ? 'entry' : 'entries'}
       </p>
     </div>

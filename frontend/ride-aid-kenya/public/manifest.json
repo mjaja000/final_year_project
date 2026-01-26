@@ -1,0 +1,65 @@
+{
+  "name": "MatatuConnect",
+  "short_name": "MatatuConnect",
+  "description": "Kenya's #1 matatu booking and tracking platform. Real-time occupancy, cashless payments, and route information.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["travel", "transportation", "productivity"],
+  "lang": "en-KE",
+  "dir": "ltr",
+  "scope": "/",
+  "shortcuts": [
+    {
+      "name": "Check Occupancy",
+      "short_name": "Occupancy",
+      "description": "View live matatu occupancy",
+      "url": "/occupancy",
+      "icons": [{ "src": "/icon-occupancy.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Quick Payment",
+      "short_name": "Pay",
+      "description": "Make a payment",
+      "url": "/payment",
+      "icons": [{ "src": "/icon-payment.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Send Feedback",
+      "short_name": "Feedback",
+      "description": "Share your experience",
+      "url": "/feedback",
+      "icons": [{ "src": "/icon-feedback.png", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-1.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "label": "Homepage with route search"
+    },
+    {
+      "src": "/screenshot-2.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "label": "Live occupancy tracking"
+    }
+  ]
+}

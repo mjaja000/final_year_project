@@ -110,37 +110,37 @@ const OccupancyDisplay = () => {
   const total = stats.empty + stats.half + stats.full;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-2xl font-bold text-foreground">Occupancy Overview</h3>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h3 className="text-xl sm:text-2xl font-bold text-foreground">Occupancy Overview</h3>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Real-time vehicle capacity status across all routes
           </p>
         </div>
-        <Button onClick={refresh} variant="outline" size="sm" disabled={loading}>
+        <Button onClick={refresh} variant="outline" size="sm" disabled={loading} className="w-full sm:w-auto">
           <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           Refresh
         </Button>
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="p-2 sm:p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
           <p className="text-xs text-blue-600 dark:text-blue-300 font-medium mb-1">Empty</p>
-          <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{stats.empty}</p>
-          <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">{total > 0 ? Math.round((stats.empty / total) * 100) : 0}% of fleet</p>
+          <p className="text-xl sm:text-2xl font-bold text-blue-900 dark:text-blue-100">{stats.empty}</p>
+          <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">{total > 0 ? Math.round((stats.empty / total) * 100) : 0}%</p>
         </div>
-        <div className="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
+        <div className="p-2 sm:p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
           <p className="text-xs text-yellow-600 dark:text-yellow-300 font-medium mb-1">Half-Full</p>
-          <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">{stats.half}</p>
-          <p className="text-xs text-yellow-600 dark:text-yellow-300 mt-1">{total > 0 ? Math.round((stats.half / total) * 100) : 0}% of fleet</p>
+          <p className="text-xl sm:text-2xl font-bold text-yellow-900 dark:text-yellow-100">{stats.half}</p>
+          <p className="text-xs text-yellow-600 dark:text-yellow-300 mt-1">{total > 0 ? Math.round((stats.half / total) * 100) : 0}%</p>
         </div>
-        <div className="p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
+        <div className="p-2 sm:p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
           <p className="text-xs text-red-600 dark:text-red-300 font-medium mb-1">Full</p>
-          <p className="text-2xl font-bold text-red-900 dark:text-red-100">{stats.full}</p>
-          <p className="text-xs text-red-600 dark:text-red-300 mt-1">{total > 0 ? Math.round((stats.full / total) * 100) : 0}% of fleet</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-900 dark:text-red-100">{stats.full}</p>
+          <p className="text-xs text-red-600 dark:text-red-300 mt-1">{total > 0 ? Math.round((stats.full / total) * 100) : 0}%</p>
         </div>
       </div>
 
@@ -150,34 +150,34 @@ const OccupancyDisplay = () => {
       </p>
 
       {/* Routes */}
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {allRoutes.map((r) => (
-          <div key={r.id} className="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
+          <div key={r.id} className="p-3 sm:p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
             {/* Route Header */}
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="font-semibold text-foreground">{r.name}</p>
-                <p className="text-sm text-muted-foreground">{r.from} → {r.to}</p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
+              <div className="flex-1">
+                <p className="font-semibold text-sm sm:text-base text-foreground">{r.name}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">{r.from} → {r.to}</p>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-medium text-foreground">KES {r.fare}</p>
+              <div className="text-right shrink-0">
+                <p className="text-xs sm:text-sm font-medium text-foreground">KES {r.fare}</p>
                 <p className="text-xs text-muted-foreground">{r.vehicles.length} vehicles</p>
               </div>
             </div>
 
             {/* Vehicles Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2">
               {r.vehicles.map((v) => {
                 const s = (data[r.id] && data[r.id][v]) || 'empty';
                 return (
                   <div
                     key={v}
                     className={cn(
-                      'p-3 rounded-lg border-2 transition-all cursor-default',
+                      'p-2 sm:p-3 rounded-lg border-2 transition-all cursor-default',
                       statusColor(s)
                     )}
                   >
-                    <p className="font-mono text-sm font-semibold mb-1">{v}</p>
+                    <p className="font-mono text-xs sm:text-sm font-semibold mb-1">{v}</p>
                     <p className="text-xs font-medium">
                       {statusEmoji(s)} {statusLabel(s)}
                     </p>
@@ -190,7 +190,7 @@ const OccupancyDisplay = () => {
       </div>
 
       {/* Info */}
-      <div className="p-3 bg-muted rounded-lg flex gap-2 text-sm text-muted-foreground">
+      <div className="p-3 bg-muted rounded-lg flex gap-2 text-xs sm:text-sm text-muted-foreground">
         <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
         <p>This occupancy data is updated by drivers and conductors in real-time.</p>
       </div>

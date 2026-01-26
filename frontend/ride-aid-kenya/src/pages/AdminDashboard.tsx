@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, MessageSquare, CreditCard, ThumbsUp, ThumbsDown, Trello, Gauge } from 'lucide-react';
+import { LogOut, MessageSquare, CreditCard, ThumbsUp, ThumbsDown, Trello, Gauge, TrendingUp, Users, DollarSign, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/Header';
@@ -200,99 +200,147 @@ const AdminDashboard = () => {
         <meta name="description" content="MatatuConnect administrator dashboard for managing feedback and payment logs." />
       </Helmet>
 
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
         <Header />
 
-        <main className="container py-6 px-4">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-              <p className="text-sm text-muted-foreground">
-                Manage feedback and payment records
-              </p>
+        {/* Hero Header */}
+        <div className="bg-gradient-to-r from-slate-900 via-gray-900 to-slate-800 text-white py-8 sm:py-12 shadow-2xl">
+          <div className="container px-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+                    <TrendingUp className="h-6 w-6 sm:h-7 sm:w-7" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold">Admin Dashboard</h1>
+                    <p className="text-sm text-gray-400">Manage your transport system</p>
+                  </div>
+                </div>
+              </div>
+              <Button 
+                onClick={handleLogout} 
+                className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
             </div>
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
           </div>
+        </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="p-4 bg-card rounded-lg border border-border">
-              <p className="text-sm text-muted-foreground mb-1">Total Feedback</p>
-              <p className="text-2xl font-bold text-foreground">{mockFeedback.length}</p>
+        <main className="container py-6 sm:py-8 px-4">
+          {/* Stats - Enhanced Design */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <MessageSquare className="h-6 w-6" />
+                </div>
+                <TrendingUp className="h-5 w-5 opacity-70" />
+              </div>
+              <p className="text-sm opacity-90 mb-1">Total Feedback</p>
+              <p className="text-3xl sm:text-4xl font-bold">{mockFeedback.length}</p>
             </div>
-            <div className="p-4 bg-card rounded-lg border border-border">
-              <p className="text-sm text-muted-foreground mb-1">Pending Review</p>
-              <p className="text-2xl font-bold text-accent">
+
+            <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <AlertCircle className="h-6 w-6" />
+                </div>
+                <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded-full">Urgent</span>
+              </div>
+              <p className="text-sm opacity-90 mb-1">Pending Review</p>
+              <p className="text-3xl sm:text-4xl font-bold">
                 {mockFeedback.filter((f) => f.status === 'pending').length}
               </p>
             </div>
-            <div className="p-4 bg-card rounded-lg border border-border">
-              <p className="text-sm text-muted-foreground mb-1">Total Payments</p>
-              <p className="text-2xl font-bold text-foreground">{mockPayments.length}</p>
+
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <CreditCard className="h-6 w-6" />
+                </div>
+                <Users className="h-5 w-5 opacity-70" />
+              </div>
+              <p className="text-sm opacity-90 mb-1">Total Payments</p>
+              <p className="text-3xl sm:text-4xl font-bold">{mockPayments.length}</p>
             </div>
-            <div className="p-4 bg-card rounded-lg border border-border">
-              <p className="text-sm text-muted-foreground mb-1">Revenue (Simulated)</p>
-              <p className="text-2xl font-bold text-success">
-                KES {mockPayments.reduce((sum, p) => sum + p.amount, 0)}
+
+            <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <DollarSign className="h-6 w-6" />
+                </div>
+                <TrendingUp className="h-5 w-5 opacity-70" />
+              </div>
+              <p className="text-sm opacity-90 mb-1">Revenue</p>
+              <p className="text-2xl sm:text-3xl font-bold">
+                KES {mockPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
               </p>
             </div>
           </div>
 
-          {/* Tabs */}
-          <Tabs defaultValue="feedback" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="feedback" className="gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Feedback Logs
-              </TabsTrigger>
-              <TabsTrigger value="payments" className="gap-2">
-                <CreditCard className="h-4 w-4" />
-                Payment Simulations
-              </TabsTrigger>
-              <TabsTrigger value="routes" className="gap-2">
-                <Trello className="h-4 w-4" />
-                Routes & Prices
-              </TabsTrigger>
-              <TabsTrigger value="occupancy" className="gap-2">
-                <Gauge className="h-4 w-4" />
-                Occupancy
-              </TabsTrigger>
-            </TabsList>
+          {/* Tabs - Enhanced Design */}
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+            <Tabs defaultValue="feedback" className="w-full">
+              <div className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 p-4">
+                <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 h-auto bg-white rounded-xl shadow-sm p-1">
+                  <TabsTrigger value="feedback" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white">
+                    <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Feedback</span>
+                    <span className="sm:hidden">Feed</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="payments" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white">
+                    <CreditCard className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Payments</span>
+                    <span className="sm:hidden">Pay</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="routes" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white">
+                    <Trello className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Routes</span>
+                    <span className="sm:hidden">Rte</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="occupancy" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white">
+                    <Gauge className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span>Occ</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
-            <TabsContent value="feedback" className="animate-fade-in">
-              <DataTable
-                data={filteredFeedback}
-                columns={feedbackColumns}
-                searchPlaceholder="Search by vehicle, route, or message..."
-                searchValue={feedbackSearch}
-                onSearchChange={setFeedbackSearch}
-                emptyMessage="No feedback entries found"
-              />
-            </TabsContent>
+              <div className="p-4 sm:p-6">
+                <TabsContent value="feedback" className="animate-fade-in m-0">
+                  <DataTable
+                    data={filteredFeedback}
+                    columns={feedbackColumns}
+                    searchPlaceholder="Search by vehicle, route, or message..."
+                    searchValue={feedbackSearch}
+                    onSearchChange={setFeedbackSearch}
+                    emptyMessage="No feedback entries found"
+                  />
+                </TabsContent>
 
-            <TabsContent value="payments" className="animate-fade-in">
-              <DataTable
-                data={filteredPayments}
-                columns={paymentColumns}
-                searchPlaceholder="Search by transaction ID, vehicle, or route..."
-                searchValue={paymentSearch}
-                onSearchChange={setPaymentSearch}
-                emptyMessage="No payment records found"
-              />
-            </TabsContent>
+                <TabsContent value="payments" className="animate-fade-in m-0">
+                  <DataTable
+                    data={filteredPayments}
+                    columns={paymentColumns}
+                    searchPlaceholder="Search by transaction ID, vehicle, or route..."
+                    searchValue={paymentSearch}
+                    onSearchChange={setPaymentSearch}
+                    emptyMessage="No payment records found"
+                  />
+                </TabsContent>
 
-            <TabsContent value="routes" className="animate-fade-in">
-              <RouteManager />
-            </TabsContent>
+                <TabsContent value="routes" className="animate-fade-in m-0">
+                  <RouteManager />
+                </TabsContent>
 
-            <TabsContent value="occupancy" className="animate-fade-in">
-              <OccupancyManager />
-            </TabsContent>
-          </Tabs>
+                <TabsContent value="occupancy" className="animate-fade-in m-0">
+                  <OccupancyManager />
+                </TabsContent>
+              </div>
+            </Tabs>
+          </div>
         </main>
       </div>
     </>

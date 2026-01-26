@@ -41,6 +41,11 @@ const server = app.listen(PORT, async () => {
   await initializeTables();
 });
 
+// Keep the server alive
+server.on('close', () => {
+  console.log('⚠️ Server closed event triggered');
+});
+
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM signal received: closing HTTP server');
@@ -81,15 +86,13 @@ process.on('uncaughtException', (err) => {
 });
 
 // Log when process is about to exit
-process.on('exit', (code) => {
-  console.log(`🛑 Process exiting with code: ${code}`);
-});
+// process.on('exit', (code) => {
+//   console.log(`🛑 Process exiting with code: ${code}`);
+// });
 
 // Log when process receives termination signals
-process.on('beforeExit', (code) => {
-  console.log(`⚠️ Process beforeExit event with code: ${code}`);
-});
+// process.on('beforeExit', (code) => {
+//   console.log(`⚠️ Process beforeExit event with code: ${code}`);
+// });
 
 console.log('🔄 Server initialization complete. Listening for requests...');
-
-module.exports = server;

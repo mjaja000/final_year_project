@@ -76,29 +76,36 @@ const AdminLogin = () => {
         />
       </Helmet>
 
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
         <Header />
 
-        <main className="container max-w-md py-12 px-4">
-          <div className="text-center mb-8 animate-fade-in">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-2xl mb-4">
-              <Shield className="h-8 w-8 text-primary" />
+        {/* Decorative Elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 right-20 w-96 h-96 bg-green-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 left-20 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+        </div>
+
+        <main className="container max-w-md py-8 sm:py-12 px-4 relative z-10">
+          <div className="text-center mb-6 sm:mb-8 animate-fade-in">
+            <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl mb-4 shadow-2xl">
+              <Shield className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
               Admin Portal
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm sm:text-base text-gray-400">
               Sign in to access the dashboard
             </p>
           </div>
 
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-5 animate-fade-in"
-            style={{ animationDelay: "0.1s" }}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 sm:p-8 border border-white/10 shadow-2xl">
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-4 sm:space-y-5 animate-fade-in"
+              style={{ animationDelay: "0.1s" }}
+            >
+              <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm text-gray-300">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -107,11 +114,12 @@ const AdminLogin = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
                 required
+                className="text-sm bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:bg-white/20 focus:border-green-500"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-sm text-gray-300">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -121,12 +129,12 @@ const AdminLogin = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
                   required
-                  className="pr-10"
+                  className="pr-10 text-sm bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:bg-white/20 focus:border-green-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
@@ -140,8 +148,7 @@ const AdminLogin = () => {
 
             <Button
               type="submit"
-              variant="hero"
-              className="w-full"
+              className="w-full text-sm bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold py-6 rounded-xl shadow-lg hover:shadow-xl transition-all"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -157,26 +164,27 @@ const AdminLogin = () => {
 
           {/* Demo Credentials Hint */}
           <div
-            className="mt-8 p-4 bg-secondary/50 rounded-lg animate-fade-in"
+            className="mt-6 sm:mt-8 p-3 sm:p-4 bg-green-500/10 backdrop-blur-sm rounded-xl border border-green-500/20 animate-fade-in"
             style={{ animationDelay: "0.2s" }}
           >
-            <p className="text-sm font-medium text-secondary-foreground mb-2">
+            <p className="text-xs sm:text-sm font-medium text-green-400 mb-2">
               Demo Credentials:
             </p>
-            <div className="space-y-1 text-sm text-muted-foreground">
+            <div className="space-y-1 text-xs sm:text-sm text-gray-300">
               <p>
                 Email:{" "}
-                <code className="bg-background px-1.5 py-0.5 rounded text-foreground">
+                <code className="bg-white/10 px-1.5 py-0.5 rounded text-white text-xs">
                   {DEMO_EMAIL}
                 </code>
               </p>
               <p>
                 Password:{" "}
-                <code className="bg-background px-1.5 py-0.5 rounded text-foreground">
+                <code className="bg-white/10 px-1.5 py-0.5 rounded text-white text-xs">
                   {DEMO_PASSWORD}
                 </code>
               </p>
             </div>
+          </div>
           </div>
         </main>
       </div>

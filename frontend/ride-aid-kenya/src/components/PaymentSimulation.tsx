@@ -97,27 +97,27 @@ const PaymentSimulation = ({ route, onBack }: PaymentSimulationProps) => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
       {/* Route Info */}
-      <div className="text-center pb-4 border-b border-border">
-        <p className="text-sm text-muted-foreground mb-3">Payment Simulation (No real money involved)</p>
+      <div className="text-center pb-3 sm:pb-4 border-b border-border">
+        <p className="text-xs sm:text-sm text-muted-foreground mb-3">Payment Simulation (No real money involved)</p>
         <div className="mt-2 mb-4">
           <select
             value={selectedRouteId}
             onChange={(e) => setSelectedRouteId(e.target.value)}
-            className="w-full rounded-md border px-3 py-2 bg-background"
+            className="w-full rounded-md border px-3 py-2 bg-background text-sm"
           >
             {allRoutes.map((r) => (
               <option key={r.id} value={r.id}>{r.name} — {r.from} → {r.to} — KES {r.fare}</option>
             ))}
           </select>
         </div>
-        <p className="text-5xl font-bold text-foreground">KES {fare}</p>
+        <p className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground">KES {fare}</p>
       </div>
 
       {/* Vehicle Number */}
       <div className="space-y-2">
-        <Label htmlFor="paymentVehicle">Vehicle Number</Label>
+        <Label htmlFor="paymentVehicle" className="text-sm">Vehicle Number</Label>
         <Input
           id="paymentVehicle"
           type="text"
@@ -125,7 +125,7 @@ const PaymentSimulation = ({ route, onBack }: PaymentSimulationProps) => {
           value={vehicleNumber}
           onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
           className={cn(
-            "uppercase text-center text-lg",
+            "uppercase text-center text-base sm:text-lg",
             vehicleNumber && !vehicleValid && "border-destructive focus-visible:ring-destructive"
           )}
           maxLength={9}
@@ -140,7 +140,7 @@ const PaymentSimulation = ({ route, onBack }: PaymentSimulationProps) => {
 
       {/* Phone Number */}
       <div className="space-y-2">
-        <Label htmlFor="phone">Phone Number (M-Pesa)</Label>
+        <Label htmlFor="phone" className="text-sm">Phone Number (M-Pesa)</Label>
         <Input
           id="phone"
           type="tel"
@@ -148,7 +148,7 @@ const PaymentSimulation = ({ route, onBack }: PaymentSimulationProps) => {
           value={phoneNumber}
           onChange={(e) => setPhoneNumber(e.target.value)}
           className={cn(
-            "text-center",
+            "text-center text-sm",
             phoneNumber && !phoneValid && "border-destructive focus-visible:ring-destructive"
           )}
           maxLength={13}
@@ -162,21 +162,21 @@ const PaymentSimulation = ({ route, onBack }: PaymentSimulationProps) => {
       </div>
 
       {/* Payment Info */}
-      <div className="p-4 bg-secondary/50 rounded-lg">
-        <div className="flex items-center gap-3 text-secondary-foreground">
-          <Smartphone className="h-8 w-8 text-primary" />
-          <div>
-            <p className="font-medium">M-Pesa Payment Simulation</p>
-            <p className="text-sm text-muted-foreground">
+      <div className="p-3 sm:p-4 bg-secondary/50 rounded-lg">
+        <div className="flex items-start gap-3 text-secondary-foreground">
+          <Smartphone className="h-6 sm:h-8 w-6 sm:w-8 text-primary shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-sm sm:text-base">M-Pesa Payment Simulation</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">
               This is a demonstration — no real money will be charged.
             </p>
             {paymentStatus === 'success' && transactionRef && (
-              <p className="mt-2 text-sm text-success font-medium">
+              <p className="mt-2 text-xs sm:text-sm text-success font-medium break-all">
                 ✓ Transaction ref: <span className="font-mono">{transactionRef}</span>
               </p>
             )}
             {paymentStatus === 'failed' && (
-              <p className="mt-2 text-sm text-destructive font-medium">✕ Payment failed. Try again.</p>
+              <p className="mt-2 text-xs sm:text-sm text-destructive font-medium">✕ Payment failed. Try again.</p>
             )}
           </div>
         </div>
@@ -184,7 +184,7 @@ const PaymentSimulation = ({ route, onBack }: PaymentSimulationProps) => {
 
       {/* Validation Summary */}
       {(vehicleNumber || phoneNumber) && (!vehicleValid || !phoneValid) && (
-        <div className="p-3 bg-muted rounded-lg text-sm text-muted-foreground">
+        <div className="p-3 bg-muted rounded-lg text-xs sm:text-sm text-muted-foreground">
           <p className="font-medium mb-1 flex items-center gap-2">
             <AlertCircle className="h-4 w-4" />
             Please complete the following:
@@ -197,12 +197,12 @@ const PaymentSimulation = ({ route, onBack }: PaymentSimulationProps) => {
       )}
 
       {/* Actions */}
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
         <Button
           type="button"
           variant="outline"
           onClick={onBack}
-          className="flex-1"
+          className="w-full sm:flex-1 text-sm"
           disabled={isProcessing}
         >
           Back
@@ -211,7 +211,7 @@ const PaymentSimulation = ({ route, onBack }: PaymentSimulationProps) => {
           onClick={handlePayment}
           variant="hero"
           disabled={!vehicleValid || !phoneValid || isProcessing}
-          className="flex-1"
+          className="w-full sm:flex-1 text-sm"
         >
           {isProcessing ? (
             <>

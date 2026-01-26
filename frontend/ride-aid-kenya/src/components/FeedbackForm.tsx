@@ -81,21 +81,21 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 animate-fade-in">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground border-b border-border pb-3">
+    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs sm:text-sm text-muted-foreground border-b border-border pb-3">
         <span className="font-medium text-foreground">{route?.name ?? 'Select Route'}</span>
-        <span>•</span>
+        <span className="hidden sm:inline">•</span>
         <span>{route?.from ?? ''} {route ? '→' : ''} {route?.to ?? ''}</span>
       </div>
 
       {/* Route Select */}
       <div className="space-y-2">
-        <Label htmlFor="routeSelect">Route</Label>
+        <Label htmlFor="routeSelect" className="text-sm">Route</Label>
         <select
           id="routeSelect"
           value={selectedRouteId ?? ''}
           onChange={(e) => setSelectedRouteId(e.target.value || null)}
-          className="w-full rounded-md border px-3 py-2"
+          className="w-full rounded-md border px-3 py-2 text-sm"
         >
           {allRoutes.map((r) => (
             <option key={r.id} value={r.id}>{r.name} — {r.from} → {r.to}</option>
@@ -105,7 +105,7 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
 
       {/* Vehicle Number */}
       <div className="space-y-2">
-        <Label htmlFor="vehicleNumber">Vehicle Number</Label>
+        <Label htmlFor="vehicleNumber" className="text-sm">Vehicle Number</Label>
         <Input
           id="vehicleNumber"
           type="text"
@@ -113,12 +113,26 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
           value={vehicleNumber}
           onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
           className={cn(
-            "uppercase",
-            vehicleNumber && !vehicleValid && "border-destructive focus-visible:ring-destructive"
+            "uppercase text-sm",
+            vehicleNumber && !vehicleValid && "border-destructive focus-visible:ring-destructive",
+            vehicleNumber && vehicleValid && "border-success focus-visible:ring-success"
           )}
-          aria-describedby="vehicleHelp"
+          aria-describedby="vehicleHelp vehicleError"
+          aria-invalid={vehicleNumber && !vehicleValid}
           maxLength={9}
         />
+        {vehicleNumber && !vehicleValid && (
+          <p id="vehicleError" className="text-xs text-destructive flex items-center gap-1" role="alert">
+            <span aria-hidden="true">⚠️</span>
+            Invalid format. Example: KCA 123X
+          </p>
+        )}
+        {vehicleNumber && vehicleValid && (
+          <p className="text-xs text-success flex items-center gap-1">
+            <span aria-hidden="true">✓</span>
+            Valid vehicle number
+          </p>
+        )}
         <p id="vehicleHelp" className="text-xs text-muted-foreground">
           Enter the matatu registration number (e.g., KCA 123X)
         </p>
@@ -126,34 +140,34 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
 
       {/* Feedback Type */}
       <div className="space-y-2">
-        <Label>Feedback Type</Label>
-        <div className="grid grid-cols-2 gap-3">
+        <Label className="text-sm">Feedback Type</Label>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => setFeedbackType('compliment')}
             className={cn(
-              "flex items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all duration-200",
+              "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 p-3 sm:p-4 rounded-lg border-2 transition-all duration-200 text-xs sm:text-sm",
               feedbackType === 'compliment'
                 ? "border-success bg-success/10 text-success"
                 : "border-border hover:border-success/50 hover:bg-success/5"
             )}
             aria-pressed={feedbackType === 'compliment'}
           >
-            <ThumbsUp className="h-5 w-5" />
+            <ThumbsUp className="h-4 sm:h-5 w-4 sm:w-5" />
             <span className="font-medium">Compliment</span>
           </button>
           <button
             type="button"
             onClick={() => setFeedbackType('complaint')}
             className={cn(
-              "flex items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all duration-200",
+              "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 p-3 sm:p-4 rounded-lg border-2 transition-all duration-200 text-xs sm:text-sm",
               feedbackType === 'complaint'
                 ? "border-destructive bg-destructive/10 text-destructive"
                 : "border-border hover:border-destructive/50 hover:bg-destructive/5"
             )}
             aria-pressed={feedbackType === 'complaint'}
           >
-            <ThumbsDown className="h-5 w-5" />
+            <ThumbsDown className="h-4 sm:h-5 w-4 sm:w-5" />
             <span className="font-medium">Complaint</span>
           </button>
         </div>
@@ -161,8 +175,8 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
 
       {/* Message */}
       <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <Label htmlFor="message">Your Message</Label>
+        <div className="flex justify-between items-center gap-2">
+          <Label htmlFor="message" className="text-sm">Your Message</Label>
           <span className={cn(
             "text-xs",
             message.length > 200 ? "text-destructive" : "text-muted-foreground"
@@ -176,7 +190,7 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           className={cn(
-            "min-h-[100px] resize-none",
+            "min-h-[100px] resize-none text-sm",
             message && !messageValid && "border-destructive focus-visible:ring-destructive"
           )}
           maxLength={200}
@@ -188,7 +202,7 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
 
       {/* Validation Summary */}
       {!canSubmit && (
-        <div className="p-3 bg-muted rounded-lg text-sm text-muted-foreground">
+        <div className="p-3 bg-muted rounded-lg text-xs sm:text-sm text-muted-foreground">
           <p className="font-medium mb-1">Please complete the following:</p>
           <ul className="text-xs space-y-0.5 list-disc list-inside">
             {!vehicleValid && <li>Enter a valid vehicle number (e.g., KCA 123X)</li>}
@@ -199,12 +213,12 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
       )}
 
       {/* Actions */}
-      <div className="flex gap-3 pt-2">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
         <Button
           type="button"
           variant="outline"
           onClick={onBack}
-          className="flex-1"
+          className="w-full sm:flex-1 text-sm"
         >
           Back
         </Button>
@@ -212,7 +226,7 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
           type="submit"
           variant="hero"
           disabled={!canSubmit}
-          className="flex-1"
+          className="w-full sm:flex-1 text-sm"
         >
           {isSubmitting ? (
             <>
