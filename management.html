@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MatatuConnect - Management Dashboard</title>
+    <link rel="stylesheet" href="assets/css/management.css">
+</head>
+<body>
+    <!-- Login Page -->
+    <div id="loginPage" class="page active">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <h1>🚌 MatatuConnect</h1>
+                    <p>Management Dashboard</p>
+                </div>
+                <form class="login-form" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="username" placeholder="Enter username" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="password" placeholder="Enter password" autocomplete="off">
+                    </div>
+                    <button type="submit" class="btn-login">Login</button>
+                    <div id="loginError" class="error-message"></div>
+                    <div class="default-creds">
+                        <p>Demo Credentials:</p>
+                        <small>Username: <strong>admin</strong></small><br>
+                        <small>Password: <strong>admin</strong></small>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Page -->
+    <div id="dashboardPage" class="page">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>🚌 MatatuConnect Management</h1>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator">
+                    <span id="serverStatus" class="status-dot offline"></span>
+                    <span id="serverText">Server: Checking...</span>
+                </div>
+                <button onclick="logout()" class="btn-logout">Logout</button>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="sidebar">
+            <div class="nav-section">
+                <h3>Dashboard</h3>
+                <button class="nav-btn active" onclick="showTab('overview')">📊 Overview</button>
+                <button class="nav-btn" onclick="showTab('statistics')">📈 Statistics</button>
+            </div>
+            <div class="nav-section">
+                <h3>Operations</h3>
+                <button class="nav-btn" onclick="showTab('clients')">👥 Connected Clients</button>
+                <button class="nav-btn" onclick="showTab('routes')">🗺️ Routes</button>
+                <button class="nav-btn" onclick="showTab('occupancy')">🚐 Occupancy Status</button>
+            </div>
+            <div class="nav-section">
+                <h3>Feedback</h3>
+                <button class="nav-btn" onclick="showTab('feedback')">💬 Feedback</button>
+            </div>
+            <div class="nav-section">
+                <h3>System</h3>
+                <button class="nav-btn" onclick="showTab('services')">⚙️ Services Health</button>
+                <button class="nav-btn" onclick="showTab('database')">🗄️ Database</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Overview Tab -->
+            <div id="overview" class="tab-content active">
+                <div class="page-header">
+                    <h2>Dashboard Overview</h2>
+                    <p>Real-time system status and key metrics</p>
+                </div>
+
+                <!-- Status Cards -->
+                <div class="status-cards">
+                    <div class="status-card">
+                        <div class="card-icon">👥</div>
+                        <div class="card-content">
+                            <h3>Total Users</h3>
+                            <p class="card-value" id="totalUsers">0</p>
+                        </div>
+                    </div>
+                    <div class="status-card">
+                        <div class="card-icon">🚌</div>
+                        <div class="card-content">
+                            <h3>Total Vehicles</h3>
+                            <p class="card-value" id="totalVehicles">0</p>
+                        </div>
+                    </div>
+                    <div class="status-card">
+                        <div class="card-icon">💬</div>
+                        <div class="card-content">
+                            <h3>Total Feedback</h3>
+                            <p class="card-value" id="totalFeedback">0</p>
+                        </div>
+                    </div>
+                    <div class="status-card">
+                        <div class="card-icon">💰</div>
+                        <div class="card-content">
+                            <h3>Total Payments</h3>
+                            <p class="card-value" id="totalPayments">0</p>
+                        </div>
+                    </div>
+                    <div class="status-card">
+                        <div class="card-icon">👁️</div>
+                        <div class="card-content">
+                            <h3>Online Users</h3>
+                            <p class="card-value" id="onlineUsers">0</p>
+                        </div>
+                    </div>
+                    <div class="status-card">
+                        <div class="card-icon">🔗</div>
+                        <div class="card-content">
+                            <h3>Active Routes</h3>
+                            <p class="card-value" id="activeRoutes">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="charts-section">
+                    <div class="chart-container">
+                        <h3>Feedback Distribution</h3>
+                        <canvas id="feedbackChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>User Activity (Last 7 Days)</h3>
+                        <canvas id="userActivityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics Tab -->
+            <div id="statistics" class="tab-content">
+                <div class="page-header">
+                    <h2>Advanced Statistics</h2>
+                    <p>Detailed analytics and insights</p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <h3>Feedback by Type</h3>
+                        <div id="feedbackStats">
+                            <p class="stat-item">Complaints: <strong id="complaintCount">0</strong></p>
+                            <p class="stat-item">Compliments: <strong id="complimentCount">0</strong></p>
+                        </div>
+                    </div>
+                    <div class="stat-box">
+                        <h3>Vehicle Status</h3>
+                        <div id="vehicleStats">
+                            <p class="stat-item">Available: <strong id="availableVehicles">0</strong></p>
+                            <p class="stat-item">Full: <strong id="fullVehicles">0</strong></p>
+                        </div>
+                    </div>
+                    <div class="stat-box">
+                        <h3>Top Routes</h3>
+                        <div id="topRoutes"></div>
+                    </div>
+                    <div class="stat-box">
+                        <h3>System Uptime</h3>
+                        <p class="stat-item">Server: <strong id="uptime">Checking...</strong> <span id="serverUptime" style="margin-left: 10px; color: #666;">00:00:00</span></p>
+                        <p class="stat-item">Database: <strong id="dbStatus">Checking...</strong> <span id="dbUptime" style="margin-left: 10px; color: #666;">00:00:00</span></p>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="chart-container full-width">
+                    <h3>System Performance</h3>
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Connected Clients Tab -->
+            <div id="clients" class="tab-content">
+                <div class="page-header">
+                    <h2>Connected Clients</h2>
+                    <p>Users currently online and their activity</p>
+                </div>
+
+                <div class="filter-bar">
+                    <input type="text" id="clientFilter" placeholder="Search clients..." onkeyup="filterClients()">
+                    <select id="statusFilter" onchange="filterClients()">
+                        <option value="">All Status</option>
+                        <option value="online">Online</option>
+                        <option value="offline">Offline</option>
+                    </select>
+                </div>
+
+                <div class="clients-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Last Activity</th>
+                                <th>Sessions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientsTableBody">
+                            <tr><td colspan="6" class="loading">Loading clients...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Routes Tab -->
+            <div id="routes" class="tab-content">
+                <div class="page-header">
+                    <h2>Matatu Routes</h2>
+                    <p>All available routes in the system</p>
+                </div>
+
+                <div class="routes-grid" id="routesContainer">
+                    <p class="loading">Loading routes...</p>
+                </div>
+            </div>
+
+            <!-- Occupancy Tab -->
+            <div id="occupancy" class="tab-content">
+                <div class="page-header">
+                    <h2>Vehicle Occupancy Status</h2>
+                    <p>Real-time occupancy of all vehicles</p>
+                </div>
+
+                <div class="occupancy-controls">
+                    <input type="text" id="vehicleFilter" placeholder="Search by registration..." onkeyup="filterOccupancy()">
+                    <select id="statusOccupancyFilter" onchange="filterOccupancy()">
+                        <option value="">All Status</option>
+                        <option value="Available">Available</option>
+                        <option value="Full">Full</option>
+                    </select>
+                </div>
+
+                <div class="occupancy-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Vehicle ID</th>
+                                <th>Registration</th>
+                                <th>Route</th>
+                                <th>Status</th>
+                                <th>Last Updated</th>
+                                <th>Updated By</th>
+                            </tr>
+                        </thead>
+                        <tbody id="occupancyTableBody">
+                            <tr><td colspan="6" class="loading">Loading occupancy data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Feedback Tab -->
+            <div id="feedback" class="tab-content">
+                <div class="page-header">
+                    <h2>User Feedback</h2>
+                    <p>Organized feedback from passengers</p>
+                </div>
+
+                <div class="feedback-filters">
+                    <input type="text" id="feedbackFilter" placeholder="Search feedback..." onkeyup="filterFeedback()">
+                    <select id="feedbackTypeFilter" onchange="filterFeedback()">
+                        <option value="">All Types</option>
+                        <option value="Complaint">Complaints</option>
+                        <option value="Compliment">Compliments</option>
+                    </select>
+                </div>
+
+                <div class="feedback-container" id="feedbackContainer">
+                    <p class="loading">Loading feedback...</p>
+                </div>
+            </div>
+
+            <!-- Services Health Tab -->
+            <div id="services" class="tab-content">
+                <div class="page-header">
+                    <h2>Backend Services Health</h2>
+                    <p>Status of all integrated services</p>
+                </div>
+
+                <div class="services-grid">
+                    <div class="service-card">
+                        <div class="service-icon">🔐</div>
+                        <h3>Authentication Service</h3>
+                        <p class="service-status" id="authService">Checking...</p>
+                        <p class="service-description">JWT token validation and user authentication</p>
+                    </div>
+                    <div class="service-card">
+                        <div class="service-icon">💰</div>
+                        <h3>M-Pesa Payment Service</h3>
+                        <p class="service-status" id="mpesaService">Checking...</p>
+                        <p class="service-description">Safaricom Daraja API integration</p>
+                    </div>
+                    <div class="service-card">
+                        <div class="service-icon">💬</div>
+                        <h3>SMS Notification Service</h3>
+                        <p class="service-status" id="smsService">Checking...</p>
+                        <p class="service-description">Africa's Talking SMS API</p>
+                    </div>
+                    <div class="service-card">
+                        <div class="service-icon">📱</div>
+                        <h3>WhatsApp Service</h3>
+                        <p class="service-status" id="whatsappService">Checking...</p>
+                        <p class="service-description">Meta Graph API v18.0</p>
+                    </div>
+                    <div class="service-card">
+                        <div class="service-icon">🔄</div>
+                        <h3>Session Management</h3>
+                        <p class="service-status" id="sessionService">Checking...</p>
+                        <p class="service-description">User session tracking</p>
+                    </div>
+                    <div class="service-card">
+                        <div class="service-icon">📡</div>
+                        <h3>API Gateway</h3>
+                        <p class="service-status" id="apiService">Checking...</p>
+                        <p class="service-description">Express.js REST API</p>
+                    </div>
+                </div>
+
+                <div class="service-logs">
+                    <h3>Service Logs</h3>
+                    <div id="serviceLogs" class="logs-container">
+                        <p class="log-entry">Initializing service monitoring...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database Tab -->
+            <div id="database" class="tab-content">
+                <div class="page-header">
+                    <h2>Database Status</h2>
+                    <p>PostgreSQL connection and table information</p>
+                </div>
+
+                <div class="db-status-section">
+                    <div class="db-info-card">
+                        <h3>Connection Status</h3>
+                        <div class="db-info">
+                            <p><strong>Database:</strong> <span id="dbName">matatuconnect</span></p>
+                            <p><strong>Host:</strong> <span id="dbHost">localhost</span></p>
+                            <p><strong>Port:</strong> <span id="dbPort">5432</span></p>
+                            <p><strong>Connection:</strong> <span id="dbConnection" class="status offline">Checking...</span></p>
+                            <p><strong>Last Checked:</strong> <span id="dbLastCheck">--:--</span></p>
+                        </div>
+                    </div>
+
+                    <div class="db-info-card">
+                        <h3>Table Information</h3>
+                        <div id="tableInfo" class="table-info">
+                            <p class="loading">Loading table information...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="db-query-section">
+                    <h3>Database Statistics</h3>
+                    <div class="db-stats">
+                        <div class="db-stat">
+                            <p class="stat-label">Total Records</p>
+                            <p class="stat-value" id="totalRecords">0</p>
+                        </div>
+                        <div class="db-stat">
+                            <p class="stat-label">Tables</p>
+                            <p class="stat-value" id="tableCount">6</p>
+                        </div>
+                        <div class="db-stat">
+                            <p class="stat-label">Database Size</p>
+                            <p class="stat-value" id="dbSize">--</p>
+                        </div>
+                        <div class="db-stat">
+                            <p class="stat-label">Last Backup</p>
+                            <p class="stat-value" id="lastBackup">--</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table Details -->
+                <div class="table-details">
+                    <h3>Table Structure</h3>
+                    <div id="tableDetails" class="table-details-container">
+                        <p class="loading">Loading table details...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="assets/js/management.js"></script>
+</body>
+</html>
