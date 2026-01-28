@@ -33,21 +33,45 @@ class FeedbackController {
       );
 
       // Send SMS notification if phone number provided (FR4)
+      let smsSent = false;
+      let whatsappSent = false;
       if (phoneNumber) {
         try {
           await SmsService.sendSms(
             phoneNumber,
             `Thank you for your ${feedbackType.toLowerCase()} on route. Your feedback ID: ${feedback.id}`
           );
+          smsSent = true;
         } catch (smsError) {
           console.error('SMS notification failed:', smsError);
+        }
+
+        // Send WhatsApp notification
+        try {
+          const whatsappResult = await WhatsappService.sendFeedbackConfirmation(phoneNumber, {
+            feedbackType: feedbackType,
+            routeName: `Route ${routeId}`,
+            vehicleReg: `Vehicle ${vehicleId}`,
+            feedbackId: feedback.id
+          });
+          whatsappSent = whatsappResult.success !== false;
+          if (whatsappSent) {
+            console.log('✓ WhatsApp feedback confirmation sent');
+          } else {
+            console.warn('⚠️ WhatsApp feedback confirmation failed:', whatsappResult.error);
+          }
+        } catch (whatsappError) {
+          console.error('WhatsApp notification failed:', whatsappError.message);
         }
       }
 
       res.status(201).json({
         message: 'Feedback submitted successfully',
         feedback,
-        notificationSent: !!phoneNumber
+        notificationsSent: {
+          sms: smsSent,
+          whatsapp: whatsappSent
+        }
       });
     } catch (error) {
       console.error('Submit feedback error:', error);

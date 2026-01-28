@@ -34,13 +34,33 @@ class PaymentController {
       }, 2000);
 
       // Send SMS notification (FR4)
+      let smsSent = false;
+      let whatsappSent = false;
       try {
         await SmsService.sendSms(
           phoneNumber,
           `M-Pesa Payment Simulated: KES ${amount} for route. Transaction ID: ${simulatedTransactionId}`
         );
+        smsSent = true;
       } catch (smsError) {
         console.error('SMS notification failed:', smsError);
+      }
+
+      // Send WhatsApp notification
+      try {
+        const whatsappResult = await WhatsappService.sendPaymentConfirmation(phoneNumber, {
+          routeName: `Route ${routeId}`,
+          amount: amount,
+          transactionId: simulatedTransactionId
+        });
+        whatsappSent = whatsappResult.success !== false;
+        if (whatsappSent) {
+          console.log('✓ WhatsApp payment confirmation sent');
+        } else {
+          console.warn('⚠️ WhatsApp payment confirmation failed:', whatsappResult.error);
+        }
+      } catch (whatsappError) {
+        console.error('WhatsApp notification failed:', whatsappError.message);
       }
 
       res.status(201).json({
@@ -50,7 +70,10 @@ class PaymentController {
           simulationNote: 'This is a simulated payment. No real funds will be transferred.'
         },
         simulatedStatus: 'STK Prompt Sent (Simulated)',
-        notificationSent: true
+        notificationsSent: {
+          sms: smsSent,
+          whatsapp: whatsappSent
+        }
       });
     } catch (error) {
       console.error('Simulate payment error:', error);
