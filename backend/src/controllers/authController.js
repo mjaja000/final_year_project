@@ -44,8 +44,8 @@ class AuthController {
         return res.status(400).json({ message: 'Email and password are required' });
       }
 
-      // Get user
-      const user = await UserModel.getUserByEmail(email);
+      // Get user by email or username
+      const user = await UserModel.getUserByIdentifier(email);
       if (!user) {
         return res.status(401).json({ message: 'Invalid email or password' });
       }

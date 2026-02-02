@@ -26,6 +26,9 @@ router.get('/routes/stats', AdminController.getRouteStatistics);
 router.get('/metrics', AdminController.getSystemMetrics);
 router.get('/users', AdminController.getAllUsers);
 
+// Revenue reporting
+router.get('/revenue', AdminController.getRevenue);
+
 // User Activity Tracking
 router.get('/users/activity', AdminController.getUsersActivity);
 

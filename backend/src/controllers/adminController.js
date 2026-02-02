@@ -198,6 +198,73 @@ class AdminController {
     }
   }
 
+  // Revenue aggregation for admin (by date range or preset)
+  static async getRevenue(req, res) {
+    try {
+      const { startDate, endDate, period } = req.query;
+      let start = startDate ? new Date(startDate) : null;
+      let end = endDate ? new Date(endDate) : new Date();
+
+      if (!start) {
+        const now = new Date();
+        if (period === 'day') {
+          start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (period === 'week') {
+          const day = now.getDay();
+          start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+        } else if (period === 'month') {
+          start = new Date(now.getFullYear(), now.getMonth(), 1);
+        } else {
+          // default last 7 days
+          start = new Date();
+          start.setDate(start.getDate() - 7);
+        }
+      }
+
+      // Ensure timezone-safe ISO strings for SQL
+      const startIso = start.toISOString();
+      const endIso = (end || new Date()).toISOString();
+
+      // Total revenue and payment counts
+      const revenueQuery = `
+        SELECT COALESCE(SUM(amount),0)::numeric::float8 AS total_revenue,
+               COUNT(*) as payments_count
+        FROM payments
+        WHERE status = 'completed' AND created_at >= $1 AND created_at <= $2;
+      `;
+
+      const routeBreakdownQuery = `
+        SELECT r.id, r.route_name, COALESCE(SUM(p.amount),0)::numeric::float8 AS revenue, COUNT(p.id) as payments_count
+        FROM routes r
+        LEFT JOIN payments p ON p.route_id = r.id AND p.status = 'completed' AND p.created_at >= $1 AND p.created_at <= $2
+        GROUP BY r.id, r.route_name
+        ORDER BY revenue DESC;
+      `;
+
+      const bookingsQuery = `
+        SELECT COUNT(*) as bookings_count
+        FROM bookings
+        WHERE created_at >= $1 AND created_at <= $2;
+      `;
+
+      const revenueResult = await pool.query(revenueQuery, [startIso, endIso]);
+      const breakdownResult = await pool.query(routeBreakdownQuery, [startIso, endIso]);
+      const bookingsResult = await pool.query(bookingsQuery, [startIso, endIso]);
+
+      res.json({
+        message: 'Revenue summary fetched',
+        period: { start: startIso, end: endIso },
+        total_revenue: revenueResult.rows[0].total_revenue || 0,
+        payments_count: Number(revenueResult.rows[0].payments_count || 0),
+        bookings_count: Number(bookingsResult.rows[0].bookings_count || 0),
+        revenue_by_route: breakdownResult.rows || []
+      });
+    } catch (error) {
+      console.error('Get revenue error:', error);
+      res.status(500).json({ message: 'Failed to fetch revenue', error: error.message });
+    }
+  }
+
   // Get route statistics and top routes
   static async getRouteStatistics(req, res) {
     try {

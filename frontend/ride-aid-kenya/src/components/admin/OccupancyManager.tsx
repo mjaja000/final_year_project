@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
+import io from 'socket.io-client';
 
 interface VehicleRecord {
   id: number;
@@ -61,6 +62,42 @@ const OccupancyManager = () => {
       setCurrentOccupancy(String(occupancyQuery.data.current_occupancy));
     }
   }, [occupancyQuery.data]);
+
+  // Socket: listen for booking.created events and refresh occupancy if relevant
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    const socket = io(API_BASE.replace(/http(s?):\/\//, ''));
+    socket.on('connect', () => {
+      socket.emit('join', 'admin');
+    });
+
+    socket.on('booking.created', (payload: any) => {
+      try {
+        const booking = payload.booking;
+        const trip = payload.trip;
+        // if the updated trip is for the selected vehicle, refresh occupancy
+        if (trip && selectedVehicleId !== null && (trip.vehicle_id || trip.vehicleId || trip.vehicleId) === selectedVehicleId) {
+          queryClient.invalidateQueries({ queryKey: ['occupancy', selectedVehicleId] });
+          toast({ title: 'New booking', description: `A booking was created for vehicle ${selectedVehicleId}`, variant: 'default' });
+        }
+      } catch (err) {
+        // ignore
+      }
+    });
+
+    socket.on('trip.updated', (trip: any) => {
+      if (trip && selectedVehicleId !== null && trip.vehicle_id === selectedVehicleId) {
+        queryClient.invalidateQueries({ queryKey: ['occupancy', selectedVehicleId] });
+        toast({ title: 'Trip updated', description: `Trip ${trip.id} status changed to ${trip.status}`, variant: 'default' });
+      }
+    });
+
+    return () => {
+      socket.off('booking.created');
+      socket.off('trip.updated');
+      socket.disconnect();
+    };
+  }, [selectedVehicleId, queryClient, toast]);
 
   const updateOccupancy = useMutation({
     mutationFn: ({ vehicleId, value }: { vehicleId: number; value: number }) =>

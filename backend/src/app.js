@@ -10,8 +10,10 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
 const routeRoutes = require('./routes/routeRoutes');
 const vehicleRoutes = require('./routes/vehicleRoutes');
+const tripRoutes = require('./routes/tripRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const whatsappRoutes = require('./routes/whatsappRoutes');
+const driverRoutes = require('./routes/driverRoutes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
 const app = express();
@@ -41,8 +43,10 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/vehicles', vehicleRoutes);
+app.use('/api/trips', tripRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/drivers', driverRoutes);
 
 // Root route
 app.get('/', (req, res) => {

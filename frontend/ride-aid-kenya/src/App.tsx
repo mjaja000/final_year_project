@@ -11,6 +11,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Feedback from "./pages/Feedback";
 import Occupancy from "./pages/Occupancy";
 import Payment from "./pages/Payment";
+import DriverLogin from "./pages/DriverLogin";
+import DriverDashboard from "./pages/DriverDashboard";
 import NotFound from "./pages/NotFound";
 import Footer from "@/components/Footer";
 
@@ -40,6 +42,8 @@ const App = () => (
               <Route path="/occupancy" element={<Occupancy />} />
               <Route path="/payment" element={<Payment />} />
               <Route path="/pay" element={<Navigate to="/payment" replace />} />
+              <Route path="/driver/login" element={<DriverLogin />} />
+              <Route path="/driver/dashboard" element={<DriverDashboard />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

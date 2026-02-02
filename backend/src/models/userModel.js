@@ -7,6 +7,7 @@ class UserModel {
     const query = `
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE,
         name VARCHAR(100) NOT NULL,
         email VARCHAR(100) UNIQUE NOT NULL,
         phone VARCHAR(20) UNIQUE,
@@ -55,11 +56,50 @@ class UserModel {
     }
   }
 
+  // Create driver user with unique username DRIVE0001
+  static async createDriverUser({ name, email, phone, password, username = null }) {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    // If username not provided, generate next DRIVExxxx username
+    let finalUsername = username;
+    if (!finalUsername) {
+      const genRes = await pool.query("SELECT username FROM users WHERE username ~ '^DRIVE\\\\d{4}$' ORDER BY username DESC LIMIT 1");
+      const last = genRes.rows[0]?.username || null;
+      if (!last) finalUsername = 'DRIVE0001';
+      else {
+        const num = parseInt(last.replace('DRIVE', ''), 10) + 1;
+        finalUsername = 'DRIVE' + String(num).padStart(4, '0');
+      }
+    }
+
+    const query = `
+      INSERT INTO users (username, name, email, phone, password, role)
+      VALUES ($1, $2, $3, $4, $5, 'driver')
+      RETURNING id, username, name, email, phone, role;
+    `;
+    try {
+      const result = await pool.query(query, [finalUsername, name, email, phone, hashedPassword]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
   // Get user by email
   static async getUserByEmail(email) {
     const query = 'SELECT * FROM users WHERE email = $1;';
     try {
       const result = await pool.query(query, [email]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get user by identifier (email or username)
+  static async getUserByIdentifier(identifier) {
+    const query = 'SELECT * FROM users WHERE email = $1 OR username = $1;';
+    try {
+      const result = await pool.query(query, [identifier]);
       return result.rows[0];
     } catch (error) {
       throw error;

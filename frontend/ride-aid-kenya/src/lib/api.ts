@@ -100,7 +100,20 @@ export const api = {
     getById: (id: number) => apiFetch<any>(`/api/feedback/${id}`),
   },
 
-  // Admin/Users
+  // Admin APIs
+  admin: {
+    // Get revenue summary. params: { startDate?: string, endDate?: string, period?: 'day'|'week'|'month' }
+    getRevenue: (params?: { startDate?: string; endDate?: string; period?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.startDate) qs.set('startDate', params.startDate);
+      if (params?.endDate) qs.set('endDate', params.endDate);
+      if (params?.period) qs.set('period', params.period);
+      const query = qs.toString() ? `?${qs.toString()}` : '';
+      return apiFetch<any>(`/api/admin/revenue${query}`);
+    },
+  },
+
+  // Users (authentication)
   users: {
     login: (credentials: { username: string; password: string }) =>
       apiFetch<any>('/api/users/login', {

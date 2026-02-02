@@ -11,6 +11,10 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import RouteManager from '@/components/admin/RouteManager';
 import OccupancyManager from '@/components/admin/OccupancyManager';
+import DriverManager from '@/components/admin/DriverManager';
+import AdminRevenue from '@/components/admin/AdminRevenue';
+import io from 'socket.io-client';
+import { useQueryClient } from '@tanstack/react-query';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -60,6 +64,38 @@ const AdminDashboard = () => {
       setSendingWhatsApp(false);
     }
   };
+
+  // Socket: subscribe to server events for admin
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    const socket = io(API_BASE.replace(/http(s?):\/\//, ''));
+
+    socket.on('connect', () => {
+      socket.emit('join', 'admin');
+    });
+
+    socket.on('booking.created', (payload: any) => {
+      toast({ title: 'New booking', description: 'A booking was just created', variant: 'default' });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+    });
+
+    socket.on('trip.updated', (trip: any) => {
+      toast({ title: 'Trip updated', description: `Trip ${trip.id} is now ${trip.status}`, variant: 'default' });
+      queryClient.invalidateQueries({ queryKey: ['occupancy'] });
+    });
+
+    socket.on('driver.statusUpdated', (payload: any) => {
+      toast({ title: 'Driver status', description: `${payload.username || payload.userId} is ${payload.status}`, variant: 'default' });
+    });
+
+    return () => {
+      socket.off('booking.created');
+      socket.off('trip.updated');
+      socket.off('driver.statusUpdated');
+      socket.disconnect();
+    };
+  }, [queryClient, toast]);
 
   // Filter feedback
   const filteredFeedback = useMemo(() => {
@@ -338,11 +374,24 @@ const AdminDashboard = () => {
                     <span className="hidden sm:inline">Payments</span>
                     <span className="sm:hidden">Pay</span>
                   </TabsTrigger>
+                  <TabsTrigger value="drivers" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-violet-500 data-[state=active]:text-white">
+                    <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Drivers</span>
+                    <span className="sm:hidden">Drv</span>
+                  </TabsTrigger>
+
                   <TabsTrigger value="routes" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white">
                     <Trello className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">Routes</span>
                     <span className="sm:hidden">Rte</span>
                   </TabsTrigger>
+
+                  <TabsTrigger value="revenue" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-green-600 data-[state=active]:text-white">
+                    <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Revenue</span>
+                    <span className="sm:hidden">Rev</span>
+                  </TabsTrigger>
+
                   <TabsTrigger value="occupancy" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white">
                     <Gauge className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span>Occ</span>
@@ -373,8 +422,26 @@ const AdminDashboard = () => {
                   />
                 </TabsContent>
 
+                <TabsContent value="drivers" className="animate-fade-in m-0">
+                  <div className="p-2">
+                    <h3 className="font-semibold mb-3">Driver Management</h3>
+                    <div className="bg-muted rounded-lg p-4">
+                      <DriverManager />
+                    </div>
+                  </div>
+                </TabsContent>
+
                 <TabsContent value="routes" className="animate-fade-in m-0">
                   <RouteManager />
+                </TabsContent>
+
+                <TabsContent value="revenue" className="animate-fade-in m-0">
+                  <div className="p-2">
+                    <h3 className="font-semibold mb-3">Revenue & Sales</h3>
+                    <div className="bg-muted rounded-lg p-4">
+                      <AdminRevenue />
+                    </div>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="occupancy" className="animate-fade-in m-0">
