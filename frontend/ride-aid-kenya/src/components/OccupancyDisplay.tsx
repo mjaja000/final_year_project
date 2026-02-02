@@ -3,6 +3,7 @@ import { RefreshCw, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { routes as allRoutes } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 type Occ = 'empty' | 'half' | 'full';
 
@@ -65,6 +66,7 @@ const OccupancyDisplay = () => {
   });
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const navigate = useNavigate();
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -162,6 +164,15 @@ const OccupancyDisplay = () => {
               <div className="text-right shrink-0">
                 <p className="text-xs sm:text-sm font-medium text-foreground">KES {r.fare}</p>
                 <p className="text-xs text-muted-foreground">{r.vehicles.length} vehicles</p>
+                <div className="mt-3">
+                  <Button
+                    onClick={() => navigate(`/payment?routeId=${encodeURIComponent(r.id)}`)}
+                    size="sm"
+                    className="w-full bg-green-600 hover:bg-green-700"
+                  >
+                    Pay KES {r.fare}
+                  </Button>
+                </div>
               </div>
             </div>
 

@@ -32,6 +32,35 @@ const AdminDashboard = () => {
     navigate('/admin');
   };
 
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+
+  const sendWhatsAppTest = async () => {
+    try {
+      const phone = window.prompt('Enter phone number to send test (e.g., 0712345678 or 2547...)');
+      if (!phone) return;
+      const message = window.prompt('Enter test message', 'This is a WhatsApp test from MatatuConnect') || 'MatatuConnect WhatsApp test message';
+
+      setSendingWhatsApp(true);
+
+      const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api/whatsapp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast({ title: 'WhatsApp test sent', description: 'A test message was sent to ' + phone });
+      } else {
+        toast({ title: 'WhatsApp test failed', description: data.error || 'Failed to send test message', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'WhatsApp test failed', description: err.message || 'Unable to send test', variant: 'destructive' });
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
+
   // Filter feedback
   const filteredFeedback = useMemo(() => {
     const search = feedbackSearch.toLowerCase();
@@ -218,13 +247,26 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               </div>
-              <Button 
-                onClick={handleLogout} 
-                className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
+              <div className="flex items-center gap-2"> 
+                <Button
+                  onClick={async () => {
+                    // call sendWhatsAppTest (defined below)
+                    await sendWhatsAppTest();
+                  }}
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white mr-2"
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Send WhatsApp test
+                </Button>
+
+                <Button 
+                  onClick={handleLogout} 
+                  className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -132,4 +132,34 @@ router.get('/status', (req, res) => {
   });
 });
 
+/**
+ * POST /api/whatsapp/test
+ * Body: { phone: string, message?: string, secret?: string }
+ * Sends a test WhatsApp message using backend service. If WHATSAPP_TEST_SECRET is set in env, it will be validated.
+ */
+router.post('/test', async (req, res) => {
+  const { phone, message = 'MatatuConnect WhatsApp test message', secret } = req.body || {};
+
+  // Optional secret guard - set WHATSAPP_TEST_SECRET in your environment to require a secret
+  if (process.env.WHATSAPP_TEST_SECRET && secret !== process.env.WHATSAPP_TEST_SECRET) {
+    return res.status(403).json({ success: false, error: 'Invalid test secret' });
+  }
+
+  if (!phone) {
+    return res.status(400).json({ success: false, error: 'Missing phone number' });
+  }
+
+  try {
+    const WhatsappService = require('../services/whatsappService');
+    const result = await WhatsappService.sendServiceAlert(phone, message);
+    if (result && result.success) {
+      return res.json({ success: true, message: 'Test message sent', details: result });
+    }
+    return res.status(500).json({ success: false, error: result.error || 'Failed to send test message', details: result });
+  } catch (err) {
+    console.error('WhatsApp test send failed:', err);
+    return res.status(500).json({ success: false, error: err.message || 'Internal error' });
+  }
+});
+
 module.exports = router;

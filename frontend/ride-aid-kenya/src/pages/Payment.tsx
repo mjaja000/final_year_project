@@ -2,11 +2,16 @@ import { Helmet } from "react-helmet-async";
 import Header from "@/components/Header";
 import PaymentSimulation from "@/components/PaymentSimulation";
 import { CreditCard, Shield, Zap, CheckCircle } from "lucide-react";
+import { useLocation } from 'react-router-dom';
 
 export default function Payment() {
   const handleBack = () => {
     if (typeof window !== "undefined") window.history.back();
   };
+
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const routeId = params.get('routeId') ?? undefined;
 
   return (
     <>
@@ -49,9 +54,9 @@ export default function Payment() {
       
       <main className="max-w-2xl mx-auto py-8 sm:py-12 px-4 sm:px-6">
         <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 border border-gray-100">
-          <PaymentSimulation route="payment" onBack={handleBack} />
+          <PaymentSimulation initialRouteId={routeId ?? undefined} onBack={handleBack} />
         </div>
-        
+
         {/* Security Info */}
         <div className="mt-8 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-100">
           <div className="flex items-start gap-4">

@@ -115,13 +115,18 @@ export default function Index() {
         </a>
         <Header />
 
-        {/* Hero Section - Modern & Engaging */}
-        <header className="relative bg-gradient-to-br from-green-600 via-green-500 to-emerald-400 text-white overflow-hidden" role="banner">
-          {/* Decorative Elements */}
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-10 right-10 w-72 h-72 bg-white rounded-full blur-3xl"></div>
-            <div className="absolute bottom-10 left-10 w-96 h-96 bg-white rounded-full blur-3xl"></div>
-          </div>
+        {/* Hero Section - Modern & Engaging (uses provided topbackground + decorators) */}
+        <header
+          className="relative overflow-hidden text-white"
+          role="banner"
+          style={{ backgroundImage: 'url("/images/topbackground.png")', backgroundSize: 'cover', backgroundPosition: 'center' }}
+        >
+          {/* Soft overlay for contrast */}
+          <div className="absolute inset-0 bg-gradient-to-br from-green-700/60 to-emerald-500/60" />
+
+          {/* Decorative images (provided) */}
+          <img src="/images/image1.png" alt="decor1" className="hidden sm:block absolute left-6 top-6 w-36 opacity-90 pointer-events-none select-none" />
+          <img src="/images/image2png" alt="decor2" className="hidden sm:block absolute right-6 bottom-8 w-44 opacity-80 pointer-events-none select-none" />
 
           <div className="relative max-w-6xl mx-auto py-12 sm:py-16 md:py-24 px-4 sm:px-6">
             <div className="text-center max-w-3xl mx-auto">
@@ -234,7 +239,7 @@ export default function Index() {
                 {displayRoutes.slice(0, 4).map((route: any) => (
                   <Link 
                     key={route.id} 
-                    to="/occupancy"
+                    to={`/payment?routeId=${route.id}`}
                     className="group bg-white rounded-xl p-4 sm:p-6 border-2 border-gray-200 hover:border-green-500 hover:shadow-xl transition-all duration-300"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

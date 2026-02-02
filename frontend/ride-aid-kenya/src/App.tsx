@@ -12,6 +12,7 @@ import Feedback from "./pages/Feedback";
 import Occupancy from "./pages/Occupancy";
 import Payment from "./pages/Payment";
 import NotFound from "./pages/NotFound";
+import Footer from "@/components/Footer";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,6 +43,8 @@ const App = () => (
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            {/* Footer present on every page */}
+            <Footer />
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>

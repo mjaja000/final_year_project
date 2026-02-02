@@ -1,31 +1,33 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CreditCard, Smartphone, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Route, validateVehicleNumber, routes as allRoutes, generateTransactionId } from '@/lib/mockData';
+import { Route, validateVehicleNumber, routes as allRoutes } from '@/lib/mockData';
 import { Input } from '@/components/ui/input';
 import DigitalTicket from '@/components/DigitalTicket';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import api from '@/lib/api';
 
 interface PaymentSimulationProps {
-  route: Route;
+  initialRouteId?: string;
   onBack: () => void;
 }
 
-const PaymentSimulation = ({ route, onBack }: PaymentSimulationProps) => {
+const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) => {
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [selectedRouteId, setSelectedRouteId] = useState<string>(route?.id ?? (allRoutes[0]?.id ?? ''));
+  const [selectedRouteId, setSelectedRouteId] = useState<string>(initialRouteId ?? (allRoutes[0]?.id ?? ''));
   const [isProcessing, setIsProcessing] = useState(false);
   const [showTicket, setShowTicket] = useState(false);
   const [transactionRef, setTransactionRef] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const { toast } = useToast();
+  const [pollingId, setPollingId] = useState<number | null>(null);
 
   const vehicleValid = validateVehicleNumber(vehicleNumber);
   const phoneValid = phoneNumber.trim().length >= 9;
-  const fare = allRoutes.find((r) => r.id === selectedRouteId)?.fare ?? route.fare;
+  const fare = allRoutes.find((r) => r.id === selectedRouteId)?.fare ?? 0;
 
   const handlePayment = async () => {
     if (!vehicleValid) {
@@ -49,41 +51,78 @@ const PaymentSimulation = ({ route, onBack }: PaymentSimulationProps) => {
     setIsProcessing(true);
     setPaymentStatus('processing');
 
-    // Simulate network / backend processing
-    await new Promise(resolve => setTimeout(resolve, 1800));
+    try {
+      // Call backend to create simulated payment (backend also sends WhatsApp/SMS)
+      const payload = {
+        routeId: Number(selectedRouteId),
+        amount: fare,
+        phoneNumber: phoneNumber,
+      };
 
-    const txn = generateTransactionId();
-    // Small chance to simulate failure
-    const success = Math.random() > 0.08;
+      const res = await api.payments.create(payload);
+      const createdPayment = res.payment;
 
-    setTransactionRef(txn);
-    setIsProcessing(false);
-    setPaymentStatus(success ? 'success' : 'failed');
-
-    if (success) {
       toast({
-        title: "Payment Successful!",
-        description: `Transaction ID: ${txn}. Your digital ticket is ready.`,
+        title: "Payment Initiated",
+        description: "M-Pesa STK prompt (simulated). You will receive a WhatsApp confirmation when payment completes.",
       });
-      setTimeout(() => {
-        setShowTicket(true);
-      }, 500);
-    } else {
-      toast({
-        title: "Payment Failed",
-        description: "The payment simulation failed. Please try again.",
-        variant: "destructive",
-      });
-      // Reset for retry
-      setTimeout(() => {
-        setPaymentStatus('idle');
-      }, 2000);
+
+      // If backend reports notifications status, show it
+      if (res.notificationsSent && res.notificationsSent.whatsapp) {
+        toast({ title: "WhatsApp confirmation sent", description: "You'll receive a message shortly." });
+      }
+
+      // Poll for payment completion/transaction id
+      const maxAttempts = 15; // ~15 seconds
+      let attempts = 0;
+
+      const id = window.setInterval(async () => {
+        attempts += 1;
+        try {
+          const statusRes = await api.payments.getById(createdPayment.id);
+          const payment = statusRes.payment || statusRes;
+          if (payment && payment.status === 'completed' && payment.transaction_id) {
+            window.clearInterval(id);
+            setTransactionRef(payment.transaction_id);
+            setPaymentStatus('success');
+            setIsProcessing(false);
+            toast({ title: 'Payment Confirmed', description: `Transaction ID: ${payment.transaction_id}` });
+            // Show ticket
+            setTimeout(() => setShowTicket(true), 400);
+          }
+        } catch (err) {
+          // ignore transient failures
+        }
+
+        if (attempts >= maxAttempts) {
+          window.clearInterval(id);
+          setIsProcessing(false);
+          setPaymentStatus('idle');
+          toast({ title: 'Payment Pending', description: 'Payment is still processing. You will receive confirmation via WhatsApp.' });
+        }
+      }, 1000);
+
+      setPollingId(id);
+    } catch (error: any) {
+      setIsProcessing(false);
+      setPaymentStatus('failed');
+      toast({ title: 'Payment Failed', description: error.message || 'Payment could not be initiated.', variant: 'destructive' });
+      setTimeout(() => setPaymentStatus('idle'), 2000);
     }
   };
 
+  useEffect(() => {
+    // cleanup polling if component unmounts
+    return () => {
+      if (pollingId) {
+        window.clearInterval(pollingId);
+      }
+    };
+  }, [pollingId]);
+
   if (showTicket) {
     // pass the selected route object to the ticket
-    const selRoute = allRoutes.find((r) => r.id === selectedRouteId) ?? route!;
+    const selRoute = allRoutes.find((r) => r.id === selectedRouteId)!;
     return (
       <DigitalTicket
         route={selRoute}
