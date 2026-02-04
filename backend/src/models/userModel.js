@@ -58,16 +58,48 @@ class UserModel {
 
   // Create driver user with unique username DRIVE0001
   static async createDriverUser({ name, email, phone, password, username = null }) {
+    // Check for existing email / phone to provide friendlier errors before inserting
+    try {
+      const existsQuery = 'SELECT id, email, phone FROM users WHERE email = $1 OR phone = $2 LIMIT 1';
+      const existsResult = await pool.query(existsQuery, [email, phone]);
+      if (existsResult.rows && existsResult.rows.length > 0) {
+        const row = existsResult.rows[0];
+        if (row.email === email) {
+          const err = new Error('Email already exists');
+          err.code = 'DUPLICATE_EMAIL';
+          throw err;
+        }
+        if (row.phone && phone && row.phone === phone) {
+          const err = new Error('Phone already exists');
+          err.code = 'DUPLICATE_PHONE';
+          throw err;
+        }
+      }
+    } catch (err) {
+      // if it's our duplicate error rethrow
+      if (err.code === 'DUPLICATE_EMAIL' || err.code === 'DUPLICATE_PHONE') throw err;
+      // otherwise continue (query error shouldn't block creation)
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    // If username not provided, generate next DRIVExxxx username
+    // If username not provided, generate next DRIVExxxx username (ensure unique)
     let finalUsername = username;
     if (!finalUsername) {
+      // Find the last DRIVE username if any
       const genRes = await pool.query("SELECT username FROM users WHERE username ~ '^DRIVE\\\\d{4}$' ORDER BY username DESC LIMIT 1");
-      const last = genRes.rows[0]?.username || null;
-      if (!last) finalUsername = 'DRIVE0001';
-      else {
-        const num = parseInt(last.replace('DRIVE', ''), 10) + 1;
+      let last = genRes.rows[0]?.username || null;
+      let num = 1;
+      if (last) num = parseInt(last.replace('DRIVE', ''), 10) + 1;
+
+      // Loop until we find a username that does not exist (handles gaps and concurrent inserts)
+      let attempts = 0;
+      while (true) {
         finalUsername = 'DRIVE' + String(num).padStart(4, '0');
+        const exists = await pool.query('SELECT 1 FROM users WHERE username = $1 LIMIT 1', [finalUsername]);
+        if (exists.rowCount === 0) break;
+        num += 1;
+        attempts += 1;
+        if (attempts > 10000) throw new Error('Unable to generate unique driver username');
       }
     }
 
@@ -76,11 +108,25 @@ class UserModel {
       VALUES ($1, $2, $3, $4, $5, 'driver')
       RETURNING id, username, name, email, phone, role;
     `;
-    try {
-      const result = await pool.query(query, [finalUsername, name, email, phone, hashedPassword]);
-      return result.rows[0];
-    } catch (error) {
-      throw error;
+
+    // Try inserting, and handle potential username collisions by retrying with incremented username
+    let attempts = 0;
+    while (true) {
+      try {
+        const result = await pool.query(query, [finalUsername, name, email, phone, hashedPassword]);
+        return result.rows[0];
+      } catch (error) {
+        // If unique constraint on username occurred, try next username and retry
+        if (error && error.code === '23505' && /username/.test(error.detail || error.constraint || '')) {
+          attempts += 1;
+          if (attempts >= 10) throw new Error('Unable to create unique username after multiple attempts');
+          const currentNum = parseInt(finalUsername.replace('DRIVE', ''), 10) || 0;
+          const nextNum = currentNum + 1;
+          finalUsername = 'DRIVE' + String(nextNum).padStart(4, '0');
+          continue;
+        }
+        throw error;
+      }
     }
   }
 

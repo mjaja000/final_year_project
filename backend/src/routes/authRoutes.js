@@ -12,6 +12,8 @@ router.get('/health', (req, res) => {
 // Public routes
 router.post('/register', AuthController.register);
 router.post('/login', AuthController.login);
+// Demo admin login (returns JWT for demo admin)
+router.post('/demo_login', AuthController.demoLogin);
 
 // Protected routes
 router.get('/profile', authMiddleware, AuthController.getProfile);

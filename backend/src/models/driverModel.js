@@ -77,6 +77,24 @@ class DriverModel {
       throw error;
     }
   }
+
+  // Update driver fields (driving license, assigned vehicle)
+  static async updateDriver(userId, { drivingLicense = null, assignedVehicleId = null } = {}) {
+    const query = `
+      UPDATE drivers
+      SET driving_license = COALESCE($1, driving_license),
+          assigned_vehicle_id = COALESCE($2, assigned_vehicle_id),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $3
+      RETURNING *;
+    `;
+    try {
+      const result = await pool.query(query, [drivingLicense, assignedVehicleId, userId]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 module.exports = DriverModel;

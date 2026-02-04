@@ -16,6 +16,7 @@ const initializeTables = async () => {
     const DriverModel = require('./src/models/driverModel');
     const TripModel = require('./src/models/tripModel');
     const BookingModel = require('./src/models/bookingModel');
+    const MessageModel = require('./src/models/messageModel');
 
     // Create tables in dependency order
     await UserModel.createTable();
@@ -24,6 +25,7 @@ const initializeTables = async () => {
     await DriverModel.createTable();
     await TripModel.createTable();
     await BookingModel.createTable();
+    await MessageModel.createTable();
     await OccupancyModel.createTable();
     await BookingModel.createTable();
     await PaymentModel.createTable();
@@ -74,6 +76,27 @@ const server = app.listen(PORT, async () => {
         console.log('Socket driver:updateStatus', payload);
         io.to('admin').emit('driver.statusUpdated', payload);
         io.to(`route_${payload.routeId || 'all'}`).emit('driver.statusUpdated', payload);
+      });
+
+      // Chat: driver or admin can join their user room: 'user_<id>'
+      socket.on('chat.join', (userId) => {
+        if (!userId) return;
+        socket.join(`user_${userId}`);
+      });
+
+      socket.on('chat.leave', (userId) => {
+        if (!userId) return;
+        socket.leave(`user_${userId}`);
+      });
+
+      socket.on('chat.message', (payload) => {
+        // payload: { senderId, receiverId, tripId, message }
+        const { senderId, receiverId, tripId, message } = payload || {};
+        console.log('Socket chat.message', payload);
+        // Forward to the receiver room
+        if (receiverId) io.to(`user_${receiverId}`).emit('chat.message', payload);
+        // Notify admin room (so admin UI can show a summary/notification)
+        io.to('admin').emit('chat.notification', { from: senderId, to: receiverId, tripId, message });
       });
 
       socket.on('disconnect', () => {

@@ -43,27 +43,27 @@ const AdminLogin = () => {
 
     setIsLoading(true);
 
-    // Simulate authentication delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-      localStorage.setItem("adminAuth", "true");
-      localStorage.setItem("adminEmail", email);
-      localStorage.setItem("adminLoginTime", new Date().toISOString());
-      toast({
-        title: "Welcome back!",
-        description: "Admin portal access granted.",
+    try {
+      // Attempt demo login to get a JWT
+      const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api/auth/demo_login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
       });
-      navigate("/admin/dashboard");
-    } else {
-      toast({
-        title: "Login Failed",
-        description: "Invalid email or password. Check the demo credentials below.",
-        variant: "destructive",
-      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userRole', data.user?.role || 'admin');
+        localStorage.setItem('adminLoginTime', new Date().toISOString());
+        toast({ title: 'Welcome back!', description: 'Admin portal access granted.' });
+        navigate('/admin/dashboard');
+      } else {
+        toast({ title: 'Login Failed', description: data.message || 'Invalid credentials', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Login Failed', description: err.message || 'Error', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
