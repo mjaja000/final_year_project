@@ -156,6 +156,45 @@ class AuthController {
       res.status(500).json({ message: 'Logout failed', error: error.message });
     }
   }
+
+  // Demo admin login: used by the demo admin UI to obtain a JWT
+  static async demoLogin(req, res) {
+    try {
+      const DEMO_EMAIL = process.env.DEMO_ADMIN_EMAIL || 'admin@matatuconnect.test';
+      const DEMO_PASSWORD = process.env.DEMO_ADMIN_PASSWORD || 'password123';
+      const { email, password } = req.body;
+
+      if (email !== DEMO_EMAIL || password !== DEMO_PASSWORD) {
+        return res.status(401).json({ message: 'Invalid demo credentials' });
+      }
+
+      // Ensure admin user exists; if not create one
+      let adminUser = await UserModel.getUserByEmail(DEMO_EMAIL);
+      if (!adminUser) {
+        // create admin user with demo password
+        const bcrypt = require('bcryptjs');
+        const hashed = await bcrypt.hash(DEMO_PASSWORD, 10);
+        const pool = require('../config/database');
+        const insert = `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, 'admin') RETURNING *;`;
+        const r = await pool.query(insert, ['Demo Admin', DEMO_EMAIL, hashed]);
+        adminUser = r.rows[0];
+      } else if (adminUser.role !== 'admin') {
+        // upgrade role if necessary
+        const pool = require('../config/database');
+        await pool.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', adminUser.id]);
+      }
+
+      const jwt = require('jsonwebtoken');
+      const token = jwt.sign({ id: adminUser.id, email: adminUser.email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
+
+      res.json({ message: 'Demo login successful', token, user: { id: adminUser.id, email: adminUser.email, role: 'admin' } });
+    } catch (error) {
+      console.error('Demo login error:', error);
+      res.status(500).json({ message: 'Demo login failed', error: error.message });
+    }
+  }
 }
+
+module.exports = AuthController;
 
 module.exports = AuthController;

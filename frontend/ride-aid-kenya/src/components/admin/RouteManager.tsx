@@ -49,13 +49,26 @@ const RouteManager = () => {
   });
 
   const updatePrice = useMutation({
-    mutationFn: ({ id, price }: { id: number; price: number }) => api.routes.update(id, { price }),
+    mutationFn: ({ id, price }: { id: number; price: number }) => api.routes.update(id, { baseFare: price }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["routes"] });
       toast({ title: "Price updated" });
     },
     onError: (err: any) => {
-      toast({ title: "Failed to update price", description: err.message, variant: "destructive" });
+      const message = err instanceof Error ? err.message : String(err || 'Error');
+      toast({ title: "Failed to update price", description: message, variant: "destructive" });
+    },
+  });
+
+  const updateRoute = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => api.routes.update(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["routes"] });
+      toast({ title: "Route updated" });
+    },
+    onError: (err: any) => {
+      const message = err instanceof Error ? err.message : String(err || 'Error');
+      toast({ title: "Failed to update route", description: message, variant: "destructive" });
     },
   });
 
@@ -76,7 +89,7 @@ const RouteManager = () => {
       route_name: form.route_name.trim(),
       start_location: form.start_location.trim(),
       end_location: form.end_location.trim(),
-      price: Number(form.price) || 0,
+      base_fare: Number(form.price) || 0,
       distance_km: Number(form.distance_km) || 0,
     };
     if (!payload.route_name || !payload.start_location || !payload.end_location) {
@@ -157,6 +170,25 @@ const RouteManager = () => {
                       disabled={deleteRoute.isPending}
                     >
                       Delete
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newName = window.prompt('Route name', route.route_name || '') || route.route_name;
+                        const newStart = window.prompt('Start location', route.start_location || '') || route.start_location;
+                        const newEnd = window.prompt('End location', route.end_location || '') || route.end_location;
+                        const newPriceStr = window.prompt('Price (KES)', String(route.price ?? '')) || String(route.price ?? '');
+                        const newPrice = Number(newPriceStr);
+                        const payload: any = {};
+                        if (newName) payload.routeName = newName;
+                        if (newStart) payload.startLocation = newStart;
+                        if (newEnd) payload.endLocation = newEnd;
+                        if (!Number.isNaN(newPrice)) payload.baseFare = newPrice;
+                        updateRoute.mutate({ id: route.id, body: payload });
+                      }}
+                    >
+                      Edit
                     </Button>
                   </div>
 

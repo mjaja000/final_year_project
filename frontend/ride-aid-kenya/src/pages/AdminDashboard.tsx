@@ -13,6 +13,7 @@ import RouteManager from '@/components/admin/RouteManager';
 import OccupancyManager from '@/components/admin/OccupancyManager';
 import DriverManager from '@/components/admin/DriverManager';
 import AdminRevenue from '@/components/admin/AdminRevenue';
+import AdminMessages from '@/components/admin/AdminMessages';
 import io from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -23,17 +24,17 @@ const AdminDashboard = () => {
   const [paymentSearch, setPaymentSearch] = useState('');
 
   useEffect(() => {
-    const isAuth = localStorage.getItem('adminAuth');
-    if (!isAuth) {
-      navigate('/admin');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/admin/login');
     }
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('adminAuth');
-    localStorage.removeItem('adminEmail');
+    localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
     localStorage.removeItem('adminLoginTime');
-    navigate('/admin');
+    navigate('/admin/login');
   };
 
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
@@ -427,6 +428,12 @@ const AdminDashboard = () => {
                     <h3 className="font-semibold mb-3">Driver Management</h3>
                     <div className="bg-muted rounded-lg p-4">
                       <DriverManager />
+                      <div className="mt-6">
+                        <h4 className="font-semibold mb-2">Messages</h4>
+                        <div className="bg-white p-3 rounded">
+                          <AdminMessages />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </TabsContent>
