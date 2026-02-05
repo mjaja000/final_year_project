@@ -13,19 +13,12 @@ const initializeTables = async () => {
     const FeedbackModel = require('./src/models/feedbackModel');
     const ActivityLogModel = require('./src/models/activityLogModel');
     const DatabaseStatsModel = require('./src/models/databaseStatsModel');
-    const DriverModel = require('./src/models/driverModel');
-    const TripModel = require('./src/models/tripModel');
-    const BookingModel = require('./src/models/bookingModel');
 
     // Create tables in dependency order
     await UserModel.createTable();
     await RouteModel.createTable();
     await VehicleModel.createTable();
-    await DriverModel.createTable();
-    await TripModel.createTable();
-    await BookingModel.createTable();
     await OccupancyModel.createTable();
-    await BookingModel.createTable();
     await PaymentModel.createTable();
     await FeedbackModel.createTable();
     await ActivityLogModel.createTable();
@@ -46,47 +39,6 @@ const server = app.listen(PORT, async () => {
 
   // Initialize database
   await initializeTables();
-
-  // Initialize Socket.IO for real-time updates
-  try {
-    const { Server } = require('socket.io');
-    const io = new Server(server, {
-      cors: {
-        origin: process.env.CORS_ORIGIN || '*',
-        methods: ['GET', 'POST']
-      }
-    });
-
-    io.on('connection', (socket) => {
-      console.log('⚡️ Socket connected:', socket.id);
-
-      socket.on('join', (room) => {
-        socket.join(room);
-      });
-
-      socket.on('leave', (room) => {
-        socket.leave(room);
-      });
-
-      socket.on('driver:updateStatus', (payload) => {
-        // payload should include { userId, status, vehicleId }
-        // broadcast to admin/dashboard and occupancy rooms
-        console.log('Socket driver:updateStatus', payload);
-        io.to('admin').emit('driver.statusUpdated', payload);
-        io.to(`route_${payload.routeId || 'all'}`).emit('driver.statusUpdated', payload);
-      });
-
-      socket.on('disconnect', () => {
-        console.log('⚡️ Socket disconnected:', socket.id);
-      });
-    });
-
-    // Attach io to app for use in controllers/services
-    app.set('io', io);
-    console.log('✓ Socket.IO initialized');
-  } catch (err) {
-    console.error('✗ Failed to initialize Socket.IO:', err.message);
-  }
 });
 
 // Keep the server alive
