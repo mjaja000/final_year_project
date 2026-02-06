@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,6 @@ const RouteManager = () => {
   const { toast } = useToast();
 
   const [form, setForm] = useState(initialForm);
-  const [priceEdits, setPriceEdits] = useState<Record<number, string>>({});
 
   const routesQuery = useQuery({
     queryKey: ["routes"],
@@ -45,41 +44,6 @@ const RouteManager = () => {
     },
     onError: (err: any) => {
       toast({ title: "Failed to create route", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const updatePrice = useMutation({
-    mutationFn: ({ id, price }: { id: number; price: number }) => api.routes.update(id, { baseFare: price }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["routes"] });
-      toast({ title: "Price updated" });
-    },
-    onError: (err: any) => {
-      const message = err instanceof Error ? err.message : String(err || 'Error');
-      toast({ title: "Failed to update price", description: message, variant: "destructive" });
-    },
-  });
-
-  const updateRoute = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: any }) => api.routes.update(id, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["routes"] });
-      toast({ title: "Route updated" });
-    },
-    onError: (err: any) => {
-      const message = err instanceof Error ? err.message : String(err || 'Error');
-      toast({ title: "Failed to update route", description: message, variant: "destructive" });
-    },
-  });
-
-  const deleteRoute = useMutation({
-    mutationFn: (id: number) => api.routes.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["routes"] });
-      toast({ title: "Route deleted" });
-    },
-    onError: (err: any) => {
-      toast({ title: "Failed to delete route", description: err.message, variant: "destructive" });
     },
   });
 
@@ -99,131 +63,20 @@ const RouteManager = () => {
     createRoute.mutate(payload);
   };
 
-  const handlePriceSave = (route: RouteRecord) => {
-    const value = priceEdits[route.id] ?? route.price ?? 0;
-    const price = Number(value);
-    if (Number.isNaN(price)) {
-      toast({ title: "Invalid price", description: "Enter a numeric value", variant: "destructive" });
-      return;
-    }
-    updatePrice.mutate({ id: route.id, price });
-  };
-
-  const sortedRoutes = useMemo(() => {
-    const raw = Array.isArray(routesQuery.data)
-      ? routesQuery.data
-      : Array.isArray((routesQuery.data as any)?.routes)
-        ? (routesQuery.data as any).routes
-        : [];
-
-    const normalized = raw
-      .map((r: any) => ({
-        ...r,
-        id: Number(r.id ?? r.route_id ?? r.routeId ?? 0),
-      }))
-      .filter((r: RouteRecord) => Number.isFinite(r.id));
-
-    return normalized.sort((a: RouteRecord, b: RouteRecord) => a.id - b.id);
-  }, [routesQuery.data]);
-
   return (
-    <div className="space-y-8">
-      <div className="grid gap-6 md:grid-cols-[1.2fr,1fr]">
-        {/* Existing routes */}
-        <div className="border border-border rounded-lg p-4 bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Manage routes & fares</p>
-              <h3 className="text-lg font-semibold">Routes & Prices</h3>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => routesQuery.refetch()} disabled={routesQuery.isFetching}>
-              {routesQuery.isFetching ? "Refreshing..." : "Refresh"}
-            </Button>
-          </div>
-
-          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-            {routesQuery.isLoading && <p className="text-sm text-muted-foreground">Loading routes...</p>}
-            {routesQuery.isError && (
-              <p className="text-sm text-destructive">Failed to load routes. Ensure the backend is running.</p>
-            )}
-
-            {sortedRoutes.map((route) => {
-              const priceValue = priceEdits[route.id] ?? (route.price ?? "").toString();
-              return (
-                <div key={route.id} className="border border-border rounded-md p-3 space-y-2 bg-background">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">{route.route_name ?? `Route #${route.id}`}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(route.start_location ?? "?")} → {(route.end_location ?? "?")}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => {
-                        if (window.confirm("Delete this route?")) {
-                          deleteRoute.mutate(route.id);
-                        }
-                      }}
-                      disabled={deleteRoute.isPending}
-                    >
-                      Delete
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newName = window.prompt('Route name', route.route_name || '') || route.route_name;
-                        const newStart = window.prompt('Start location', route.start_location || '') || route.start_location;
-                        const newEnd = window.prompt('End location', route.end_location || '') || route.end_location;
-                        const newPriceStr = window.prompt('Price (KES)', String(route.price ?? '')) || String(route.price ?? '');
-                        const newPrice = Number(newPriceStr);
-                        const payload: any = {};
-                        if (newName) payload.routeName = newName;
-                        if (newStart) payload.startLocation = newStart;
-                        if (newEnd) payload.endLocation = newEnd;
-                        if (!Number.isNaN(newPrice)) payload.baseFare = newPrice;
-                        updateRoute.mutate({ id: route.id, body: payload });
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr,120px,110px] gap-3 items-end">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Price (KES)</Label>
-                      <Input
-                        type="number"
-                        value={priceValue}
-                        onChange={(e) => setPriceEdits((prev) => ({ ...prev, [route.id]: e.target.value }))}
-                      />
-                    </div>
-                    <Button
-                      onClick={() => handlePriceSave(route)}
-                      disabled={updatePrice.isPending}
-                      variant="hero"
-                    >
-                      Save Price
-                    </Button>
-                    <div className="text-xs text-muted-foreground sm:text-right">
-                      {route.distance_km ? `${route.distance_km} km` : ""}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {routesQuery.data && sortedRoutes.length === 0 && (
-              <p className="text-sm text-muted-foreground">No routes found. Add one using the form on the right.</p>
-            )}
-          </div>
+    <div className="border border-border rounded-xl p-4 sm:p-5 bg-card">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-sm text-muted-foreground">Manage routes & fares</p>
+          <h3 className="text-lg font-semibold">Routes Management</h3>
         </div>
+        <Button variant="outline" size="sm" onClick={() => routesQuery.refetch()} disabled={routesQuery.isFetching}>
+          {routesQuery.isFetching ? "Refreshing..." : "Refresh"}
+        </Button>
+      </div>
 
-        {/* Create route */}
-        <form onSubmit={handleCreate} className="border border-border rounded-lg p-4 bg-card space-y-4">
+      <div className="space-y-6">
+        <form onSubmit={handleCreate} className="space-y-4">
           <div>
             <p className="text-sm text-muted-foreground">Create a new route</p>
             <h3 className="text-lg font-semibold">Add Route</h3>
