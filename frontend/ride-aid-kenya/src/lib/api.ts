@@ -73,10 +73,15 @@ export const api = {
   // Occupancy
   occupancy: {
     getByVehicle: (vehicleId: number) => apiFetch<any>(`/api/occupancy/${vehicleId}`),
+    getAll: () => apiFetch<any>(`/api/occupancy/all`),
     update: (vehicleId: number, data: { current_occupancy: number }) => 
       apiFetch<any>(`/api/occupancy/${vehicleId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
+      }),
+    delete: (vehicleId: number) =>
+      apiFetch<any>(`/api/occupancy/${vehicleId}` , {
+        method: 'DELETE',
       }),
   },
 

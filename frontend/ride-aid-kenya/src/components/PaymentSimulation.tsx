@@ -11,11 +11,12 @@ import api from '@/lib/api';
 
 interface PaymentSimulationProps {
   initialRouteId?: string;
+  initialVehicleNumber?: string;
   onBack: () => void;
 }
 
-const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) => {
-  const [vehicleNumber, setVehicleNumber] = useState('');
+const PaymentSimulation = ({ initialRouteId, initialVehicleNumber, onBack }: PaymentSimulationProps) => {
+  const [vehicleNumber, setVehicleNumber] = useState((initialVehicleNumber ?? '').toUpperCase());
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedRouteId, setSelectedRouteId] = useState<string>(initialRouteId ?? (allRoutes[0]?.id ?? ''));
   const [isProcessing, setIsProcessing] = useState(false);
@@ -28,6 +29,7 @@ const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) =
   const vehicleValid = validateVehicleNumber(vehicleNumber);
   const phoneValid = phoneNumber.trim().length >= 9;
   const fare = allRoutes.find((r) => r.id === selectedRouteId)?.fare ?? 0;
+  const vehicleLocked = Boolean(initialVehicleNumber);
 
   const handlePayment = async () => {
     if (!vehicleValid) {
@@ -145,6 +147,7 @@ const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) =
             value={selectedRouteId}
             onChange={(e) => setSelectedRouteId(e.target.value)}
             className="w-full rounded-md border px-3 py-2 bg-background text-sm"
+            disabled={Boolean(initialRouteId)}
           >
             {allRoutes.map((r) => (
               <option key={r.id} value={r.id}>{r.name} — {r.from} → {r.to} — KES {r.fare}</option>
@@ -168,7 +171,11 @@ const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) =
             vehicleNumber && !vehicleValid && "border-destructive focus-visible:ring-destructive"
           )}
           maxLength={9}
+          readOnly={vehicleLocked}
         />
+        {vehicleLocked && (
+          <p className="text-xs text-muted-foreground">Vehicle is pre-selected from occupancy.</p>
+        )}
         {vehicleNumber && !vehicleValid && (
           <p className="text-xs text-destructive flex items-center gap-1">
             <AlertCircle className="h-3 w-3" />

@@ -18,16 +18,30 @@ class UserModel {
         last_activity TIMESTAMP,
         last_login TIMESTAMP,
         is_online BOOLEAN DEFAULT false,
+        telegram_id BIGINT,
+        chat_id BIGINT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       -- Safe migration for existing tables
       DO $$
       BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='username') THEN
+          ALTER TABLE users ADD COLUMN username VARCHAR(50);
+        END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='last_activity') THEN
           ALTER TABLE users ADD COLUMN last_activity TIMESTAMP;
           ALTER TABLE users ADD COLUMN last_login TIMESTAMP;
           ALTER TABLE users ADD COLUMN is_online BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='telegram_id') THEN
+          ALTER TABLE users ADD COLUMN telegram_id BIGINT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='chat_id') THEN
+          ALTER TABLE users ADD COLUMN chat_id BIGINT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_username_key') THEN
+          ALTER TABLE users ADD CONSTRAINT users_username_key UNIQUE (username);
         END IF;
       END
       $$;
@@ -154,7 +168,7 @@ class UserModel {
 
   // Get user by ID
   static async getUserById(id) {
-    const query = 'SELECT id, name, email, phone, role, status, profile_image FROM users WHERE id = $1;';
+    const query = 'SELECT id, name, email, phone, role, status, profile_image, telegram_id, chat_id FROM users WHERE id = $1;';
     try {
       const result = await pool.query(query, [id]);
       return result.rows[0];
@@ -308,6 +322,31 @@ class UserModel {
     try {
       const result = await pool.query(query);
       return result.rows;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async updateTelegramConnection(userId, telegramId, chatId) {
+    const query = `
+      UPDATE users
+      SET telegram_id = $1, chat_id = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING id, telegram_id, chat_id;
+    `;
+    try {
+      const result = await pool.query(query, [telegramId, chatId, userId]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getTelegramChatIdByUserId(userId) {
+    const query = 'SELECT chat_id FROM users WHERE id = $1;';
+    try {
+      const result = await pool.query(query, [userId]);
+      return result.rows[0]?.chat_id || null;
     } catch (error) {
       throw error;
     }

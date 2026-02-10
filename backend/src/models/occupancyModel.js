@@ -87,7 +87,9 @@ class OccupancyModel {
   // Get all occupancy statuses
   static async getAllOccupancyStatuses() {
     const query = `
-      SELECT vo.*, v.registration_number, v.vehicle_type, u.name as driver_name, r.route_name
+      SELECT vo.*, v.registration_number, v.vehicle_type, v.capacity, v.route_id,
+        u.name as driver_name,
+        r.route_name, r.start_location, r.end_location, r.base_fare
       FROM vehicle_occupancy vo
       JOIN vehicles v ON vo.vehicle_id = v.id
       LEFT JOIN users u ON vo.driver_id = u.id
@@ -97,6 +99,17 @@ class OccupancyModel {
     try {
       const result = await pool.query(query);
       return result.rows;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Delete occupancy status for a vehicle
+  static async deleteOccupancy(vehicleId) {
+    const query = 'DELETE FROM vehicle_occupancy WHERE vehicle_id = $1 RETURNING *;';
+    try {
+      const result = await pool.query(query, [vehicleId]);
+      return result.rows[0];
     } catch (error) {
       throw error;
     }
