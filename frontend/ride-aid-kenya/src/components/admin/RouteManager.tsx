@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,8 @@ interface RouteRecord {
   end_location?: string;
   price?: number;
   distance_km?: number;
+  base_fare?: number;
+  status?: string;
 }
 
 const initialForm = {
@@ -35,6 +37,21 @@ const RouteManager = () => {
     queryFn: api.routes.getAll,
   });
 
+  const routes: RouteRecord[] = useMemo(() => {
+    const raw = Array.isArray(routesQuery.data)
+      ? routesQuery.data
+      : Array.isArray((routesQuery.data as any)?.routes)
+        ? (routesQuery.data as any).routes
+        : [];
+
+    return raw
+      .map((r: any) => ({
+        ...r,
+        id: Number(r.id ?? r.route_id ?? r.routeId ?? 0),
+      }))
+      .filter((r: RouteRecord) => Number.isFinite(r.id) && r.status !== "inactive");
+  }, [routesQuery.data]);
+
   const createRoute = useMutation({
     mutationFn: (payload: any) => api.routes.create(payload),
     onSuccess: () => {
@@ -44,6 +61,17 @@ const RouteManager = () => {
     },
     onError: (err: any) => {
       toast({ title: "Failed to create route", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteRoute = useMutation({
+    mutationFn: (routeId: number) => api.routes.delete(routeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["routes"] });
+      toast({ title: "Route deleted" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to delete route", description: err.message, variant: "destructive" });
     },
   });
 
@@ -61,6 +89,13 @@ const RouteManager = () => {
       return;
     }
     createRoute.mutate(payload);
+  };
+
+  const handleDelete = (route: RouteRecord) => {
+    const routeLabel = route.route_name || `Route ${route.id}`;
+    const confirmed = window.confirm(`Delete ${routeLabel}?`);
+    if (!confirmed) return;
+    deleteRoute.mutate(route.id);
   };
 
   return (
@@ -139,6 +174,55 @@ const RouteManager = () => {
             {createRoute.isPending ? "Saving..." : "Create Route"}
           </Button>
         </form>
+
+        <Separator />
+
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm text-muted-foreground">Manage existing routes</p>
+            <h3 className="text-lg font-semibold">Route List</h3>
+          </div>
+
+          {routes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No routes available.</p>
+          ) : (
+            <div className="space-y-2">
+              {routes.map((route) => {
+                const routeLabel = route.route_name || `Route ${route.id}`;
+                const start = route.start_location || "";
+                const end = route.end_location || "";
+                const fare = Number(route.base_fare ?? route.price ?? 0);
+                const distance = typeof route.distance_km === "number" ? route.distance_km : null;
+
+                return (
+                  <div
+                    key={route.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-background p-3"
+                  >
+                    <div className="space-y-1">
+                      <p className="font-semibold">{routeLabel}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {start} to {end}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Fare: KES {fare}
+                        {distance !== null ? ` | Distance: ${distance} km` : ""}
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(route)}
+                      disabled={deleteRoute.isPending}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

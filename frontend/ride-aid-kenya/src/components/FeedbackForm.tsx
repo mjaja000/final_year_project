@@ -1,15 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Send, ThumbsUp, ThumbsDown, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Route, validateVehicleNumber, routes as allRoutes } from '@/lib/mockData';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import api from '@/lib/api';
 
 interface FeedbackFormProps {
-  route?: Route | null;
+  route?: { id?: string | number } | null;
   onBack: () => void;
   onSuccess: () => void;
 }
@@ -17,45 +17,101 @@ interface FeedbackFormProps {
 type FeedbackType = 'complaint' | 'compliment';
 
 const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
-  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [feedbackType, setFeedbackType] = useState<FeedbackType | null>(null);
   const [message, setMessage] = useState('');
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(route?.id ?? (allRoutes[0]?.id ?? null));
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(route?.id ? String(route.id) : null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [whatsappStatus, setWhatsappStatus] = useState<'idle' | 'sent' | 'failed'>('idle');
   const { toast } = useToast();
 
-  const vehicleValid = validateVehicleNumber(vehicleNumber);
+  const routesQuery = useQuery({
+    queryKey: ['routes'],
+    queryFn: api.routes.getAll,
+  });
+
+  const vehiclesQuery = useQuery({
+    queryKey: ['vehicles'],
+    queryFn: api.vehicles.getAll,
+  });
+
+  const routes = useMemo(() => {
+    const raw = Array.isArray(routesQuery.data)
+      ? routesQuery.data
+      : Array.isArray((routesQuery.data as any)?.routes)
+        ? (routesQuery.data as any).routes
+        : [];
+
+    return raw
+      .map((r: any) => ({
+        ...r,
+        id: Number(r.id ?? r.route_id ?? r.routeId ?? 0),
+      }))
+      .filter((r: any) => Number.isFinite(r.id) && r.status !== 'inactive');
+  }, [routesQuery.data]);
+
+  const vehicles = useMemo(() => {
+    const raw = Array.isArray(vehiclesQuery.data)
+      ? vehiclesQuery.data
+      : Array.isArray((vehiclesQuery.data as any)?.vehicles)
+        ? (vehiclesQuery.data as any).vehicles
+        : [];
+
+    return raw
+      .map((v: any) => ({
+        ...v,
+        id: Number(v.id ?? v.vehicle_id ?? v.vehicleId ?? 0),
+      }))
+      .filter((v: any) => Number.isFinite(v.id) && v.status !== 'inactive');
+  }, [vehiclesQuery.data]);
+
+  const selectedRoute = routes.find((r: any) => String(r.id) === String(selectedRouteId ?? '')) || null;
+  const filteredVehicles = selectedRouteId
+    ? vehicles.filter((v: any) => String(v.route_id ?? v.routeId ?? '') === String(selectedRouteId))
+    : vehicles;
+
   const messageValid = message.trim().length > 0 && message.length <= 200;
-  const canSubmit = vehicleValid && feedbackType && messageValid && !isSubmitting;
+  const canSubmit = Boolean(selectedRouteId && selectedVehicleId && feedbackType && messageValid && !isSubmitting);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
 
     setIsSubmitting(true);
+    try {
+      const payload = {
+        routeId: Number(selectedRouteId),
+        vehicleId: Number(selectedVehicleId),
+        feedbackType: feedbackType === 'complaint' ? 'Complaint' : 'Compliment',
+        comment: message.trim(),
+      };
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1200));
+      await api.feedback.create(payload);
 
-    setIsSubmitting(false);
-    setSubmitted(true);
+      setSubmitted(true);
+      toast({
+        title: "Feedback Submitted!",
+        description: "Your feedback has been saved.",
+      });
 
-    toast({
-      title: "Feedback Submitted!",
-      description: "You'll receive an SMS confirmation shortly.",
-    });
+      setTimeout(() => {
+        setWhatsappStatus('sent');
+        toast({ title: 'WhatsApp', description: 'WhatsApp confirmation queued (if enabled).' });
+      }, 800);
 
-    // Simulate WhatsApp notification awareness (frontend only)
-    setTimeout(() => {
-      setWhatsappStatus('sent');
-      toast({ title: 'WhatsApp', description: 'WhatsApp confirmation queued (simulation).' });
-    }, 800);
-
-    setTimeout(() => {
-      onSuccess();
-    }, 2000);
+      setTimeout(() => {
+        onSuccess();
+      }, 2000);
+    } catch (err: any) {
+      toast({
+        title: 'Failed to submit feedback',
+        description: err.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -83,9 +139,11 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs sm:text-sm text-muted-foreground border-b border-border pb-3">
-        <span className="font-medium text-foreground">{route?.name ?? 'Select Route'}</span>
+        <span className="font-medium text-foreground">{selectedRoute?.route_name || 'Select Route'}</span>
         <span className="hidden sm:inline">•</span>
-        <span>{route?.from ?? ''} {route ? '→' : ''} {route?.to ?? ''}</span>
+        <span>
+          {(selectedRoute?.start_location || '')} {selectedRoute ? '→' : ''} {(selectedRoute?.end_location || '')}
+        </span>
       </div>
 
       {/* Route Select */}
@@ -94,48 +152,52 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
         <select
           id="routeSelect"
           value={selectedRouteId ?? ''}
-          onChange={(e) => setSelectedRouteId(e.target.value || null)}
+          onChange={(e) => {
+            setSelectedRouteId(e.target.value || null);
+            setSelectedVehicleId(null);
+          }}
           className="w-full rounded-md border px-3 py-2 text-sm"
         >
-          {allRoutes.map((r) => (
-            <option key={r.id} value={r.id}>{r.name} — {r.from} → {r.to}</option>
+          <option value="" disabled>
+            {routesQuery.isLoading ? 'Loading routes...' : 'Select route'}
+          </option>
+          {routes.map((r: any) => (
+            <option key={r.id} value={r.id}>
+              {r.route_name || `Route ${r.id}`} — {r.start_location} → {r.end_location}
+            </option>
           ))}
         </select>
+        {routes.length === 0 && !routesQuery.isLoading && (
+          <p className="text-xs text-muted-foreground">No active routes available.</p>
+        )}
       </div>
 
-      {/* Vehicle Number */}
+      {/* Vehicle Select */}
       <div className="space-y-2">
-        <Label htmlFor="vehicleNumber" className="text-sm">Vehicle Number</Label>
-        <Input
-          id="vehicleNumber"
-          type="text"
-          placeholder="e.g., KCA 123X"
-          value={vehicleNumber}
-          onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
-          className={cn(
-            "uppercase text-sm",
-            vehicleNumber && !vehicleValid && "border-destructive focus-visible:ring-destructive",
-            vehicleNumber && vehicleValid && "border-success focus-visible:ring-success"
-          )}
-          aria-describedby="vehicleHelp vehicleError"
-          aria-invalid={vehicleNumber && !vehicleValid}
-          maxLength={9}
-        />
-        {vehicleNumber && !vehicleValid && (
-          <p id="vehicleError" className="text-xs text-destructive flex items-center gap-1" role="alert">
-            <span aria-hidden="true">⚠️</span>
-            Invalid format. Example: KCA 123X
-          </p>
+        <Label htmlFor="vehicleSelect" className="text-sm">Vehicle</Label>
+        <select
+          id="vehicleSelect"
+          value={selectedVehicleId ?? ''}
+          onChange={(e) => setSelectedVehicleId(e.target.value || null)}
+          className="w-full rounded-md border px-3 py-2 text-sm"
+          disabled={!selectedRouteId}
+        >
+          <option value="" disabled>
+            {!selectedRouteId
+              ? 'Select route first'
+              : vehiclesQuery.isLoading
+                ? 'Loading vehicles...'
+                : 'Select vehicle'}
+          </option>
+          {filteredVehicles.map((v: any) => (
+            <option key={v.id} value={v.id}>
+              {v.registration_number || v.vehicle_number || v.vehicleNumber || `Vehicle ${v.id}`}
+            </option>
+          ))}
+        </select>
+        {selectedRouteId && filteredVehicles.length === 0 && !vehiclesQuery.isLoading && (
+          <p className="text-xs text-muted-foreground">No active vehicles for this route.</p>
         )}
-        {vehicleNumber && vehicleValid && (
-          <p className="text-xs text-success flex items-center gap-1">
-            <span aria-hidden="true">✓</span>
-            Valid vehicle number
-          </p>
-        )}
-        <p id="vehicleHelp" className="text-xs text-muted-foreground">
-          Enter the matatu registration number (e.g., KCA 123X)
-        </p>
       </div>
 
       {/* Feedback Type */}
@@ -205,7 +267,8 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
         <div className="p-3 bg-muted rounded-lg text-xs sm:text-sm text-muted-foreground">
           <p className="font-medium mb-1">Please complete the following:</p>
           <ul className="text-xs space-y-0.5 list-disc list-inside">
-            {!vehicleValid && <li>Enter a valid vehicle number (e.g., KCA 123X)</li>}
+            {!selectedRouteId && <li>Select a route</li>}
+            {!selectedVehicleId && <li>Select a vehicle</li>}
             {!feedbackType && <li>Select a feedback type (Compliment or Complaint)</li>}
             {!messageValid && <li>Write a message between 1 and 200 characters</li>}
           </ul>

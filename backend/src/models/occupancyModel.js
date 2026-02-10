@@ -103,6 +103,17 @@ class OccupancyModel {
       throw error;
     }
   }
+
+  // Delete occupancy status for a vehicle
+  static async deleteOccupancy(vehicleId) {
+    const query = 'DELETE FROM vehicle_occupancy WHERE vehicle_id = $1 RETURNING *;';
+    try {
+      const result = await pool.query(query, [vehicleId]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 module.exports = OccupancyModel;

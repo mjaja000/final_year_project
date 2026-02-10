@@ -26,6 +26,22 @@ interface VehicleRecord {
   capacity?: number;
 }
 
+interface OccupancyRecord {
+  vehicle_id?: number;
+  vehicleId?: number;
+  registration_number?: string;
+  vehicle_number?: string;
+  vehicleNumber?: string;
+  route_id?: number;
+  routeId?: number;
+  route_name?: string;
+  start_location?: string;
+  end_location?: string;
+  current_occupancy?: number;
+  occupancy_status?: string;
+  updated_at?: string;
+}
+
 const OccupancyManager = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -38,6 +54,11 @@ const OccupancyManager = () => {
   const routesQuery = useQuery({
     queryKey: ["routes"],
     queryFn: api.routes.getAll,
+  });
+
+  const occupancyQuery = useQuery({
+    queryKey: ["occupancy"],
+    queryFn: api.occupancy.getAll,
   });
 
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
@@ -74,6 +95,22 @@ const OccupancyManager = () => {
       .filter((r: RouteRecord) => Number.isFinite(r.id));
   }, [routesQuery.data]);
 
+  const occupancies: OccupancyRecord[] = useMemo(() => {
+    const raw = Array.isArray(occupancyQuery.data)
+      ? occupancyQuery.data
+      : Array.isArray((occupancyQuery.data as any)?.occupancies)
+        ? (occupancyQuery.data as any).occupancies
+        : [];
+
+    return raw
+      .map((o: any) => ({
+        ...o,
+        vehicle_id: Number(o.vehicle_id ?? o.vehicleId ?? 0),
+        route_id: Number(o.route_id ?? o.routeId ?? 0),
+      }))
+      .filter((o: OccupancyRecord) => Number.isFinite(o.vehicle_id));
+  }, [occupancyQuery.data]);
+
   useEffect(() => {
     if (routes.length > 0 && selectedRouteId === null) {
       setSelectedRouteId(routes[0].id);
@@ -93,6 +130,7 @@ const OccupancyManager = () => {
         const trip = payload.trip;
         if (payload?.booking || trip) {
           queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+          queryClient.invalidateQueries({ queryKey: ['occupancy'] });
           toast({ title: 'New booking', description: 'A booking was just created', variant: 'default' });
         }
       } catch (err) {
@@ -103,6 +141,7 @@ const OccupancyManager = () => {
     socket.on('trip.updated', (trip: any) => {
       if (trip) {
         queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+        queryClient.invalidateQueries({ queryKey: ['occupancy'] });
         toast({ title: 'Trip updated', description: `Trip ${trip.id} status changed to ${trip.status}`, variant: 'default' });
       }
     });
@@ -151,7 +190,29 @@ const OccupancyManager = () => {
     },
   });
 
+  const deleteOccupancy = useMutation({
+    mutationFn: (vehicleId: number) => api.occupancy.delete(vehicleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["occupancy"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      toast({ title: "Occupancy deleted" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to delete occupancy", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const formatUpdatedAt = (value?: string) => {
+    if (!value) return "Unknown";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString();
+  };
+
   const selectedRoute = routes.find((r) => r.id === selectedRouteId) ?? null;
+  const filteredOccupancies = selectedRouteId
+    ? occupancies.filter((o) => Number(o.route_id ?? 0) === selectedRouteId)
+    : occupancies;
 
   const handleSave = () => {
     if (!selectedRouteId) {
@@ -169,6 +230,15 @@ const OccupancyManager = () => {
     });
   };
 
+  const handleDeleteOccupancy = (record: OccupancyRecord) => {
+    const vehicleId = Number(record.vehicle_id ?? record.vehicleId ?? 0);
+    if (!vehicleId) return;
+    const vehicleLabel = record.registration_number || record.vehicle_number || record.vehicleNumber || `Vehicle ${vehicleId}`;
+    const confirmed = window.confirm(`Delete occupancy for ${vehicleLabel}?`);
+    if (!confirmed) return;
+    deleteOccupancy.mutate(vehicleId);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -182,10 +252,11 @@ const OccupancyManager = () => {
           onClick={() => {
             routesQuery.refetch();
             vehiclesQuery.refetch();
+            occupancyQuery.refetch();
           }}
-          disabled={routesQuery.isFetching || vehiclesQuery.isFetching}
+          disabled={routesQuery.isFetching || vehiclesQuery.isFetching || occupancyQuery.isFetching}
         >
-          {routesQuery.isFetching || vehiclesQuery.isFetching ? "Refreshing..." : "Refresh"}
+          {routesQuery.isFetching || vehiclesQuery.isFetching || occupancyQuery.isFetching ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
 
@@ -278,6 +349,63 @@ const OccupancyManager = () => {
               {occupancyStatus}
             </p>
           </div>
+        </div>
+      </div>
+
+      <div className="border border-border rounded-lg p-4 bg-card space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm text-muted-foreground">Remove incorrect entries</p>
+            <h4 className="font-semibold">Current Occupancies</h4>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => occupancyQuery.refetch()}
+            disabled={occupancyQuery.isFetching}
+          >
+            {occupancyQuery.isFetching ? "Refreshing..." : "Refresh list"}
+          </Button>
+        </div>
+        <Separator />
+
+        <div className="space-y-3">
+          {filteredOccupancies.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No occupancy records found for this route.</p>
+          ) : (
+            filteredOccupancies.map((record) => {
+              const vehicleLabel = record.registration_number || record.vehicle_number || record.vehicleNumber || "Unknown vehicle";
+              const keyValue = String(record.vehicle_id ?? record.vehicleId ?? vehicleLabel);
+              const start = record.start_location || "";
+              const end = record.end_location || "";
+              const routeLabel = (start && end) ? `${start} to ${end}` : (record.route_name || "Route not set");
+              const occupancyValue = typeof record.current_occupancy === "number" ? record.current_occupancy : 0;
+              const statusLabel = record.occupancy_status || "unknown";
+
+              return (
+                <div
+                  key={keyValue}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-background p-3"
+                >
+                  <div className="space-y-1">
+                    <p className="font-semibold">{vehicleLabel}</p>
+                    <p className="text-sm text-muted-foreground">{routeLabel}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Occupancy: {occupancyValue} | Status: {statusLabel} | Updated: {formatUpdatedAt(record.updated_at)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeleteOccupancy(record)}
+                    disabled={deleteOccupancy.isPending}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

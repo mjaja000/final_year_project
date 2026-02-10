@@ -79,6 +79,10 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
+    delete: (vehicleId: number) =>
+      apiFetch<any>(`/api/occupancy/${vehicleId}` , {
+        method: 'DELETE',
+      }),
   },
 
   // Payments

@@ -134,6 +134,26 @@ class OccupancyController {
       res.status(500).json({ message: 'Failed to fetch routes', error: error.message });
     }
   }
+
+  // Delete occupancy status for a vehicle
+  static async deleteOccupancy(req, res) {
+    try {
+      const { vehicleId } = req.params;
+      const deleted = await OccupancyModel.deleteOccupancy(vehicleId);
+
+      if (!deleted) {
+        return res.status(404).json({ message: 'Occupancy status not found' });
+      }
+
+      res.json({
+        message: 'Occupancy status deleted',
+        occupancy: deleted,
+      });
+    } catch (error) {
+      console.error('Delete occupancy error:', error);
+      res.status(500).json({ message: 'Failed to delete occupancy status', error: error.message });
+    }
+  }
 }
 
 module.exports = OccupancyController;

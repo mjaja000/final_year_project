@@ -17,6 +17,7 @@ import DriverDashboard from "./pages/DriverDashboard";
 import Drivers from "./pages/Drivers";
 import NotFound from "./pages/NotFound";
 import Footer from "@/components/Footer";
+import ScrollToTop from "@/components/ScrollToTop";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <ScrollToTop />
             <Routes>
               <Route path="/" element={<Index />} />
                 <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
