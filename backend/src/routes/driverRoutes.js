@@ -4,6 +4,9 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
+// Public read-only list of drivers
+router.get('/public', DriverController.listDriversPublic);
+
 // Admin creates a driver
 router.post('/', authMiddleware, DriverController.createDriver);
 router.get('/', authMiddleware, DriverController.listDrivers);

@@ -66,6 +66,29 @@ class DriverController {
     }
   }
 
+  // Public, read-only list of drivers (no auth)
+  static async listDriversPublic(req, res) {
+    try {
+      const drivers = await DriverModel.getAllDrivers();
+      // Return a minimal, non-sensitive view
+      const publicDrivers = drivers.map((driver) => ({
+        id: driver.id,
+        user_id: driver.user_id,
+        username: driver.username,
+        name: driver.name,
+        email: driver.email,
+        phone: driver.phone,
+        vehicle_reg: driver.vehicle_reg,
+        driving_license: driver.driving_license,
+        status: driver.status,
+      }));
+      res.json({ total: publicDrivers.length, drivers: publicDrivers });
+    } catch (error) {
+      console.error('List public drivers error:', error.message);
+      res.status(500).json({ message: 'Failed to list drivers', error: error.message });
+    }
+  }
+
   // Admin: fetch recent password reset activities
   static async getResetLogs(req, res) {
     try {
