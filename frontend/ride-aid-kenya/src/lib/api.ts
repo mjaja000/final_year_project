@@ -91,6 +91,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+    initiate: (data: any) => apiFetch<any>('/api/payments/initiate-payment', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
     getAll: () => apiFetch<any[]>('/api/payments'),
     getById: (id: number) => apiFetch<any>(`/api/payments/${id}`),
   },
