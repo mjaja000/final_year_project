@@ -1,8 +1,26 @@
 const axios = require('axios');
 
 class MpesaService {
+  static formatTimestamp() {
+    // Daraja expects YYYYMMDDHHMMSS
+    return new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+  }
+
+  static buildPassword(timestamp) {
+    const businessCode = process.env.MPESA_BUSINESS_CODE || process.env.MPESA_SHORTCODE;
+    if (!businessCode || !process.env.MPESA_PASSKEY) {
+      throw new Error('Missing M-Pesa business code or passkey');
+    }
+    return Buffer.from(
+      `${businessCode}${process.env.MPESA_PASSKEY}${timestamp}`
+    ).toString('base64');
+  }
+
   static async getAccessToken() {
     try {
+      if (!process.env.MPESA_API_URL) {
+        throw new Error('Missing MPESA_API_URL');
+      }
       const auth = Buffer.from(
         `${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`
       ).toString('base64');
@@ -23,32 +41,30 @@ class MpesaService {
     }
   }
 
-  static async initiatePayment(paymentId, amount, phoneNumber) {
+  static async initiateStkPush({ amount, phoneNumber, accountReference, transactionDesc, callbackUrl }) {
     try {
+      const businessCode = process.env.MPESA_BUSINESS_CODE || process.env.MPESA_SHORTCODE;
+      if (!businessCode) {
+        throw new Error('Missing M-Pesa business code');
+      }
       const accessToken = await this.getAccessToken();
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[^0-9]/g, '')
-        .slice(0, -3);
-
-      const password = Buffer.from(
-        `${process.env.MPESA_BUSINESS_CODE}${process.env.MPESA_PASSKEY}${timestamp}`
-      ).toString('base64');
+      const timestamp = this.formatTimestamp();
+      const password = this.buildPassword(timestamp);
 
       const response = await axios.post(
         `${process.env.MPESA_API_URL}/mpesa/stkpush/v1/processrequest`,
         {
-          BusinessShortCode: process.env.MPESA_BUSINESS_CODE,
+          BusinessShortCode: businessCode,
           Password: password,
           Timestamp: timestamp,
           TransactionType: 'CustomerPayBillOnline',
-          Amount: amount,
+          Amount: String(amount),
           PartyA: phoneNumber,
-          PartyB: process.env.MPESA_BUSINESS_CODE,
+          PartyB: businessCode,
           PhoneNumber: phoneNumber,
-          CallBackURL: process.env.MPESA_CALLBACK_URL,
-          AccountReference: `Payment_${paymentId}`,
-          TransactionDesc: `Matatu Fare Payment - ${paymentId}`,
+          CallBackURL: callbackUrl || process.env.MPESA_CALLBACK_URL,
+          AccountReference: accountReference,
+          TransactionDesc: transactionDesc,
         },
         {
           headers: {
@@ -59,23 +75,27 @@ class MpesaService {
 
       return response.data;
     } catch (error) {
-      console.error('M-Pesa payment initiation error:', error);
+      console.error('M-Pesa STK push initiation error:', error);
       throw error;
     }
   }
 
   static async validateTransaction(transactionId) {
     try {
+      const businessCode = process.env.MPESA_BUSINESS_CODE || process.env.MPESA_SHORTCODE;
+      if (!businessCode) {
+        throw new Error('Missing M-Pesa business code');
+      }
       const accessToken = await this.getAccessToken();
 
       const response = await axios.post(
         `${process.env.MPESA_API_URL}/mpesa/transactionstatus/v1/query`,
         {
-          Initiator: process.env.MPESA_BUSINESS_CODE,
+          Initiator: businessCode,
           SecurityCredential: process.env.MPESA_SECURITY_CREDENTIAL,
           CommandID: 'TransactionStatusQuery',
           TransactionID: transactionId,
-          PartyA: process.env.MPESA_BUSINESS_CODE,
+          PartyA: businessCode,
           IdentifierType: 4,
           ResultURL: process.env.MPESA_CALLBACK_URL,
           QueueTimeOutURL: process.env.MPESA_CALLBACK_URL,
