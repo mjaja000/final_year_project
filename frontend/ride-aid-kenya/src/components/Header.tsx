@@ -21,21 +21,41 @@ function MenuButton() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [navOpen]);
 
+  useEffect(() => {
+    if (!navOpen) {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setNavOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [navOpen]);
+
   return (
     <div className="relative">
       <button
         ref={btnRef}
+        type="button"
         onClick={() => setNavOpen((v) => !v)}
         className="p-2 mr-1 hover:bg-muted rounded-lg transition-colors"
         aria-expanded={navOpen}
+        aria-controls="main-nav-menu"
+        aria-haspopup="true"
         aria-label="Open navigation menu"
       >
         {navOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
 
       {navOpen && (
-        <div ref={ref} className="absolute left-0 top-full mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50">
-          <nav className="flex flex-col">
+        <div
+          ref={ref}
+          id="main-nav-menu"
+          className="absolute left-0 top-full mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50"
+        >
+          <nav className="flex flex-col" aria-label="Primary">
             <Link to="/" className="text-sm py-2 px-3 hover:bg-muted rounded-t-lg" onClick={() => setNavOpen(false)}>Home</Link>
             <Link to="/feedback" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Feedback</Link>
             <Link to="/payment" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Payments</Link>

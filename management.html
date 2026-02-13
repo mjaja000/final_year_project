@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="assets/css/management.css">
 </head>
 <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <!-- Login Page -->
     <div id="loginPage" class="page active">
         <div class="login-container">
@@ -17,15 +18,15 @@
                 </div>
                 <form class="login-form" onsubmit="handleLogin(event)">
                     <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" id="username" placeholder="Enter username" autocomplete="off">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" placeholder="Enter username" autocomplete="username" required>
                     </div>
                     <div class="form-group">
-                        <label>Password</label>
-                        <input type="password" id="password" placeholder="Enter password" autocomplete="off">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" required>
                     </div>
                     <button type="submit" class="btn-login">Login</button>
-                    <div id="loginError" class="error-message"></div>
+                    <div id="loginError" class="error-message" role="status" aria-live="polite"></div>
                     <div class="default-creds">
                         <p>Demo Credentials:</p>
                         <small>Username: <strong>admin</strong></small><br>
@@ -41,43 +42,47 @@
         <!-- Header -->
         <header class="header">
             <div class="header-left">
+                <button type="button" class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle navigation" aria-controls="sidebarNav" aria-expanded="false">
+                    ☰
+                </button>
                 <h1>🚌 MatatuConnect Management</h1>
             </div>
             <div class="header-right">
                 <div class="status-indicator">
-                    <span id="serverStatus" class="status-dot offline"></span>
-                    <span id="serverText">Server: Checking...</span>
+                    <span id="serverStatus" class="status-dot offline" aria-hidden="true"></span>
+                    <span id="serverText" role="status" aria-live="polite">Server: Checking...</span>
                 </div>
-                <button onclick="logout()" class="btn-logout">Logout</button>
+                <button type="button" onclick="logout()" class="btn-logout">Logout</button>
             </div>
         </header>
 
         <!-- Navigation -->
-        <nav class="sidebar">
+        <nav id="sidebarNav" class="sidebar" aria-label="Primary">
             <div class="nav-section">
                 <h3>Dashboard</h3>
-                <button class="nav-btn active" onclick="showTab('overview')">📊 Overview</button>
-                <button class="nav-btn" onclick="showTab('statistics')">📈 Statistics</button>
+                <button type="button" class="nav-btn active" onclick="showTab('overview', event)">📊 Overview</button>
+                <button type="button" class="nav-btn" onclick="showTab('statistics', event)">📈 Statistics</button>
             </div>
             <div class="nav-section">
                 <h3>Operations</h3>
-                <button class="nav-btn" onclick="showTab('clients')">👥 Connected Clients</button>
-                <button class="nav-btn" onclick="showTab('routes')">🗺️ Routes</button>
-                <button class="nav-btn" onclick="showTab('occupancy')">🚐 Occupancy Status</button>
+                <button type="button" class="nav-btn" onclick="showTab('clients', event)">👥 Connected Clients</button>
+                <button type="button" class="nav-btn" onclick="showTab('routes', event)">🗺️ Routes</button>
+                <button type="button" class="nav-btn" onclick="showTab('occupancy', event)">🚐 Occupancy Status</button>
             </div>
             <div class="nav-section">
                 <h3>Feedback</h3>
-                <button class="nav-btn" onclick="showTab('feedback')">💬 Feedback</button>
+                <button type="button" class="nav-btn" onclick="showTab('feedback', event)">💬 Feedback</button>
             </div>
             <div class="nav-section">
                 <h3>System</h3>
-                <button class="nav-btn" onclick="showTab('services')">⚙️ Services Health</button>
-                <button class="nav-btn" onclick="showTab('database')">🗄️ Database</button>
+                <button type="button" class="nav-btn" onclick="showTab('services', event)">⚙️ Services Health</button>
+                <button type="button" class="nav-btn" onclick="showTab('database', event)">🗄️ Database</button>
             </div>
         </nav>
+        <div class="sidebar-overlay" onclick="closeSidebar()"></div>
 
         <!-- Main Content -->
-        <main class="main-content">
+        <main id="main-content" class="main-content" role="main" tabindex="-1">
             <!-- Overview Tab -->
             <div id="overview" class="tab-content active">
                 <div class="page-header">
@@ -192,7 +197,9 @@
                 </div>
 
                 <div class="filter-bar">
+                    <label for="clientFilter" class="sr-only">Search clients</label>
                     <input type="text" id="clientFilter" placeholder="Search clients..." onkeyup="filterClients()">
+                    <label for="statusFilter" class="sr-only">Filter clients by status</label>
                     <select id="statusFilter" onchange="filterClients()">
                         <option value="">All Status</option>
                         <option value="online">Online</option>
@@ -202,14 +209,15 @@
 
                 <div class="clients-table">
                     <table>
+                        <caption class="sr-only">Connected clients</caption>
                         <thead>
                             <tr>
-                                <th>Username</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Status</th>
-                                <th>Last Activity</th>
-                                <th>Sessions</th>
+                                <th scope="col">Username</th>
+                                <th scope="col">Email</th>
+                                <th scope="col">Phone</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Last Activity</th>
+                                <th scope="col">Sessions</th>
                             </tr>
                         </thead>
                         <tbody id="clientsTableBody">
@@ -239,7 +247,9 @@
                 </div>
 
                 <div class="occupancy-controls">
+                    <label for="vehicleFilter" class="sr-only">Search occupancy by registration</label>
                     <input type="text" id="vehicleFilter" placeholder="Search by registration..." onkeyup="filterOccupancy()">
+                    <label for="statusOccupancyFilter" class="sr-only">Filter occupancy by status</label>
                     <select id="statusOccupancyFilter" onchange="filterOccupancy()">
                         <option value="">All Status</option>
                         <option value="Available">Available</option>
@@ -249,14 +259,15 @@
 
                 <div class="occupancy-table">
                     <table>
+                        <caption class="sr-only">Vehicle occupancy status</caption>
                         <thead>
                             <tr>
-                                <th>Vehicle ID</th>
-                                <th>Registration</th>
-                                <th>Route</th>
-                                <th>Status</th>
-                                <th>Last Updated</th>
-                                <th>Updated By</th>
+                                <th scope="col">Vehicle ID</th>
+                                <th scope="col">Registration</th>
+                                <th scope="col">Route</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Last Updated</th>
+                                <th scope="col">Updated By</th>
                             </tr>
                         </thead>
                         <tbody id="occupancyTableBody">
@@ -274,7 +285,9 @@
                 </div>
 
                 <div class="feedback-filters">
+                    <label for="feedbackFilter" class="sr-only">Search feedback</label>
                     <input type="text" id="feedbackFilter" placeholder="Search feedback..." onkeyup="filterFeedback()">
+                    <label for="feedbackTypeFilter" class="sr-only">Filter feedback by type</label>
                     <select id="feedbackTypeFilter" onchange="filterFeedback()">
                         <option value="">All Types</option>
                         <option value="Complaint">Complaints</option>

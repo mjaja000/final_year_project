@@ -79,6 +79,17 @@ const OccupancyDisplay = ({ interactive = true, showPayButton = true }: Occupanc
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  const buildPaymentParams = useCallback((route: DisplayRoute, vehicleName?: string) => {
+    const params = new URLSearchParams();
+    params.set('routeId', String(route.id));
+    params.set('routeName', route.name);
+    if (route.from) params.set('from', route.from);
+    if (route.to) params.set('to', route.to);
+    if (Number.isFinite(route.fare)) params.set('fare', String(route.fare));
+    if (vehicleName) params.set('vehicle', vehicleName);
+    return params.toString();
+  }, []);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -244,7 +255,7 @@ const OccupancyDisplay = ({ interactive = true, showPayButton = true }: Occupanc
                 {showPayButton && (
                   <div className="mt-3">
                     <Button
-                      onClick={() => navigate(`/payment?routeId=${encodeURIComponent(r.id)}`)}
+                      onClick={() => navigate(`/payment?${buildPaymentParams(r)}`)}
                       size="sm"
                       className="w-full bg-green-600 hover:bg-green-700"
                     >
@@ -275,7 +286,7 @@ const OccupancyDisplay = ({ interactive = true, showPayButton = true }: Occupanc
                     <button
                       type="button"
                       key={v.id}
-                      onClick={() => navigate(`/payment?routeId=${encodeURIComponent(r.id)}&vehicle=${encodeURIComponent(v.name)}`)}
+                      onClick={() => navigate(`/payment?${buildPaymentParams(r, v.name)}`)}
                       className={cardClass}
                     >
                       <p className="font-mono text-xs sm:text-sm font-semibold mb-1">{v.name}</p>

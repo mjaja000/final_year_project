@@ -47,7 +47,20 @@ const App = () => (
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/feedback" element={<Feedback />} />
-              <Route path="/driver/admn" element={<Suspense fallback={null}><DriverAdmn /></Suspense>} />
+              <Route
+                path="/driver/admn"
+                element={
+                  <Suspense
+                    fallback={
+                      <div className="sr-only" role="status" aria-live="polite">
+                        Loading driver login...
+                      </div>
+                    }
+                  >
+                    <DriverAdmn />
+                  </Suspense>
+                }
+              />
               <Route path="/occupancy" element={<Occupancy />} />
               <Route path="/payment" element={<Payment />} />
               <Route path="/pay" element={<Navigate to="/payment" replace />} />
