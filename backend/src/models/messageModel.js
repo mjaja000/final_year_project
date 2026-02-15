@@ -53,6 +53,14 @@ class MessageModel {
     return result.rows;
   }
 
+  static async markReadForReceiver(messageIds = [], receiverId) {
+    if (!messageIds || messageIds.length === 0 || !receiverId) return [];
+    const placeholders = messageIds.map((_, i) => `$${i + 2}`).join(',');
+    const query = `UPDATE messages SET is_read = true WHERE receiver_id = $1 AND id IN (${placeholders}) RETURNING *;`;
+    const result = await pool.query(query, [receiverId, ...messageIds]);
+    return result.rows;
+  }
+
   static async listRecentConversationsForAdmin(limit = 50) {
     // Return latest message per sender where receiver is admin (or messages involving admin)
     const query = `
