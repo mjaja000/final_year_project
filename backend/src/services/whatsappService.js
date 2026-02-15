@@ -1,4 +1,4 @@
-ngrok http 5000const twilio = require('twilio');
+const twilio = require('twilio');
 
 class WhatsAppService {
   constructor() {
