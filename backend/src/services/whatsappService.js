@@ -1,4 +1,5 @@
 const twilio = require('twilio');
+const MessageModel = require('../models/messageModel');
 
 class WhatsAppService {
   constructor() {
@@ -36,10 +37,16 @@ class WhatsAppService {
     return `whatsapp:${formatted}`;
   }
 
-  async sendMessage(phoneNumber, message) {
+  normalizePhoneForStorage(phoneNumber) {
+    if (!phoneNumber) return null;
+    return String(phoneNumber).replace(/[^0-9]/g, '');
+  }
+
+  async sendMessage(phoneNumber, message, messageType = 'general') {
     try {
       this.validateConfig();
       const formattedPhone = this.formatPhoneNumber(phoneNumber);
+      const storagePhone = this.normalizePhoneForStorage(phoneNumber);
 
       const response = await this.client.messages.create({
         from: this.whatsappNumber,
@@ -48,6 +55,22 @@ class WhatsAppService {
       });
 
       console.log('✓ WhatsApp message sent via Twilio:', { phone: formattedPhone, sid: response.sid });
+
+      // Store outgoing message in database
+      try {
+        await MessageModel.createWhatsAppMessage({
+          phone: storagePhone,
+          messageId: response.sid,
+          direction: 'outgoing',
+          messageType: messageType,
+          message: message,
+          isRead: true
+        });
+        console.log('✓ WhatsApp message stored in database');
+      } catch (dbError) {
+        console.error('✗ Failed to store WhatsApp message:', dbError.message);
+      }
+
       return { success: true, messageId: response.sid, data: response };
     } catch (error) {
       console.error('✗ WhatsApp sending failed:', {
@@ -98,7 +121,7 @@ Send it to: *+1 415 523 8886*
 
 Do it now - takes 5 seconds!`;
     
-    return this.sendMessage(phoneNumber, joinMessage);
+    return this.sendMessage(phoneNumber, joinMessage, 'join_instructions');
   }
 
   async sendFeedbackConfirmation(phoneNumber, feedbackData) {
@@ -110,7 +133,7 @@ Vehicle: ${feedbackData.vehicleReg || 'N/A'}
 Feedback ID: ${feedbackData.feedbackId}
 
 We appreciate your input to help improve our service. Your feedback helps us serve you better!`;
-    return this.sendMessage(phoneNumber, message);
+    return this.sendMessage(phoneNumber, message, 'feedback_confirmation');
   }
 
   async sendPaymentConfirmation(phoneNumber, paymentData) {
@@ -124,7 +147,7 @@ Your payment has been recorded.
 📅 Date: ${date}
 
 Thank you for using MatatuConnect!`;
-    return this.sendMessage(phoneNumber, message);
+    return this.sendMessage(phoneNumber, message, 'payment_confirmation');
   }
 
   async sendPaymentNotification(phoneNumber, paymentData) {
@@ -142,11 +165,11 @@ Route: ${occupancyData.routeName || 'N/A'}
 Time: ${new Date().toLocaleTimeString('en-KE')}
 
 Check the MatatuConnect app for more details!`;
-    return this.sendMessage(phoneNumber, message);
+    return this.sendMessage(phoneNumber, message, 'occupancy_alert');
   }
 
   async sendServiceAlert(phoneNumber, alertMessage) {
-    return this.sendMessage(phoneNumber, alertMessage);
+    return this.sendMessage(phoneNumber, alertMessage, 'service_alert');
   }
 
   async sendComplaintAcknowledgment(phoneNumber, complaintData) {
@@ -159,15 +182,15 @@ Route: ${complaintData.routeName || 'N/A'}
 
 ⏱️ We'll investigate and get back to you within 24 hours.
 📞 Support: Contact us at +254712345678`;
-    return this.sendMessage(phoneNumber, message);
+    return this.sendMessage(phoneNumber, message, 'complaint_acknowledgment');
   }
 
-  async sendInteractiveMessage(phoneNumber, title, options) {
+  async sendInteractiveMessage(phoneNumber, title, options, messageType = 'interactive_menu') {
     // Twilio WhatsApp doesn't support interactive buttons in sandbox
     // Fall back to text message with numbered options
     const optionsText = options.map((opt, idx) => `${idx + 1}. ${opt.title}`).join('\n');
     const message = `${title}\n\n${optionsText}\n\nReply with the number of your choice.`;
-    return this.sendMessage(phoneNumber, message);
+    return this.sendMessage(phoneNumber, message, messageType);
   }
 
   async sendRatingRequest(phoneNumber, feedbackId) {

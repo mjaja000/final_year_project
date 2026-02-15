@@ -98,8 +98,33 @@ class PaymentController {
       const resultCode =
         callbackBody?.Body?.stkCallback?.ResultCode ?? callbackBody?.ResultCode;
 
+      const metadataItems = callbackBody?.Body?.stkCallback?.CallbackMetadata?.Item || [];
+      const metadata = metadataItems.reduce((acc, item) => {
+        if (item?.Name) {
+          acc[item.Name] = item.Value;
+        }
+        return acc;
+      }, {});
+
       if (String(resultCode) === '0') {
         console.log('Simulated payment success');
+
+        const phoneNumber = metadata.PhoneNumber;
+        const amount = metadata.Amount;
+        const transactionId = metadata.MpesaReceiptNumber || metadata.CheckoutRequestID;
+
+        if (phoneNumber && amount) {
+          try {
+            await WhatsappService.sendPaymentConfirmation(phoneNumber, {
+              routeName: 'N/A',
+              amount: amount,
+              transactionId: transactionId || 'M-Pesa'
+            });
+            console.log('✓ WhatsApp payment confirmation sent from callback');
+          } catch (whatsappError) {
+            console.error('WhatsApp callback notification failed:', whatsappError.message);
+          }
+        }
       } else {
         console.log('Simulated payment failed:', callbackBody?.Body?.stkCallback?.ResultDesc);
       }

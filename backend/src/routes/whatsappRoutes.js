@@ -1,11 +1,19 @@
 const express = require('express');
 const router = express.Router();
+const MessageModel = require('../models/messageModel');
+const WhatsappService = require('../services/whatsappService');
 
 // WhatsApp webhook token for verification
 const WHATSAPP_WEBHOOK_TOKEN = process.env.WHATSAPP_WEBHOOK_TOKEN || 'matatuconnect-verify-token-2024';
 
 // Store incoming messages for monitoring
 let incomingMessages = [];
+
+// Helper function to normalize phone numbers for storage (digits-only)
+const normalizePhoneForStorage = (phone) => {
+  if (!phone) return null;
+  return String(phone).replace(/[^0-9]/g, '');
+};
 
 /**
  * GET /api/whatsapp/webhook
@@ -62,31 +70,28 @@ router.post('/webhook', async (req, res) => {
 
     console.log('✓ Twilio message stored:', messageContent);
 
-    // Auto-respond to EVERY message with join code and helpful info
     const messageText = (body.Body || '').toLowerCase().trim();
     const userPhone = body.From.replace('whatsapp:', ''); // Remove whatsapp: prefix
-    
-    // Check if this looks like a command or question
-    const isCommand = messageText.includes('join') || 
-                      messageText.includes('help') || 
-                      messageText.includes('start') ||
-                      messageText.includes('hi') ||
-                      messageText.includes('hello') ||
-                      messageText.includes('menu') ||
-                      messageText.length < 50; // Short messages likely need help
-    
-    if (isCommand) {
-      // Send helpful response via Twilio with JOIN CODE prominently displayed
-      const twilio = require('twilio');
-      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-      
-      try {
-        // Customize message based on what user sent
-        let responseMessage;
-        
-        if (messageText.includes('join') || messageText === 'start') {
-          // User asking about joining - give them the join code!
-          responseMessage = `🎯 *MatatuConnect WhatsApp Setup*
+    const storagePhone = normalizePhoneForStorage(userPhone);
+
+    try {
+      await MessageModel.createWhatsAppMessage({
+        phone: storagePhone,
+        messageId: body.MessageSid,
+        direction: 'incoming',
+        messageType: 'incoming_message',
+        message: body.Body || '',
+        isRead: false
+      });
+    } catch (dbError) {
+      console.error('✗ Failed to store incoming WhatsApp message:', dbError.message);
+    }
+    try {
+      let responseMessage;
+      let responseType = 'general_response';
+
+      if (messageText.includes('join') || messageText === 'start') {
+        responseMessage = `🎯 *MatatuConnect WhatsApp Setup*
 
 To activate notifications, send this message:
 
@@ -102,9 +107,9 @@ After joining, you'll receive:
 ✅ Occupancy alerts
 
 Type "menu" for more options.`;
-        } else if (messageText.includes('menu') || messageText.includes('help')) {
-          // User wants to see menu
-          responseMessage = `📋 *MatatuConnect Menu*
+        responseType = 'join_instructions';
+      } else if (messageText.includes('menu') || messageText.includes('help')) {
+        responseMessage = `📋 *MatatuConnect Menu*
 
 🔔 *Join WhatsApp Notifications:*
 Send: *join break-additional*
@@ -117,35 +122,37 @@ To: +1 415 523 8886
 • Real-time alerts
 
 📞 Need help? Reply "support"`;
-        } else {
-          // Default friendly welcome with join code
-          responseMessage = `👋 *Welcome to MatatuConnect!*
+        responseType = 'help_menu';
+      } else {
+        responseMessage = `Thanks for reaching MatatuConnect. Your message has been received.
 
-You're connected! 
-
-🔔 *To get notifications, send:*
+You can get notifications by sending:
 *join break-additional*
-
-📱 Send to: +1 415 523 8886
-⏱ Valid: 72 hours (rejoin anytime)
-
-✨ You'll receive:
-✅ Payment confirmations
-✅ Feedback updates
-✅ Real-time occupancy alerts
+to +1 415 523 8886.
 
 Type "menu" for options.`;
-        }
-        
-        await client.messages.create({
-          from: process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886',
-          to: body.From,
-          body: responseMessage
-        });
-        console.log('✓ Auto-response with join code sent to:', userPhone);
-      } catch (error) {
-        console.error('✗ Auto-response failed:', error.message);
+        responseType = 'welcome';
       }
+
+      await WhatsappService.sendMessage(userPhone, responseMessage, responseType);
+      console.log('✓ Auto-response sent to:', userPhone);
+
+      const menuOptions = [
+        { title: 'Feedback' },
+        { title: 'Help' },
+        { title: 'Payment status' },
+        { title: 'Occupancy' }
+      ];
+
+      await WhatsappService.sendInteractiveMessage(
+        userPhone,
+        'What would you like to do next?',
+        menuOptions,
+        'post_interaction_menu'
+      );
+      console.log('✓ Post-interaction menu sent to:', userPhone);
+    } catch (error) {
+      console.error('✗ Auto-response failed:', error.message);
     }
 
     // TODO: Add logic here to route messages to admin/driver chat
@@ -286,6 +293,150 @@ router.post('/send-join-instructions', async (req, res) => {
   } catch (err) {
     console.error('Send join instructions failed:', err);
     return res.status(500).json({ success: false, error: err.message || 'Internal error' });
+  }
+});
+
+const normalizeWhatsAppPhone = (phone) => {
+  if (!phone) return null;
+  return String(phone).replace('whatsapp:', '').trim();
+};
+
+/**
+ * GET /api/whatsapp/chats
+ * List WhatsApp contacts with last message time
+ */
+router.get('/chats', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 200;
+    const contacts = await MessageModel.listWhatsAppContacts(limit);
+    res.json({ success: true, contacts });
+  } catch (error) {
+    console.error('List WhatsApp contacts failed:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+    res.status(500).json({ success: false, error: 'Failed to load WhatsApp contacts', detail: error.message });
+  }
+});
+
+/**
+ * GET /api/whatsapp/chats/:phone
+ * Get conversation for a WhatsApp phone number
+ */
+router.get('/chats/:phone', async (req, res) => {
+  try {
+    const phone = normalizePhoneForStorage(req.params.phone);
+    if (!phone) return res.status(400).json({ success: false, error: 'Missing phone number' });
+    const limit = parseInt(req.query.limit, 10) || 200;
+    
+    const messages = await MessageModel.getWhatsAppConversation(phone, limit);
+    
+    // Mark incoming messages as read
+    try {
+      await MessageModel.markWhatsAppRead(phone);
+    } catch (err) {
+      console.error('Failed to mark messages as read:', err.message);
+    }
+    
+    res.json({ success: true, messages });
+  } catch (error) {
+    console.error('Load WhatsApp conversation failed:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to load WhatsApp conversation' });
+  }
+});
+
+/**
+ * POST /api/whatsapp/chats/send
+ * Body: { phone: string, message: string }
+ */
+router.post('/chats/send', async (req, res) => {
+  const { phone, message } = req.body || {};
+  const storagePhone = normalizePhoneForStorage(phone);
+  if (!storagePhone || !message) {
+    return res.status(400).json({ success: false, error: 'Phone and message are required' });
+  }
+
+  try {
+    const result = await WhatsappService.sendMessage(storagePhone, message, 'admin_chat');
+    if (result.success) {
+      return res.json({ success: true, messageId: result.messageId });
+    }
+    // Even if send fails, try to store placeholder
+    try {
+      await MessageModel.createWhatsAppMessage({
+        phone: storagePhone,
+        messageId: result.messageId || `failed_${Date.now()}`,
+        direction: 'outgoing',
+        messageType: 'admin_chat',
+        message: message,
+        isRead: true
+      });
+    } catch (dbError) {
+      console.error('Failed to store WhatsApp message:', dbError.message);
+    }
+    return res.status(500).json({ success: false, error: result.error || 'Failed to send message' });
+  } catch (error) {
+    console.error('Send WhatsApp admin chat failed:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to send WhatsApp message' });
+  }
+});
+
+/**
+ * POST /api/whatsapp/chats/invite
+ * Body: { phone: string }
+ */
+router.post('/chats/invite', async (req, res) => {
+  const { phone } = req.body || {};
+  const storagePhone = normalizePhoneForStorage(phone);
+  if (!storagePhone) {
+    return res.status(400).json({ success: false, error: 'Phone is required' });
+  }
+
+  try {
+    const inviteMessage = `👋 Welcome to MatatuConnect WhatsApp support!\n\nSend *join break-additional* to +1 415 523 8886 to activate notifications.\n\nYou can reply with:\n1. Feedback\n2. Help\n3. Payment status\n4. Occupancy`;
+    
+    // Try to send the invite
+    const result = await WhatsappService.sendMessage(storagePhone, inviteMessage, 'admin_invite');
+    
+    // Always store contact even if send fails
+    try {
+      await MessageModel.createWhatsAppMessage({
+        phone: storagePhone,
+        messageId: result.messageId || `placeholder_${Date.now()}`,
+        direction: 'outgoing',
+        messageType: result.success ? 'admin_invite' : 'system_contact',
+        message: result.success ? inviteMessage : 'Contact added (invite pending)',
+        isRead: true
+      });
+    } catch (dbError) {
+      console.error('Failed to store WhatsApp contact:', dbError.message);
+    }
+    
+    if (result.success) {
+      return res.json({ success: true, messageId: result.messageId });
+    }
+    
+    // Return success anyway since we stored a placeholder
+    return res.json({ success: true, messageId: result.messageId || `placeholder_${Date.now()}`, note: 'Contact added with pending invite' });
+  } catch (error) {
+    console.error('Send WhatsApp invite failed:', error.message);
+    
+    // Try to at least create placeholder
+    try {
+      await MessageModel.createWhatsAppMessage({
+        phone: storagePhone,
+        messageId: `error_${Date.now()}`,
+        direction: 'outgoing',
+        messageType: 'system_contact',
+        message: 'Contact added (invite pending)',
+        isRead: true
+      });
+      res.json({ success: true, note: 'Contact added with placeholder' });
+    } catch (dbError) {
+      console.error('Failed to create placeholder:', dbError.message);
+      res.status(500).json({ success: false, error: 'Failed to add contact' });
+    }
   }
 });
 
