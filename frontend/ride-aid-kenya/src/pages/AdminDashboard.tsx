@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/Header';
 import DataTable from '@/components/DataTable';
-import { mockFeedback, mockPayments, FeedbackEntry, PaymentEntry } from '@/lib/mockData';
+import { mockPayments, PaymentEntry } from '@/lib/mockData';
 import { Helmet } from 'react-helmet-async';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -15,13 +15,25 @@ import DriverManager from '@/components/admin/DriverManager';
 import AdminRevenue from '@/components/admin/AdminRevenue';
 import AdminMessages from '@/components/admin/AdminMessages';
 import io from 'socket.io-client';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import OccupancyDisplay from '@/components/OccupancyDisplay';
+import api from '@/lib/api';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [feedbackSearch, setFeedbackSearch] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
+
+  interface FeedbackEntry {
+    id: string;
+    vehicleNumber: string;
+    route: string;
+    type: 'complaint' | 'compliment';
+    message: string;
+    timestamp: Date;
+    status: 'pending' | 'reviewed' | 'resolved';
+  }
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -68,6 +80,11 @@ const AdminDashboard = () => {
 
   // Socket: subscribe to server events for admin
   const queryClient = useQueryClient();
+  const feedbackQuery = useQuery({
+    queryKey: ['feedback'],
+    queryFn: api.feedback.getAll,
+    refetchInterval: 15000,
+  });
   useEffect(() => {
     const API_BASE = import.meta.env.VITE_API_URL || '';
     const socket = io(API_BASE.replace(/http(s?):\/\//, ''));
@@ -98,16 +115,34 @@ const AdminDashboard = () => {
     };
   }, [queryClient, toast]);
 
+  const feedbackEntries = useMemo<FeedbackEntry[]>(() => {
+    const raw = Array.isArray(feedbackQuery.data)
+      ? feedbackQuery.data
+      : Array.isArray((feedbackQuery.data as any)?.feedback)
+        ? (feedbackQuery.data as any).feedback
+        : [];
+
+    return raw.map((entry: any) => ({
+      id: String(entry.id ?? entry.feedback_id ?? entry.feedbackId ?? Math.random()),
+      vehicleNumber: entry.registration_number || entry.vehicle_number || entry.vehicleNumber || 'Unknown',
+      route: entry.route_name || `Route ${entry.route_id ?? ''}`,
+      type: String(entry.feedback_type || '').toLowerCase() === 'complaint' ? 'complaint' : 'compliment',
+      message: entry.comment || entry.message || '',
+      timestamp: entry.created_at ? new Date(entry.created_at) : new Date(),
+      status: ((entry.status || 'pending').toLowerCase() as FeedbackEntry['status']),
+    }));
+  }, [feedbackQuery.data]);
+
   // Filter feedback
   const filteredFeedback = useMemo(() => {
     const search = feedbackSearch.toLowerCase();
-    return mockFeedback.filter(
+    return feedbackEntries.filter(
       (f) =>
         f.vehicleNumber.toLowerCase().includes(search) ||
         f.route.toLowerCase().includes(search) ||
         f.message.toLowerCase().includes(search)
     );
-  }, [feedbackSearch]);
+  }, [feedbackEntries, feedbackSearch]);
 
   // Filter payments
   const filteredPayments = useMemo(() => {
@@ -319,7 +354,7 @@ const AdminDashboard = () => {
                 <TrendingUp className="h-5 w-5 opacity-70" />
               </div>
               <p className="text-sm opacity-90 mb-1">Total Feedback</p>
-              <p className="text-3xl sm:text-4xl font-bold">{mockFeedback.length}</p>
+              <p className="text-3xl sm:text-4xl font-bold">{feedbackEntries.length}</p>
             </div>
 
             <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
@@ -331,7 +366,7 @@ const AdminDashboard = () => {
               </div>
               <p className="text-sm opacity-90 mb-1">Pending Review</p>
               <p className="text-3xl sm:text-4xl font-bold">
-                {mockFeedback.filter((f) => f.status === 'pending').length}
+                {feedbackEntries.filter((f) => f.status === 'pending').length}
               </p>
             </div>
 
@@ -364,7 +399,7 @@ const AdminDashboard = () => {
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
             <Tabs defaultValue="feedback" className="w-full">
               <div className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 p-4">
-                <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 h-auto bg-white rounded-xl shadow-sm p-1">
+                <TabsList className="w-full grid grid-cols-2 sm:grid-cols-6 h-auto bg-white rounded-xl shadow-sm p-1">
                   <TabsTrigger value="feedback" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white">
                     <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">Feedback</span>
@@ -384,7 +419,13 @@ const AdminDashboard = () => {
                   <TabsTrigger value="routes" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white">
                     <Trello className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">Routes</span>
-                    <span className="sm:hidden">Rte</span>
+                    <span className="sm:hidden">Rts</span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="occupancy" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white">
+                    <Gauge className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Occupancy</span>
+                    <span className="sm:hidden">Occ</span>
                   </TabsTrigger>
 
                   <TabsTrigger value="revenue" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-green-600 data-[state=active]:text-white">
@@ -392,16 +433,22 @@ const AdminDashboard = () => {
                     <span className="hidden sm:inline">Revenue</span>
                     <span className="sm:hidden">Rev</span>
                   </TabsTrigger>
-
-                  <TabsTrigger value="occupancy" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white">
-                    <Gauge className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span>Occ</span>
-                  </TabsTrigger>
                 </TabsList>
               </div>
 
               <div className="p-4 sm:p-6">
                 <TabsContent value="feedback" className="animate-fade-in m-0">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <p className="text-sm text-muted-foreground">Latest feedback from users</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => feedbackQuery.refetch()}
+                      disabled={feedbackQuery.isFetching}
+                    >
+                      {feedbackQuery.isFetching ? 'Refreshing...' : 'Refresh'}
+                    </Button>
+                  </div>
                   <DataTable
                     data={filteredFeedback}
                     columns={feedbackColumns}
@@ -438,10 +485,6 @@ const AdminDashboard = () => {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="routes" className="animate-fade-in m-0">
-                  <RouteManager />
-                </TabsContent>
-
                 <TabsContent value="revenue" className="animate-fade-in m-0">
                   <div className="p-2">
                     <h3 className="font-semibold mb-3">Revenue & Sales</h3>
@@ -451,8 +494,30 @@ const AdminDashboard = () => {
                   </div>
                 </TabsContent>
 
+                <TabsContent value="routes" className="animate-fade-in m-0">
+                  <div className="max-w-5xl mx-auto space-y-6">
+                    <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
+                      <h3 className="font-semibold mb-4">Routes & Fares</h3>
+                      <RouteManager />
+                    </section>
+                  </div>
+                </TabsContent>
+
                 <TabsContent value="occupancy" className="animate-fade-in m-0">
-                  <OccupancyManager />
+                  <div className="max-w-5xl mx-auto space-y-6">
+                    <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
+                      <h3 className="font-semibold mb-4">Occupancy Control</h3>
+                      <OccupancyManager />
+                    </section>
+
+                    <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+                      <h3 className="font-semibold mb-2">Live Occupancy Overview</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Read‑only view mirroring the user occupancy page.
+                      </p>
+                      <OccupancyDisplay interactive={false} showPayButton={false} />
+                    </section>
+                  </div>
                 </TabsContent>
               </div>
             </Tabs>

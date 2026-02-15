@@ -17,6 +17,7 @@ const initializeTables = async () => {
     const TripModel = require('./src/models/tripModel');
     const BookingModel = require('./src/models/bookingModel');
     const MessageModel = require('./src/models/messageModel');
+    const TelegramConnectionModel = require('./src/models/telegramConnectionModel');
 
     // Create tables in dependency order
     await UserModel.createTable();
@@ -26,6 +27,7 @@ const initializeTables = async () => {
     await TripModel.createTable();
     await BookingModel.createTable();
     await MessageModel.createTable();
+    await TelegramConnectionModel.createTable();
     await OccupancyModel.createTable();
     await PaymentModel.createTable();
     await FeedbackModel.createTable();
@@ -48,6 +50,20 @@ const server = app.listen(PORT, async () => {
   // Initialize database
   await initializeTables();
 
+  // Register Telegram webhook if configured
+  try {
+    const { bot } = require('./src/telegram/bot');
+    if (bot && process.env.TELEGRAM_WEBHOOK_URL) {
+      const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL.replace(/\/$/, '') + '/api/telegram/webhook';
+      await bot.setWebHook(webhookUrl);
+      console.log('✓ Telegram webhook set:', webhookUrl);
+    } else {
+      console.log('ℹ️ Telegram webhook not configured. Set TELEGRAM_TOKEN and TELEGRAM_WEBHOOK_URL to enable.');
+    }
+  } catch (err) {
+    console.error('✗ Failed to set Telegram webhook:', err.message);
+  }
+
   // Initialize Socket.IO for real-time updates
   try {
     const { Server } = require('socket.io');
@@ -57,6 +73,16 @@ const server = app.listen(PORT, async () => {
         methods: ['GET', 'POST']
       }
     });
+
+    const presenceCounts = new Map();
+    const updatePresence = (userId, delta) => {
+      if (!userId) return;
+      const current = presenceCounts.get(userId) || 0;
+      const next = Math.max(0, current + delta);
+      if (next === 0) presenceCounts.delete(userId);
+      else presenceCounts.set(userId, next);
+      io.to('admin').emit('chat.presence', { userId, isOnline: next > 0 });
+    };
 
     io.on('connection', (socket) => {
       console.log('⚡️ Socket connected:', socket.id);
@@ -80,12 +106,15 @@ const server = app.listen(PORT, async () => {
       // Chat: driver or admin can join their user room: 'user_<id>'
       socket.on('chat.join', (userId) => {
         if (!userId) return;
+        socket.data.userId = userId;
         socket.join(`user_${userId}`);
+        updatePresence(userId, 1);
       });
 
       socket.on('chat.leave', (userId) => {
         if (!userId) return;
         socket.leave(`user_${userId}`);
+        updatePresence(userId, -1);
       });
 
       socket.on('chat.message', (payload) => {
@@ -98,7 +127,14 @@ const server = app.listen(PORT, async () => {
         io.to('admin').emit('chat.notification', { from: senderId, to: receiverId, tripId, message });
       });
 
+      socket.on('chat.typing', (payload) => {
+        // payload: { senderId, receiverId, isTyping }
+        const { receiverId } = payload || {};
+        if (receiverId) io.to(`user_${receiverId}`).emit('chat.typing', payload);
+      });
+
       socket.on('disconnect', () => {
+        if (socket.data?.userId) updatePresence(socket.data.userId, -1);
         console.log('⚡️ Socket disconnected:', socket.id);
       });
     });

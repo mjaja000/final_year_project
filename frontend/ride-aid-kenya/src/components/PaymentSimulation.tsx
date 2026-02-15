@@ -11,11 +11,12 @@ import api from '@/lib/api';
 
 interface PaymentSimulationProps {
   initialRouteId?: string;
+  initialVehicleNumber?: string;
   onBack: () => void;
 }
 
-const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) => {
-  const [vehicleNumber, setVehicleNumber] = useState('');
+const PaymentSimulation = ({ initialRouteId, initialVehicleNumber, onBack }: PaymentSimulationProps) => {
+  const [vehicleNumber, setVehicleNumber] = useState((initialVehicleNumber ?? '').toUpperCase());
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedRouteId, setSelectedRouteId] = useState<string>(initialRouteId ?? (allRoutes[0]?.id ?? ''));
   const [isProcessing, setIsProcessing] = useState(false);
@@ -24,10 +25,12 @@ const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) =
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const { toast } = useToast();
   const [pollingId, setPollingId] = useState<number | null>(null);
+  const useLiveMpesa = import.meta.env.VITE_PAYMENT_MODE === 'mpesa';
 
   const vehicleValid = validateVehicleNumber(vehicleNumber);
   const phoneValid = phoneNumber.trim().length >= 9;
   const fare = allRoutes.find((r) => r.id === selectedRouteId)?.fare ?? 0;
+  const vehicleLocked = Boolean(initialVehicleNumber);
 
   const handlePayment = async () => {
     if (!vehicleValid) {
@@ -52,6 +55,33 @@ const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) =
     setPaymentStatus('processing');
 
     try {
+      if (useLiveMpesa) {
+        const res = await api.payments.initiate({
+          phone: phoneNumber,
+          amount: fare,
+          vehicle: vehicleNumber,
+          route: selectedRouteId,
+        });
+
+        if (res.success) {
+          setPaymentStatus('success');
+          toast({
+            title: 'STK Prompt Sent',
+            description: 'Check your phone for the M-Pesa prompt and enter your PIN.',
+          });
+        } else {
+          setPaymentStatus('failed');
+          toast({
+            title: 'Payment Failed',
+            description: res.message || 'Failed to initiate M-Pesa prompt.',
+            variant: 'destructive',
+          });
+        }
+
+        setIsProcessing(false);
+        return;
+      }
+
       // Call backend to create simulated payment (backend also sends WhatsApp/SMS)
       const payload = {
         routeId: Number(selectedRouteId),
@@ -63,13 +93,13 @@ const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) =
       const createdPayment = res.payment;
 
       toast({
-        title: "Payment Initiated",
-        description: "M-Pesa STK prompt (simulated). You will receive a WhatsApp confirmation when payment completes.",
+        title: 'Payment Initiated',
+        description: 'M-Pesa STK prompt (simulated). You will receive a WhatsApp confirmation when payment completes.',
       });
 
       // If backend reports notifications status, show it
       if (res.notificationsSent && res.notificationsSent.whatsapp) {
-        toast({ title: "WhatsApp confirmation sent", description: "You'll receive a message shortly." });
+        toast({ title: 'WhatsApp confirmation sent', description: "You'll receive a message shortly." });
       }
 
       // Poll for payment completion/transaction id
@@ -139,12 +169,15 @@ const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) =
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
       {/* Route Info */}
       <div className="text-center pb-3 sm:pb-4 border-b border-border">
-        <p className="text-xs sm:text-sm text-muted-foreground mb-3">Payment Simulation (No real money involved)</p>
+        <p className="text-xs sm:text-sm text-muted-foreground mb-3">
+          {useLiveMpesa ? 'Live M-Pesa Payment' : 'Payment Simulation (No real money involved)'}
+        </p>
         <div className="mt-2 mb-4">
           <select
             value={selectedRouteId}
             onChange={(e) => setSelectedRouteId(e.target.value)}
             className="w-full rounded-md border px-3 py-2 bg-background text-sm"
+            disabled={Boolean(initialRouteId)}
           >
             {allRoutes.map((r) => (
               <option key={r.id} value={r.id}>{r.name} — {r.from} → {r.to} — KES {r.fare}</option>
@@ -168,7 +201,11 @@ const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) =
             vehicleNumber && !vehicleValid && "border-destructive focus-visible:ring-destructive"
           )}
           maxLength={9}
+          readOnly={vehicleLocked}
         />
+        {vehicleLocked && (
+          <p className="text-xs text-muted-foreground">Vehicle is pre-selected from occupancy.</p>
+        )}
         {vehicleNumber && !vehicleValid && (
           <p className="text-xs text-destructive flex items-center gap-1">
             <AlertCircle className="h-3 w-3" />
@@ -205,9 +242,13 @@ const PaymentSimulation = ({ initialRouteId, onBack }: PaymentSimulationProps) =
         <div className="flex items-start gap-3 text-secondary-foreground">
           <Smartphone className="h-6 sm:h-8 w-6 sm:w-8 text-primary shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-sm sm:text-base">M-Pesa Payment Simulation</p>
+            <p className="font-medium text-sm sm:text-base">
+              {useLiveMpesa ? 'M-Pesa STK Prompt' : 'M-Pesa Payment Simulation'}
+            </p>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              This is a demonstration — no real money will be charged.
+              {useLiveMpesa
+                ? 'A real STK prompt will be sent to your phone.'
+                : 'This is a demonstration — no real money will be charged.'}
             </p>
             {paymentStatus === 'success' && transactionRef && (
               <p className="mt-2 text-xs sm:text-sm text-success font-medium break-all">

@@ -1,5 +1,6 @@
 const MessageModel = require('../models/messageModel');
 const ActivityLogModel = require('../models/activityLogModel');
+const UserModel = require('../models/userModel');
 
 class MessageController {
   static async sendMessage(req, res) {
@@ -73,6 +74,17 @@ class MessageController {
     } catch (error) {
       console.error('Mark read error:', error.message);
       res.status(500).json({ message: 'Failed to mark messages read', error: error.message });
+    }
+  }
+
+  static async getAdminUser(req, res) {
+    try {
+      const adminUser = await UserModel.getPrimaryAdmin();
+      if (!adminUser) return res.status(404).json({ message: 'Admin user not found' });
+      res.json({ admin: adminUser });
+    } catch (error) {
+      console.error('Get admin user error:', error.message);
+      res.status(500).json({ message: 'Failed to fetch admin user', error: error.message });
     }
   }
 }

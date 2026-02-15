@@ -12,6 +12,7 @@ export default function Payment() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const routeId = params.get('routeId') ?? undefined;
+  const vehicle = params.get('vehicle') ?? undefined;
 
   return (
     <>
@@ -54,7 +55,11 @@ export default function Payment() {
       
       <main className="max-w-2xl mx-auto py-8 sm:py-12 px-4 sm:px-6">
         <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 border border-gray-100">
-          <PaymentSimulation initialRouteId={routeId ?? undefined} onBack={handleBack} />
+          <PaymentSimulation
+            initialRouteId={routeId ?? undefined}
+            initialVehicleNumber={vehicle ?? undefined}
+            onBack={handleBack}
+          />
         </div>
 
         {/* Security Info */}
