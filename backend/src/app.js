@@ -14,7 +14,6 @@ const tripRoutes = require('./routes/tripRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const whatsappRoutes = require('./routes/whatsappRoutes');
 const driverRoutes = require('./routes/driverRoutes');
-const telegramRoutes = require('./routes/telegramRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
 
@@ -49,7 +48,6 @@ app.use('/api/trips', tripRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/drivers', driverRoutes);
-app.use('/api/telegram', telegramRoutes);
 app.use('/api/messages', messageRoutes);
 
 // Root route

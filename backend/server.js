@@ -17,7 +17,6 @@ const initializeTables = async () => {
     const TripModel = require('./src/models/tripModel');
     const BookingModel = require('./src/models/bookingModel');
     const MessageModel = require('./src/models/messageModel');
-    const TelegramConnectionModel = require('./src/models/telegramConnectionModel');
 
     // Create tables in dependency order
     await UserModel.createTable();
@@ -27,7 +26,6 @@ const initializeTables = async () => {
     await TripModel.createTable();
     await BookingModel.createTable();
     await MessageModel.createTable();
-    await TelegramConnectionModel.createTable();
     await OccupancyModel.createTable();
     await PaymentModel.createTable();
     await FeedbackModel.createTable();
@@ -49,20 +47,6 @@ const server = app.listen(PORT, async () => {
 
   // Initialize database
   await initializeTables();
-
-  // Register Telegram webhook if configured
-  try {
-    const { bot } = require('./src/telegram/bot');
-    if (bot && process.env.TELEGRAM_WEBHOOK_URL) {
-      const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL.replace(/\/$/, '') + '/api/telegram/webhook';
-      await bot.setWebHook(webhookUrl);
-      console.log('✓ Telegram webhook set:', webhookUrl);
-    } else {
-      console.log('ℹ️ Telegram webhook not configured. Set TELEGRAM_TOKEN and TELEGRAM_WEBHOOK_URL to enable.');
-    }
-  } catch (err) {
-    console.error('✗ Failed to set Telegram webhook:', err.message);
-  }
 
   // Initialize Socket.IO for real-time updates
   try {

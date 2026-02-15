@@ -1,31 +1,39 @@
-const axios = require('axios');
+ngrok http 5000const twilio = require('twilio');
 
 class WhatsAppService {
   constructor() {
-    this.apiVersion = process.env.WHATSAPP_API_VERSION || 'v18.0';
-    this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    this.baseUrl = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
+    this.accountSid = process.env.TWILIO_ACCOUNT_SID;
+    this.authToken = process.env.TWILIO_AUTH_TOKEN;
+    this.whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
+    
+    if (this.accountSid && this.authToken) {
+      this.client = twilio(this.accountSid, this.authToken);
+    }
   }
 
   validateConfig() {
-    if (!this.phoneNumberId || !this.accessToken) {
-      throw new Error('WhatsApp credentials not configured. Set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN');
+    if (!this.accountSid || !this.authToken || !this.whatsappNumber) {
+      throw new Error('Twilio WhatsApp credentials not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_NUMBER');
     }
   }
 
   formatPhoneNumber(phoneNumber) {
-    // Remove leading +, spaces, and dashes
-    let formatted = phoneNumber.replace(/[\s\-\+]/g, '');
-    // If starts with 0, replace with 254 (Kenya)
+    // Remove spaces and dashes, keep +
+    let formatted = phoneNumber.replace(/[\s\-]/g, '');
+    // If starts with 0, replace with +254 (Kenya)
     if (formatted.startsWith('0')) {
-      formatted = '254' + formatted.substring(1);
+      formatted = '+254' + formatted.substring(1);
     }
-    // If doesn't start with country code, assume Kenya
-    if (!formatted.startsWith('254') && !formatted.startsWith('+')) {
-      formatted = '254' + formatted;
+    // If doesn't start with +, add it and assume Kenya
+    if (!formatted.startsWith('+')) {
+      if (formatted.startsWith('254')) {
+        formatted = '+' + formatted;
+      } else {
+        formatted = '+254' + formatted;
+      }
     }
-    return formatted;
+    // Twilio requires whatsapp: prefix
+    return `whatsapp:${formatted}`;
   }
 
   async sendMessage(phoneNumber, message) {
@@ -33,37 +41,64 @@ class WhatsAppService {
       this.validateConfig();
       const formattedPhone = this.formatPhoneNumber(phoneNumber);
 
-      const response = await axios.post(
-        this.baseUrl,
-        {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: formattedPhone,
-          type: 'text',
-          text: {
-            preview_url: false,
-            body: message,
-          },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 10000,
-        }
-      );
+      const response = await this.client.messages.create({
+        from: this.whatsappNumber,
+        to: formattedPhone,
+        body: message,
+      });
 
-      console.log('✓ WhatsApp message sent:', { phone: formattedPhone, messageId: response.data.messages?.[0]?.id });
-      return { success: true, messageId: response.data.messages?.[0]?.id, data: response.data };
+      console.log('✓ WhatsApp message sent via Twilio:', { phone: formattedPhone, sid: response.sid });
+      return { success: true, messageId: response.sid, data: response };
     } catch (error) {
       console.error('✗ WhatsApp sending failed:', {
         phone: phoneNumber,
-        error: error.response?.data || error.message,
-        status: error.response?.status
+        error: error.message,
+        code: error.code
       });
-      return { success: false, error: error.response?.data?.error?.message || error.message };
+      
+      // Error 63007: Not in sandbox - send SMS fallback with join instructions
+      if (error.code === 63007) {
+        console.log('⚠️ User not in WhatsApp sandbox. They need to join first.');
+        return { 
+          success: false, 
+          error: error.message, 
+          code: 63007,
+          needsJoin: true,
+          joinInstructions: 'Send "join break-additional" to +1 415 523 8886 on WhatsApp'
+        };
+      }
+      
+      return { success: false, error: error.message, code: error.code };
     }
+  }
+
+  /**
+   * Send sandbox join instructions to a user
+   * @param {string} phoneNumber - User's phone number
+   * @returns {Promise} Result of sending instructions
+   */
+  async sendJoinInstructions(phoneNumber) {
+    const joinMessage = `🎯 *MatatuConnect - Setup Required*
+
+To get WhatsApp notifications:
+
+📝 *STEP 1:*
+Send this exact message:
+*join break-additional*
+
+📱 *STEP 2:*
+Send it to: *+1 415 523 8886*
+
+⏱ *Duration:* 72 hours (rejoin anytime)
+
+✨ *You'll receive:*
+✅ Payment confirmations
+✅ Feedback alerts
+✅ Occupancy updates
+
+Do it now - takes 5 seconds!`;
+    
+    return this.sendMessage(phoneNumber, joinMessage);
   }
 
   async sendFeedbackConfirmation(phoneNumber, feedbackData) {
@@ -128,45 +163,11 @@ Route: ${complaintData.routeName || 'N/A'}
   }
 
   async sendInteractiveMessage(phoneNumber, title, options) {
-    try {
-      this.validateConfig();
-      const formattedPhone = this.formatPhoneNumber(phoneNumber);
-
-      const buttons = options.map((opt, index) => ({
-        type: 'reply',
-        reply: {
-          id: `btn_${index}`,
-          title: opt.title
-        }
-      }));
-
-      const response = await axios.post(
-        this.baseUrl,
-        {
-          messaging_product: 'whatsapp',
-          to: formattedPhone,
-          type: 'interactive',
-          interactive: {
-            type: 'button',
-            body: { text: title },
-            action: { buttons: buttons.slice(0, 3) } // WhatsApp limits to 3 buttons
-          }
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 10000,
-        }
-      );
-
-      console.log('✓ Interactive message sent:', formattedPhone);
-      return { success: true, messageId: response.data.messages?.[0]?.id };
-    } catch (error) {
-      console.error('✗ Interactive message failed:', error.response?.data || error.message);
-      return { success: false, error: error.message };
-    }
+    // Twilio WhatsApp doesn't support interactive buttons in sandbox
+    // Fall back to text message with numbered options
+    const optionsText = options.map((opt, idx) => `${idx + 1}. ${opt.title}`).join('\n');
+    const message = `${title}\n\n${optionsText}\n\nReply with the number of your choice.`;
+    return this.sendMessage(phoneNumber, message);
   }
 
   async sendRatingRequest(phoneNumber, feedbackId) {

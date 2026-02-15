@@ -1,7 +1,6 @@
 const FeedbackModel = require('../models/feedbackModel');
 const SmsService = require('../services/smsService');
 const WhatsappService = require('../services/whatsappService');
-const { sendTelegramMessage } = require('../telegram/sendMessage');
 const UserModel = require('../models/userModel');
 
 class FeedbackController {
@@ -61,24 +60,21 @@ class FeedbackController {
             console.log('✓ WhatsApp feedback confirmation sent');
           } else {
             console.warn('⚠️ WhatsApp feedback confirmation failed:', whatsappResult.error);
+            
+            // If user not in sandbox (error 63007), send SMS with join instructions
+            if (whatsappResult.needsJoin || whatsappResult.code === 63007) {
+              try {
+                const joinInstructions = `MatatuConnect: Feedback received! Get WhatsApp alerts - Send "join break-additional" to +14155238886. Join now!`;
+                await SmsService.sendSms(phoneNumber, joinInstructions);
+                console.log('✓ SMS join instructions sent as fallback');
+              } catch (smsFallbackError) {
+                console.error('SMS join instructions failed:', smsFallbackError.message);
+              }
+            }
           }
         } catch (whatsappError) {
           console.error('WhatsApp notification failed:', whatsappError.message);
         }
-      }
-
-      try {
-        if (userId) {
-          const chatId = await UserModel.getTelegramChatIdByUserId(userId);
-          if (chatId) {
-            await sendTelegramMessage(
-              chatId,
-              '📝 <b>Feedback Received</b>\n\nThank you for your feedback!'
-            );
-          }
-        }
-      } catch (telegramError) {
-        console.error('Telegram feedback notification failed:', telegramError.message);
       }
 
       res.status(201).json({
