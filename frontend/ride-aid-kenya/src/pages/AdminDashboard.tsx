@@ -45,6 +45,8 @@ const AdminDashboard = () => {
     status: 'completed' | 'pending' | 'failed';
   }
 
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+
   // Fetch dashboard stats
   const { data: dashboardData } = useQuery({
     queryKey: ['admin', 'dashboard'],
@@ -57,6 +59,15 @@ const AdminDashboard = () => {
     queryKey: ['admin', 'payments'],
     queryFn: () => api.admin.getPayments({ limit: 1000 }),
     refetchInterval: 30000,
+  });
+
+  const { data: whatsappData } = useQuery({
+    queryKey: ['admin', 'whatsapp', 'chats'],
+    queryFn: async () => {
+      const res = await fetch(API_BASE + '/api/whatsapp/chats');
+      return res.json();
+    },
+    refetchInterval: 15000,
   });
 
   // Transform database payments to match PaymentEntry interface
@@ -72,6 +83,11 @@ const AdminDashboard = () => {
       status: p.status,
     }));
   }, [paymentsResponse]);
+
+  const whatsappUnreadCount = useMemo(() => {
+    const contacts = Array.isArray(whatsappData?.contacts) ? whatsappData.contacts : [];
+    return contacts.reduce((sum: number, contact: any) => sum + (Number(contact.unread_count) || 0), 0);
+  }, [whatsappData]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -374,7 +390,11 @@ const AdminDashboard = () => {
         <main className="container py-6 sm:py-8 px-4">
           {/* Stats - Enhanced Design */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-6 mb-6 sm:mb-8">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+            <button
+              type="button"
+              onClick={() => setActiveTab('feedback')}
+              className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <MessageSquare className="h-6 w-6" />
@@ -383,9 +403,13 @@ const AdminDashboard = () => {
               </div>
               <p className="text-sm opacity-90 mb-1">Total Feedback</p>
               <p className="text-3xl sm:text-4xl font-bold">{feedbackEntries.length}</p>
-            </div>
+            </button>
 
-            <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+            <button
+              type="button"
+              onClick={() => setActiveTab('feedback')}
+              className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <AlertCircle className="h-6 w-6" />
@@ -396,9 +420,13 @@ const AdminDashboard = () => {
               <p className="text-3xl sm:text-4xl font-bold">
                 {feedbackEntries.filter((f) => f.status === 'pending').length}
               </p>
-            </div>
+            </button>
 
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+            <button
+              type="button"
+              onClick={() => setActiveTab('payments')}
+              className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <CreditCard className="h-6 w-6" />
@@ -409,9 +437,13 @@ const AdminDashboard = () => {
               <p className="text-3xl sm:text-4xl font-bold">
                 {dashboardData?.paymentStats?.total_payments || dbPayments.length}
               </p>
-            </div>
+            </button>
 
-            <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+            <button
+              type="button"
+              onClick={() => setActiveTab('revenue')}
+              className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <DollarSign className="h-6 w-6" />
@@ -422,7 +454,7 @@ const AdminDashboard = () => {
               <p className="text-2xl sm:text-3xl font-bold">
                 KES {(dashboardData?.paymentStats?.total_revenue || dbPayments.reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
               </p>
-            </div>
+            </button>
 
             <button
               type="button"
@@ -438,7 +470,7 @@ const AdminDashboard = () => {
                 <TrendingUp className="h-5 w-5 opacity-70" />
               </div>
               <p className="text-sm opacity-90 mb-1">WhatsApp Chats</p>
-              <p className="text-2xl sm:text-3xl font-bold">Open</p>
+              <p className="text-2xl sm:text-3xl font-bold">{whatsappUnreadCount}</p>
             </button>
           </div>
 
