@@ -164,11 +164,43 @@ class MessageModel {
     }
   }
 
+  static async listWhatsAppJoiners(limit = 200) {
+    try {
+      const query = `
+        SELECT
+          whatsapp_phone as phone,
+          MAX(created_at) as joined_at
+        FROM messages
+        WHERE whatsapp_phone IS NOT NULL
+          AND direction = 'incoming'
+          AND message_type = 'join_request'
+        GROUP BY whatsapp_phone
+        ORDER BY joined_at DESC
+        LIMIT $1;
+      `;
+      const result = await pool.query(query, [limit]);
+      return result.rows;
+    } catch (error) {
+      console.error('Error in listWhatsAppJoiners:', error.message);
+      throw error;
+    }
+  }
+
   static async markWhatsAppRead(phone) {
     const query = `
       UPDATE messages
       SET is_read = true
       WHERE whatsapp_phone = $1 AND direction = 'incoming' AND is_read = false
+      RETURNING id;
+    `;
+    const result = await pool.query(query, [phone]);
+    return result.rows;
+  }
+
+  static async deleteWhatsAppChat(phone) {
+    const query = `
+      DELETE FROM messages
+      WHERE whatsapp_phone = $1
       RETURNING id;
     `;
     const result = await pool.query(query, [phone]);

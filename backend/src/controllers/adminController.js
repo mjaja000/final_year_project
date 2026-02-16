@@ -6,6 +6,8 @@ const VehicleModel = require('../models/vehicleModel');
 const OccupancyModel = require('../models/occupancyModel');
 const ActivityLogModel = require('../models/activityLogModel');
 const DatabaseStatsModel = require('../models/databaseStatsModel');
+const MessageModel = require('../models/messageModel');
+const twilio = require('twilio');
 const pool = require('../config/database');
 
 class AdminController {
@@ -434,6 +436,72 @@ class AdminController {
     } catch (error) {
       console.error('Get activity logs error:', error);
       res.status(500).json({ message: 'Failed to fetch activity logs', error: error.message });
+    }
+  }
+
+  // Get WhatsApp joiners (users who sent the join keyword)
+  static async getWhatsAppJoiners(req, res) {
+    try {
+      const limit = parseInt(req.query.limit, 10) || 200;
+      const joiners = await MessageModel.listWhatsAppJoiners(limit);
+
+      res.json({
+        message: 'WhatsApp joiners fetched',
+        total: joiners.length || 0,
+        joiners: joiners || []
+      });
+    } catch (error) {
+      console.error('Get WhatsApp joiners error:', error.message);
+      res.status(500).json({ message: 'Failed to fetch WhatsApp joiners', error: error.message });
+    }
+  }
+
+  // Get WhatsApp participants from Twilio (unique inbound senders)
+  static async getWhatsAppParticipants(req, res) {
+    try {
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
+
+      if (!accountSid || !authToken) {
+        return res.status(500).json({ message: 'Twilio credentials not configured' });
+      }
+
+      const limit = parseInt(req.query.limit, 10) || 200;
+      const client = twilio(accountSid, authToken);
+      const messages = await client.messages.list({ to: whatsappNumber, limit });
+
+      const normalize = (value) => String(value || '').replace(/[^0-9]/g, '');
+      const latestByPhone = new Map();
+
+      messages.forEach((msg) => {
+        if (msg.direction && msg.direction !== 'inbound') return;
+        const phone = normalize(msg.from);
+        if (!phone) return;
+        const existing = latestByPhone.get(phone);
+        const createdAt = msg.dateCreated ? new Date(msg.dateCreated) : null;
+        if (!existing || (createdAt && new Date(existing.last_message_at) < createdAt)) {
+          latestByPhone.set(phone, {
+            phone,
+            last_message_at: createdAt ? createdAt.toISOString() : null
+          });
+        }
+      });
+
+      const participants = Array.from(latestByPhone.values()).sort((a, b) => {
+        if (!a.last_message_at) return 1;
+        if (!b.last_message_at) return -1;
+        return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
+      });
+
+      res.json({
+        message: 'WhatsApp participants fetched from Twilio',
+        total: participants.length,
+        participants
+      });
+    } catch (error) {
+      console.error('Get WhatsApp participants error:', error.message);
+      res.status(500).json({ message: 'Failed to fetch WhatsApp participants', error: error.message });
     }
   }
 

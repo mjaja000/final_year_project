@@ -532,6 +532,11 @@ table tr:hover {
     color: #991b1b;
 }
 
+.status.whatsapp {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
 /* ===== ROUTES GRID ===== */
 .routes-grid {
     display: grid;

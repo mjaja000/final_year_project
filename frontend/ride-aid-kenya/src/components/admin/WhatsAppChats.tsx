@@ -23,6 +23,26 @@ type ChatMessage = {
 };
 
 const formatPhone = (value: string) => value.replace(/\s+/g, '').replace(/^\+/, '');
+const normalizePhone = (value: string) => value.replace(/[^0-9]/g, '');
+
+// Format timestamp for Nairobi time (EAT = UTC+3) display
+// Database stores UTC timestamps, we convert to Nairobi time for display
+// This conversion is browser-independent (works correctly in any timezone)
+const formatNairobiDateTime = (timestamp: string | Date) => {
+  const date = new Date(timestamp); // Parse UTC timestamp
+  const nairobiTime = new Date(date.getTime() + (3 * 60 * 60 * 1000)); // Add 3 hours for EAT
+  
+  const day = nairobiTime.getUTCDate();
+  const month = nairobiTime.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+  const year = nairobiTime.getUTCFullYear();
+  
+  let hours = nairobiTime.getUTCHours();
+  const minutes = nairobiTime.getUTCMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  hours = hours % 12 || 12;
+  
+  return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
+};
 
 export default function WhatsAppChats() {
   const { toast } = useToast();
@@ -38,9 +58,32 @@ export default function WhatsAppChats() {
     try {
       const res = await fetch(API_BASE + '/api/whatsapp/chats');
       const data = await res.json();
-      if (res.ok) {
-        setContacts(data.contacts || []);
+
+      const baseContacts = res.ok ? (data.contacts || []) : [];
+      const known = new Set(baseContacts.map((contact: ChatContact) => normalizePhone(contact.phone || '')));
+
+      try {
+        const participantsRes = await fetch(API_BASE + '/api/admin/whatsapp/participants');
+        const participantsData = await participantsRes.json();
+        const participants = participantsRes.ok ? (participantsData.participants || []) : [];
+
+        participants.forEach((participant: { phone: string; last_message_at?: string }) => {
+          const normalized = normalizePhone(participant.phone || '');
+          if (!normalized || known.has(normalized)) return;
+          known.add(normalized);
+          baseContacts.push({
+            phone: participant.phone,
+            last_message_at: participant.last_message_at,
+            last_message_type: 'twilio_participant',
+            last_direction: 'inbound',
+            unread_count: 0,
+          });
+        });
+      } catch (error) {
+        // ignore participants errors
       }
+
+      setContacts(baseContacts);
     } catch (error) {
       // ignore
     }
@@ -131,6 +174,33 @@ export default function WhatsAppChats() {
     }
   };
 
+  const handleDelete = async (phone: string) => {
+    if (!confirm(`Delete all messages for ${phone}? This cannot be undone.`)) return;
+    
+    try {
+      setLoading(true);
+      const res = await fetch(API_BASE + `/api/whatsapp/chats/${encodeURIComponent(phone)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        toast({ title: 'Deleted', description: `Chat with ${phone} deleted (${data.deleted} messages)` });
+        if (activePhone === phone) {
+          setActivePhone('');
+          setConversation([]);
+        }
+        await loadContacts();
+      } else {
+        toast({ title: 'Delete failed', description: data.error || 'Unable to delete', variant: 'destructive' });
+      }
+    } catch (error: any) {
+      toast({ title: 'Delete failed', description: error.message || 'Unable to delete', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sortedContacts = useMemo(() => {
     return [...contacts].sort((a, b) => {
       const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
@@ -167,14 +237,21 @@ export default function WhatsAppChats() {
             const isPending = contact.last_message_type === 'system_contact';
             const hasUnread = (contact.unread_count || 0) > 0;
             return (
-              <button
-                type="button"
+              <div
                 key={contact.phone}
-                onClick={() => setActivePhone(contact.phone)}
-                className={`w-full text-left p-3 rounded-lg border transition ${activePhone === contact.phone ? 'bg-emerald-50 border-emerald-100' : 'hover:bg-slate-50'}`}
+                className={`w-full p-3 rounded-lg border transition ${activePhone === contact.phone ? 'bg-emerald-50 border-emerald-100' : 'hover:bg-slate-50'}`}
               >
                 <div className="flex items-center justify-between">
-                  <div className="font-medium">{contact.phone}</div>
+                  <button
+                    type="button"
+                    onClick={() => setActivePhone(contact.phone)}
+                    className="flex-1 text-left"
+                  >
+                    <div className="font-medium">{contact.phone}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Last: {contact.last_message_at ? formatNairobiDateTime(contact.last_message_at) : '—'}
+                    </div>
+                  </button>
                   <div className="flex items-center gap-2">
                     {isPending && (
                       <span className="text-[11px] bg-orange-100 text-orange-700 px-2 py-1 rounded-full">Pending</span>
@@ -184,12 +261,22 @@ export default function WhatsAppChats() {
                         {contact.unread_count}
                       </span>
                     )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(contact.phone);
+                      }}
+                      className="ml-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full p-1.5 transition"
+                      title="Delete chat"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Last: {contact.last_message_at ? new Date(contact.last_message_at).toLocaleDateString() : '—'}
-                </div>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -198,9 +285,21 @@ export default function WhatsAppChats() {
       {activePhone ? (
         <>
           <div className="lg:col-span-2 rounded-xl border bg-white p-4 shadow-sm flex flex-col gap-3">
-            <div>
-              <p className="text-xs text-muted-foreground">Admin WhatsApp chat</p>
-              <span className="text-xs text-muted-foreground">{conversation.length} messages</span>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Admin WhatsApp chat</p>
+                <span className="text-xs text-muted-foreground">{conversation.length} messages</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDelete(activePhone)}
+                className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg px-3 py-1.5 text-sm font-medium transition flex items-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete Chat
+              </button>
             </div>
 
             <div className="h-80 overflow-auto mb-3 rounded-lg border bg-slate-50 p-4 flex flex-col gap-2">
@@ -220,7 +319,7 @@ export default function WhatsAppChats() {
                   >
                     <div className={isUnread ? 'font-semibold' : ''}>{msg.message}</div>
                     <div className={`mt-1 text-[10px] ${isUnread ? 'text-blue-600' : 'text-muted-foreground'}`}>
-                      {new Date(msg.created_at).toLocaleString()}
+                      {formatNairobiDateTime(msg.created_at)}
                       {isOutgoing && (msg.is_read ? ' ✓✓' : ' ✓')}
                     </div>
                   </div>

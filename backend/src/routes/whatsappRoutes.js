@@ -73,16 +73,28 @@ router.post('/webhook', async (req, res) => {
     const messageText = (body.Body || '').toLowerCase().trim();
     const userPhone = body.From.replace('whatsapp:', ''); // Remove whatsapp: prefix
     const storagePhone = normalizePhoneForStorage(userPhone);
+    const isJoinMessage = /^join\b/.test(messageText);
 
     try {
       await MessageModel.createWhatsAppMessage({
         phone: storagePhone,
         messageId: body.MessageSid,
         direction: 'incoming',
-        messageType: 'incoming_message',
+        messageType: isJoinMessage ? 'join_request' : 'incoming_message',
         message: body.Body || '',
         isRead: false
       });
+
+      if (isJoinMessage && storagePhone) {
+        const io = req.app.get('io');
+        if (io) {
+          io.to('admin').emit('whatsapp.join_request', {
+            phone: storagePhone,
+            joinedAt: new Date().toISOString(),
+            messageId: body.MessageSid
+          });
+        }
+      }
     } catch (dbError) {
       console.error('✗ Failed to store incoming WhatsApp message:', dbError.message);
     }
@@ -437,6 +449,28 @@ router.post('/chats/invite', async (req, res) => {
       console.error('Failed to create placeholder:', dbError.message);
       res.status(500).json({ success: false, error: 'Failed to add contact' });
     }
+  }
+});
+
+/**
+ * DELETE /api/whatsapp/chats/:phone
+ * Delete a WhatsApp chat (contact and all messages)
+ */
+router.delete('/chats/:phone', async (req, res) => {
+  const phone = req.params.phone;
+  const storagePhone = normalizePhoneForStorage(phone);
+  
+  if (!storagePhone) {
+    return res.status(400).json({ success: false, error: 'Invalid phone number' });
+  }
+
+  try {
+    const deletedMessages = await MessageModel.deleteWhatsAppChat(storagePhone);
+    console.log(`[WhatsApp] Deleted chat for ${storagePhone}: ${deletedMessages.length} messages removed`);
+    res.json({ success: true, deleted: deletedMessages.length });
+  } catch (error) {
+    console.error('Delete WhatsApp chat failed:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to delete chat' });
   }
 });
 
