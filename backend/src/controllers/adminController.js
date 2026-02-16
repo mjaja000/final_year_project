@@ -51,7 +51,8 @@ class AdminController {
         totalVehicles: totalVehicles || 0,
         totalRoutes: totalRoutes || 0,
         totalFeedback: feedbackData.total || 0,
-        totalPayments: paymentStats.total || 0,
+        totalPayments: paymentStats.total_payments || 0,
+        totalRevenue: paymentStats.total_revenue || 0,
         feedbackByType: feedbackData.byType || {
           Complaint: 0,
           Compliment: 0
@@ -68,6 +69,7 @@ class AdminController {
         totalRoutes: 3,
         totalFeedback: 12,
         totalPayments: 4,
+        totalRevenue: 0,
         feedbackByType: {
           Complaint: 5,
           Compliment: 7

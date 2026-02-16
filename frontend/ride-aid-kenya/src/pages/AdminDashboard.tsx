@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/Header';
 import DataTable from '@/components/DataTable';
-import { mockPayments, PaymentEntry } from '@/lib/mockData';
 import { Helmet } from 'react-helmet-async';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -35,6 +34,44 @@ const AdminDashboard = () => {
     timestamp: Date;
     status: 'pending' | 'reviewed' | 'resolved';
   }
+
+  interface PaymentEntry {
+    id: string;
+    transactionId: string;
+    vehicleNumber: string;
+    route: string;
+    amount: number;
+    timestamp: Date;
+    status: 'completed' | 'pending' | 'failed';
+  }
+
+  // Fetch dashboard stats
+  const { data: dashboardData } = useQuery({
+    queryKey: ['admin', 'dashboard'],
+    queryFn: () => api.admin.getDashboard(),
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  // Fetch payments from database
+  const { data: paymentsResponse } = useQuery({
+    queryKey: ['admin', 'payments'],
+    queryFn: () => api.admin.getPayments({ limit: 1000 }),
+    refetchInterval: 30000,
+  });
+
+  // Transform database payments to match PaymentEntry interface
+  const dbPayments: PaymentEntry[] = useMemo(() => {
+    if (!paymentsResponse?.payments) return [];
+    return paymentsResponse.payments.map((p: any) => ({
+      id: String(p.id),
+      transactionId: p.transaction_id || `TXN-${p.id}`,
+      vehicleNumber: p.vehicle_number || 'N/A',
+      route: p.route_name || 'Unknown Route',
+      amount: Number(p.amount),
+      timestamp: new Date(p.created_at),
+      status: p.status,
+    }));
+  }, [paymentsResponse]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -149,13 +186,13 @@ const AdminDashboard = () => {
   // Filter payments
   const filteredPayments = useMemo(() => {
     const search = paymentSearch.toLowerCase();
-    return mockPayments.filter(
+    return dbPayments.filter(
       (p) =>
         p.vehicleNumber.toLowerCase().includes(search) ||
         p.route.toLowerCase().includes(search) ||
         p.transactionId.toLowerCase().includes(search)
     );
-  }, [paymentSearch]);
+  }, [dbPayments, paymentSearch]);
 
   const feedbackColumns = [
     {
@@ -369,7 +406,9 @@ const AdminDashboard = () => {
                 <Users className="h-5 w-5 opacity-70" />
               </div>
               <p className="text-sm opacity-90 mb-1">Total Payments</p>
-              <p className="text-3xl sm:text-4xl font-bold">{mockPayments.length}</p>
+              <p className="text-3xl sm:text-4xl font-bold">
+                {dashboardData?.paymentStats?.total_payments || dbPayments.length}
+              </p>
             </div>
 
             <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
@@ -381,7 +420,7 @@ const AdminDashboard = () => {
               </div>
               <p className="text-sm opacity-90 mb-1">Revenue</p>
               <p className="text-2xl sm:text-3xl font-bold">
-                KES {mockPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+                KES {(dashboardData?.paymentStats?.total_revenue || dbPayments.reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
               </p>
             </div>
 
