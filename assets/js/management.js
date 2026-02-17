@@ -136,7 +136,7 @@ function initSocket() {
 }
 
 // ===== TAB NAVIGATION =====
-function showTab(tabName) {
+function showTab(tabName, e) {
     // Hide all tabs
     const tabs = document.querySelectorAll('.tab-content');
     tabs.forEach(tab => tab.classList.remove('active'));
@@ -149,7 +149,11 @@ function showTab(tabName) {
     document.getElementById(tabName).classList.add('active');
     
     // Add active class to clicked button
-    event.target.classList.add('active');
+    if (e && e.target) {
+        e.target.classList.add('active');
+    }
+
+    closeSidebar();
     
     // Load tab-specific data
     if (tabName === 'clients') loadClientsData();
@@ -158,6 +162,36 @@ function showTab(tabName) {
     if (tabName === 'feedback') loadFeedbackData();
     if (tabName === 'services') checkServicesHealth();
     if (tabName === 'database') checkDatabaseStatus();
+}
+
+// ===== SIDEBAR TOGGLE (MOBILE) =====
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const toggleBtn = document.querySelector('.sidebar-toggle');
+
+    if (!sidebar || !overlay || !toggleBtn) {
+        return;
+    }
+
+    sidebar.classList.toggle('active');
+    overlay.classList.toggle('active');
+    const isOpen = sidebar.classList.contains('active');
+    toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+}
+
+function closeSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const toggleBtn = document.querySelector('.sidebar-toggle');
+
+    if (!sidebar || !overlay || !toggleBtn) {
+        return;
+    }
+
+    sidebar.classList.remove('active');
+    overlay.classList.remove('active');
+    toggleBtn.setAttribute('aria-expanded', 'false');
 }
 
 // ===== DATA LOADING =====
@@ -420,12 +454,12 @@ function displayClientsTable(clients) {
     clients.forEach(client => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${client.username}</td>
-            <td>${client.email}</td>
-            <td>${client.phone}</td>
-            <td><span class="status ${client.status}">${client.status}</span></td>
-            <td>${formatTime(client.lastActivity)}</td>
-            <td>${client.sessions}</td>
+            <td data-label="Username">${client.username}</td>
+            <td data-label="Email">${client.email}</td>
+            <td data-label="Phone">${client.phone}</td>
+            <td data-label="Status"><span class="status ${client.status}">${client.status}</span></td>
+            <td data-label="Last Activity">${formatTime(client.lastActivity)}</td>
+            <td data-label="Sessions">${client.sessions}</td>
         `;
         tbody.appendChild(row);
     });
@@ -443,12 +477,12 @@ function displayOccupancyTable(occupancy) {
     occupancy.forEach(item => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${item.vehicleId || '--'}</td>
-            <td>${item.vehicleRegistration || '--'}</td>
-            <td>${item.route || '--'}</td>
-            <td><span class="status ${item.status.toLowerCase()}">${item.status}</span></td>
-            <td>${formatTime(item.updatedAt)}</td>
-            <td>${item.updatedBy || 'System'}</td>
+            <td data-label="Vehicle ID">${item.vehicleId || '--'}</td>
+            <td data-label="Registration">${item.vehicleRegistration || '--'}</td>
+            <td data-label="Route">${item.route || '--'}</td>
+            <td data-label="Status"><span class="status ${item.status.toLowerCase()}">${item.status}</span></td>
+            <td data-label="Last Updated">${formatTime(item.updatedAt)}</td>
+            <td data-label="Updated By">${item.updatedBy || 'System'}</td>
         `;
         tbody.appendChild(row);
     });

@@ -1,7 +1,6 @@
 const PaymentModel = require('../models/paymentModel');
 const SmsService = require('../services/smsService');
 const WhatsappService = require('../services/whatsappService');
-const { sendTelegramMessage } = require('../telegram/sendMessage');
 const UserModel = require('../models/userModel');
 const MpesaService = require('../services/mpesaService');
 
@@ -165,19 +164,6 @@ class PaymentController {
       // Simulate successful payment after 2 seconds
       setTimeout(async () => {
         await PaymentModel.updatePaymentStatus(payment.id, 'completed', simulatedTransactionId);
-        try {
-          if (userId) {
-            const chatId = await UserModel.getTelegramChatIdByUserId(userId);
-            if (chatId) {
-              await sendTelegramMessage(
-                chatId,
-                `✅ <b>Payment Received</b>\n\nHello,\nWe received KES ${amount} successfully. Thank you!`
-              );
-            }
-          }
-        } catch (telegramError) {
-          console.error('Telegram notification failed:', telegramError.message);
-        }
       }, 2000);
 
       // Send SMS notification (FR4)
