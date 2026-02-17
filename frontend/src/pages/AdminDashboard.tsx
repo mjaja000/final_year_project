@@ -60,31 +60,6 @@ const AdminDashboard = () => {
     refetchInterval: 30000,
   });
 
-  interface PaymentEntry {
-    id: string;
-    transactionId: string;
-    vehicleNumber: string;
-    route: string;
-    amount: number;
-    timestamp: Date;
-    status: 'completed' | 'pending' | 'failed';
-  }
-
-  const API_BASE = import.meta.env.VITE_API_URL || '';
-
-  // Fetch dashboard stats
-  const { data: dashboardData } = useQuery({
-    queryKey: ['admin', 'dashboard'],
-    queryFn: () => api.admin.getDashboard(),
-    refetchInterval: 30000, // Refetch every 30 seconds
-  });
-
-  // Fetch payments from database
-  const { data: paymentsResponse } = useQuery({
-    queryKey: ['admin', 'payments'],
-    queryFn: () => api.admin.getPayments({ limit: 1000 }),
-    refetchInterval: 30000,
-  });
 
   const { data: whatsappData } = useQuery({
     queryKey: ['admin', 'whatsapp', 'chats'],
@@ -165,7 +140,6 @@ const AdminDashboard = () => {
     refetchInterval: 15000,
   });
   useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_URL || '';
     const socket = io(API_BASE.replace(/http(s?):\/\//, ''));
 
     socket.on('connect', () => {
