@@ -160,7 +160,7 @@ class UserModel {
 
   // Get user by ID
   static async getUserById(id) {
-    const query = 'SELECT id, name, email, phone, role, status, profile_image, telegram_id, chat_id FROM users WHERE id = $1;';
+    const query = 'SELECT id, name, email, phone, role, status, profile_image FROM users WHERE id = $1;';
     try {
       const result = await pool.query(query, [id]);
       return result.rows[0];
