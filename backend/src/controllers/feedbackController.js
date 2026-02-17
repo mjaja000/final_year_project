@@ -1,6 +1,8 @@
 const FeedbackModel = require('../models/feedbackModel');
 const SmsService = require('../services/smsService');
 const WhatsappService = require('../services/whatsappService');
+const { sendTelegramMessage } = require('../telegram/sendMessage');
+const UserModel = require('../models/userModel');
 
 class FeedbackController {
   // Submit feedback (FR1: route, vehicle, feedback type, comment)
@@ -63,6 +65,20 @@ class FeedbackController {
         } catch (whatsappError) {
           console.error('WhatsApp notification failed:', whatsappError.message);
         }
+      }
+
+      try {
+        if (userId) {
+          const chatId = await UserModel.getTelegramChatIdByUserId(userId);
+          if (chatId) {
+            await sendTelegramMessage(
+              chatId,
+              '📝 <b>Feedback Received</b>\n\nThank you for your feedback!'
+            );
+          }
+        }
+      } catch (telegramError) {
+        console.error('Telegram feedback notification failed:', telegramError.message);
       }
 
       res.status(201).json({

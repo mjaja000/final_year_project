@@ -9,6 +9,7 @@ router.get('/routes', OccupancyController.getAllRoutes);
 router.get('/all', OccupancyController.getAllOccupancyStatuses);
 router.get('/:vehicleId', OccupancyController.getOccupancyStatus);
 router.put('/:vehicleId', OccupancyController.updateOccupancyCount);
+router.delete('/:vehicleId', OccupancyController.deleteOccupancy);
 
 // Protected routes
 router.use(authMiddleware);
