@@ -1,12 +1,18 @@
 import { Ticket, Clock, Bus, MapPin, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Route, generateTransactionId } from '@/lib/mockData';
+import { generateTransactionId } from '@/lib/mockData';
 import QRCode from '@/components/QRCode';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface DigitalTicketProps {
-  route: Route;
+  route: {
+    id: string;
+    name: string;
+    from: string;
+    to: string;
+    fare: number;
+  };
   vehicleNumber: string;
   onClose: () => void;
 }

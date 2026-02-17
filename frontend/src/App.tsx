@@ -55,7 +55,13 @@ const App = () => (
               <Route
                 path="/driver/admn"
                 element={
-                  <Suspense fallback={null}>
+                  <Suspense
+                    fallback={
+                      <div className="sr-only" role="status" aria-live="polite">
+                        Loading driver login...
+                      </div>
+                    }
+                  >
                     <DriverAdmn />
                   </Suspense>
                 }
