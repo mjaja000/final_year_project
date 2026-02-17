@@ -57,7 +57,7 @@ The Reporting & Feedback Backend implements a high-integrity system for users to
 ### 5. **Notification Service** (`services/notificationService.js`)
 - Placeholder for urgent alerts (priority > 4)
 - Priority scoring logic
-- Can be extended with SMS, WhatsApp, Telegram, Email
+- Can be extended with SMS, WhatsApp, Email
 
 ---
 
@@ -432,7 +432,6 @@ curl http://localhost:5000/api/reports/stats/550e8400-e29b-41d4-a716-44665544000
 
 - [ ] Real-time SMS alerts for urgent incidents
 - [ ] WhatsApp notification integration
-- [ ] Telegram admin channel updates
 - [ ] Email reports for SACCO managers
 - [ ] Dashboard analytics with ChartsJS
 - [ ] Batch operations for admin reports

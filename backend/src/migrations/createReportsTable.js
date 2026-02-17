@@ -8,15 +8,15 @@ const pool = require('../config/database');
 async function createReportsTable() {
   const query = `
     CREATE TABLE IF NOT EXISTS reports (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-      matatu_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      matatu_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
       type VARCHAR(20) NOT NULL CHECK (type IN ('GENERAL', 'INCIDENT')),
       category VARCHAR(50),
       rating INTEGER CHECK (rating >= 1 AND rating <= 5),
       comment TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW() AT TIME ZONE 'UTC',
-      updated_at TIMESTAMPTZ DEFAULT NOW() AT TIME ZONE 'UTC'
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     -- Create indexes for optimized querying
