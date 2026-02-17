@@ -8,7 +8,8 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'matatuconnect',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || '',
-  ssl: process.env.DB_SSL === 'true' ? true : false,
+  ssl: process.env.PGSSLMODE === 'require' ? { rejectUnauthorized: false } : false,
+  channel_binding: process.env.PGCHANNELBINDING === 'require' ? true : false
 });
 
 // Test connection
