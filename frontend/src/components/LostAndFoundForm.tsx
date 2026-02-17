@@ -35,17 +35,9 @@ export default function LostAndFoundForm() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${api.baseURL}/lost-and-found/report`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+      const response = await api.lostAndFound.createReport(formData);
 
-      const data = await response.json();
-
-      if (data.success) {
+      if (response.success) {
         setIsSuccess(true);
         toast.success('Report submitted successfully! We\'ll contact you soon.');
         setFormData({
@@ -57,7 +49,7 @@ export default function LostAndFoundForm() {
         // Reset success state after 5 seconds
         setTimeout(() => setIsSuccess(false), 5000);
       } else {
-        toast.error(data.message || 'Failed to submit report. Please try again.');
+        toast.error(response.message || 'Failed to submit report. Please try again.');
       }
     } catch (error) {
       console.error('Error submitting report:', error);

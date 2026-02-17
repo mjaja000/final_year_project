@@ -84,18 +84,13 @@ export default function LostAndFoundAdmin() {
     queryKey: ['lostAndFound', statusFilter, searchTerm],
     queryFn: async () => {
       const token = localStorage.getItem('token');
-      const params = new URLSearchParams();
-      if (statusFilter !== 'all') params.append('status', statusFilter);
-      if (searchTerm) params.append('searchTerm', searchTerm);
-
-      const response = await fetch(`${api.baseURL}/lost-and-found?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      return data.data || [];
+      try {
+        const data = await api.lostAndFound.getAllReports(token);
+        return data.data || [];
+      } catch (error) {
+        console.error('Error fetching reports:', error);
+        return [];
+      }
     },
   });
 
@@ -104,14 +99,13 @@ export default function LostAndFoundAdmin() {
     queryKey: ['lostAndFoundStats'],
     queryFn: async () => {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${api.baseURL}/lost-and-found/stats`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      return data.data;
+      try {
+        const data = await api.lostAndFound.getStats(token);
+        return data.data;
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+        return undefined;
+      }
     },
   });
 
@@ -119,16 +113,7 @@ export default function LostAndFoundAdmin() {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status, notes }: { id: number; status: string; notes: string }) => {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${api.baseURL}/lost-and-found/${id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status, adminNotes: notes }),
-      });
-
-      const data = await response.json();
+      const data = await api.lostAndFound.updateStatus(id, { status, adminNotes: notes }, token);
       if (!data.success) throw new Error(data.message);
       return data;
     },
