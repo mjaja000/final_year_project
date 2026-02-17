@@ -1,6 +1,6 @@
 const express = require('express');
 const OccupancyController = require('../controllers/occupancyController');
-const authMiddleware = require('../middlewares/authMiddleware');
+const { authMiddleware } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 

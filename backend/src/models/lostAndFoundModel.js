@@ -121,9 +121,9 @@ class LostAndFoundModel {
     const query = `
       UPDATE lost_and_found
       SET 
-        status = $1,
+        status = $1::VARCHAR,
         admin_notes = COALESCE($2, admin_notes),
-        resolved_at = CASE WHEN $1 IN ('found', 'resolved', 'closed') THEN CURRENT_TIMESTAMP ELSE resolved_at END,
+        resolved_at = CASE WHEN $1::VARCHAR IN ('found', 'resolved', 'closed') THEN CURRENT_TIMESTAMP ELSE resolved_at END,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $3
       RETURNING *
