@@ -18,6 +18,7 @@ const initializeTables = async () => {
     const BookingModel = require('./src/models/bookingModel');
     const MessageModel = require('./src/models/messageModel');
     const TelegramConnectionModel = require('./src/models/telegramConnectionModel');
+    const { createReportsTable } = require('./src/migrations/createReportsTable');
 
     // Create tables in dependency order
     await UserModel.createTable();
@@ -32,6 +33,8 @@ const initializeTables = async () => {
     await PaymentModel.createTable();
     await FeedbackModel.createTable();
     await ActivityLogModel.createTable();
+    await DatabaseStatsModel.createTable();
+    await createReportsTable();
 
     console.log('✓ All database tables initialized successfully');
   } catch (error) {
