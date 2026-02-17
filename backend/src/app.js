@@ -8,6 +8,7 @@ const userRoutes = require('./routes/userRoutes');
 const occupancyRoutes = require('./routes/occupancyRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 const routeRoutes = require('./routes/routeRoutes');
 const vehicleRoutes = require('./routes/vehicleRoutes');
 const tripRoutes = require('./routes/tripRoutes');
@@ -17,6 +18,7 @@ const driverRoutes = require('./routes/driverRoutes');
 const telegramRoutes = require('./routes/telegramRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
+const { createReportsTable } = require('./migrations/createReportsTable');
 
 const app = express();
 
@@ -43,6 +45,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/occupancy', occupancyRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/reports', reportRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/trips', tripRoutes);
@@ -62,6 +65,7 @@ app.get('/', (req, res) => {
     endpoints: {
       auth: '/api/auth (register, login, profile management)',
       feedback: '/api/feedback (FR1 - Feedback management)',
+      reports: '/api/reports (Reporting & Feedback - GENERAL & INCIDENT)',
       occupancy: '/api/occupancy (FR3 - Occupancy reporting)',
       payments: '/api/payments (FR2 - Payment simulation)',
       admin: '/api/admin (FR5 - Administrative oversight)',
@@ -72,6 +76,12 @@ app.get('/', (req, res) => {
       FR3: 'Occupancy Reporting (Seats Available/Full)',
       FR4: 'Notification Service (SMS/WhatsApp)',
       FR5: 'Administrative Oversight (dashboard with filters)',
+    },
+    reportingFeatures: {
+      description: 'High-integrity reporting backend with PostgreSQL and Repository Pattern',
+      reportTypes: ['GENERAL (feedback with 1-5 star rating)', 'INCIDENT (categorized incidents)'],
+      incidentCategories: ['Speeding', 'Reckless', 'Overcharging', 'Harassment', 'Loud Music', 'Poor Condition', 'Unsafe Driving', 'Other'],
+      features: ['Discriminated union validation with Zod', 'Priority scoring for incidents', 'Urgent alerts for high-priority incidents', 'Matatu health score calculation', 'Transaction-based data integrity'],
     },
   });
 });

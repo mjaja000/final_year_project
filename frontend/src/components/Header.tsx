@@ -37,7 +37,8 @@ function MenuButton() {
         <div ref={ref} className="absolute left-0 top-full mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50">
           <nav className="flex flex-col">
             <Link to="/" className="text-sm py-2 px-3 hover:bg-muted rounded-t-lg" onClick={() => setNavOpen(false)}>Home</Link>
-            <Link to="/feedback" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Feedback</Link>
+            <Link to="/complaint-demo" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Complaint/Feedback</Link>
+            {/* <Link to="/feedback" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Feedback</Link> */}
             <Link to="/payment" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Payments</Link>
             <Link to="/occupancy" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Occupancy</Link>
             <Link to="/drivers" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Drivers</Link>
@@ -81,7 +82,8 @@ const Header = () => {
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-6">
           <Link to="/" className="text-sm hover:text-primary transition-colors">Home</Link>
-          <Link to="/feedback" className="text-sm hover:text-primary transition-colors">Feedback</Link>
+          {/* <Link to="/feedback" className="text-sm hover:text-primary transition-colors">Feedback</Link> */}
+          <Link to="/complaint-demo" className="text-sm hover:text-primary transition-colors">Complaint/Feedback</Link>
           <Link to="/payment" className="text-sm hover:text-primary transition-colors">Payments</Link>
           <Link to="/occupancy" className="text-sm hover:text-primary transition-colors">Occupancy</Link>
           <Link to="/drivers" className="text-sm hover:text-primary transition-colors">Drivers</Link>
