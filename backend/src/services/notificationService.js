@@ -1,6 +1,6 @@
 /**
  * NotificationService - Handles urgent alerts for high-priority incidents.
- * Placeholder implementation - can be extended with SMS, WhatsApp, Telegram, etc.
+ * Placeholder implementation - can be extended with SMS, WhatsApp, Email, etc.
  */
 class NotificationService {
   /**
@@ -39,9 +39,8 @@ Timestamp: ${new Date().toISOString()}
     // TODO: Implement actual notification channels:
     // 1. SMS to SACCO fleet manager
     // 2. WhatsApp to emergency contact
-    // 3. Telegram to admin channel
-    // 4. Email to operations team
-    // 5. In-app push notification
+    // 3. Email to operations team
+    // 4. In-app push notification
 
     try {
       // Placeholder: Log to console
@@ -51,7 +50,6 @@ Timestamp: ${new Date().toISOString()}
         channels: {
           sms: { sent: false, reason: 'Placeholder - not yet implemented' },
           whatsapp: { sent: false, reason: 'Placeholder - not yet implemented' },
-          telegram: { sent: false, reason: 'Placeholder - not yet implemented' },
           email: { sent: false, reason: 'Placeholder - not yet implemented' },
         },
       };
@@ -59,8 +57,6 @@ Timestamp: ${new Date().toISOString()}
       // In production, actually send notifications here
       // await this.sendSmsAlert(saccoManager, alertMessage);
       // await this.sendWhatsappAlert(emergencyContact, alertMessage);
-      // await this.sendTelegramAlert(adminChannel, alertMessage);
-
       return result;
     } catch (error) {
       console.error('Failed to send urgent alert:', error.message);
