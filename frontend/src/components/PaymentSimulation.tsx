@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CreditCard, Smartphone, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Route, validateVehicleNumber, routes as allRoutes } from '@/lib/mockData';
+import { validateVehicleNumber } from '@/lib/mockData';
 import { Input } from '@/components/ui/input';
 import DigitalTicket from '@/components/DigitalTicket';
 import { cn } from '@/lib/utils';
@@ -12,13 +12,38 @@ import api from '@/lib/api';
 interface PaymentSimulationProps {
   initialRouteId?: string;
   initialVehicleNumber?: string;
+  initialRouteName?: string;
+  initialRouteFrom?: string;
+  initialRouteTo?: string;
+  initialRouteFare?: number;
   onBack: () => void;
 }
 
-const PaymentSimulation = ({ initialRouteId, initialVehicleNumber, onBack }: PaymentSimulationProps) => {
+type RouteOption = {
+  id: string;
+  name: string;
+  from: string;
+  to: string;
+  fare: number;
+};
+
+const PaymentSimulation = ({
+  initialRouteId,
+  initialVehicleNumber,
+  initialRouteName,
+  initialRouteFrom,
+  initialRouteTo,
+  initialRouteFare,
+  onBack,
+}: PaymentSimulationProps) => {
   const [vehicleNumber, setVehicleNumber] = useState((initialVehicleNumber ?? '').toUpperCase());
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [selectedRouteId, setSelectedRouteId] = useState<string>(initialRouteId ?? (allRoutes[0]?.id ?? ''));
+  const [selectedRouteId, setSelectedRouteId] = useState<string>(initialRouteId ?? '');
+  const [routes, setRoutes] = useState<RouteOption[]>([]);
+  const [routesLoading, setRoutesLoading] = useState(false);
+  const [routeVehicles, setRouteVehicles] = useState<string[]>([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<string>(initialVehicleNumber ?? '');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showTicket, setShowTicket] = useState(false);
   const [transactionRef, setTransactionRef] = useState<string | null>(null);
@@ -27,10 +52,133 @@ const PaymentSimulation = ({ initialRouteId, initialVehicleNumber, onBack }: Pay
   const [pollingId, setPollingId] = useState<number | null>(null);
   const useLiveMpesa = import.meta.env.VITE_PAYMENT_MODE === 'mpesa';
 
+  const initialRouteFallback = useMemo<RouteOption | null>(() => {
+    if (!initialRouteId) {
+      return null;
+    }
+
+    return {
+      id: initialRouteId,
+      name: initialRouteName || `Route ${initialRouteId}`,
+      from: initialRouteFrom || '',
+      to: initialRouteTo || '',
+      fare: Number(initialRouteFare ?? 0),
+    };
+  }, [initialRouteId, initialRouteName, initialRouteFrom, initialRouteTo, initialRouteFare]);
+
+  useEffect(() => {
+    let active = true;
+    const loadRoutes = async () => {
+      setRoutesLoading(true);
+      try {
+        const routesRes = await api.routes.getAll();
+        const routeList = Array.isArray(routesRes)
+          ? routesRes
+          : Array.isArray((routesRes as any)?.routes)
+            ? (routesRes as any).routes
+            : [];
+
+        const mapped = routeList.map((r: any) => ({
+          id: String(r.id),
+          name: r.route_name || r.routeName || `Route ${r.id}`,
+          from: r.start_location || r.startLocation || '',
+          to: r.end_location || r.endLocation || '',
+          fare: Number(r.base_fare ?? r.baseFare ?? r.price ?? 0),
+        }));
+
+        if (active) {
+          setRoutes(mapped);
+        }
+      } catch (error: any) {
+        if (active) {
+          setRoutes([]);
+        }
+      } finally {
+        if (active) {
+          setRoutesLoading(false);
+        }
+      }
+    };
+
+    loadRoutes();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const availableRoutes = useMemo(() => {
+    if (!initialRouteFallback) {
+      return routes;
+    }
+    const exists = routes.some((r) => r.id === initialRouteFallback.id);
+    return exists ? routes : [initialRouteFallback, ...routes];
+  }, [routes, initialRouteFallback]);
+
+  const vehicleLocked = Boolean(initialVehicleNumber);
+
+  useEffect(() => {
+    if (!selectedRouteId && availableRoutes.length > 0) {
+      setSelectedRouteId(availableRoutes[0].id);
+    }
+  }, [availableRoutes, selectedRouteId]);
+
+  useEffect(() => {
+    let active = true;
+    const loadVehicles = async () => {
+      if (!selectedRouteId) {
+        setRouteVehicles([]);
+        return;
+      }
+
+      if (!vehicleLocked) {
+        setSelectedVehicle('');
+        setVehicleNumber('');
+      }
+
+      setVehiclesLoading(true);
+      try {
+        const vehiclesRes = await api.vehicles.getByRoute(Number(selectedRouteId));
+        const vehicleList = Array.isArray(vehiclesRes)
+          ? vehiclesRes
+          : Array.isArray((vehiclesRes as any)?.vehicles)
+            ? (vehiclesRes as any).vehicles
+            : [];
+
+        const mapped = vehicleList
+          .map((v: any) => v.registration_number || v.registration || v.number || '')
+          .filter((value: string) => Boolean(value));
+
+        if (active) {
+          setRouteVehicles(mapped);
+        }
+      } catch (error: any) {
+        if (active) {
+          setRouteVehicles([]);
+        }
+      } finally {
+        if (active) {
+          setVehiclesLoading(false);
+        }
+      }
+    };
+
+    loadVehicles();
+    return () => {
+      active = false;
+    };
+  }, [selectedRouteId, vehicleLocked]);
+
+  useEffect(() => {
+    if (!selectedVehicle) {
+      return;
+    }
+    setVehicleNumber(selectedVehicle.toUpperCase());
+  }, [selectedVehicle]);
+
   const vehicleValid = validateVehicleNumber(vehicleNumber);
   const phoneValid = phoneNumber.trim().length >= 9;
-  const fare = allRoutes.find((r) => r.id === selectedRouteId)?.fare ?? 0;
-  const vehicleLocked = Boolean(initialVehicleNumber);
+  const selectedRoute = availableRoutes.find((r) => r.id === selectedRouteId);
+  const fare = selectedRoute?.fare ?? initialRouteFallback?.fare ?? 0;
 
   const handlePayment = async () => {
     if (!vehicleValid) {
@@ -51,6 +199,16 @@ const PaymentSimulation = ({ initialRouteId, initialVehicleNumber, onBack }: Pay
       return;
     }
 
+    const routeIdNumber = Number(selectedRouteId);
+    if (!selectedRouteId || Number.isNaN(routeIdNumber)) {
+      toast({
+        title: "Select a Route",
+        description: "Please choose a valid route before paying.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(true);
     setPaymentStatus('processing');
 
@@ -60,7 +218,7 @@ const PaymentSimulation = ({ initialRouteId, initialVehicleNumber, onBack }: Pay
           phone: phoneNumber,
           amount: fare,
           vehicle: vehicleNumber,
-          route: selectedRouteId,
+          route: routeIdNumber,
         });
 
         if (res.success) {
@@ -84,7 +242,7 @@ const PaymentSimulation = ({ initialRouteId, initialVehicleNumber, onBack }: Pay
 
       // Call backend to create simulated payment (backend also sends WhatsApp/SMS)
       const payload = {
-        routeId: Number(selectedRouteId),
+        routeId: routeIdNumber,
         amount: fare,
         phoneNumber: phoneNumber,
       };
@@ -151,8 +309,13 @@ const PaymentSimulation = ({ initialRouteId, initialVehicleNumber, onBack }: Pay
   }, [pollingId]);
 
   if (showTicket) {
-    // pass the selected route object to the ticket
-    const selRoute = allRoutes.find((r) => r.id === selectedRouteId)!;
+    const selRoute = selectedRoute || initialRouteFallback || {
+      id: selectedRouteId || 'unknown',
+      name: initialRouteName || 'Route',
+      from: initialRouteFrom || '',
+      to: initialRouteTo || '',
+      fare: fare,
+    };
     return (
       <DigitalTicket
         route={selRoute}
@@ -173,16 +336,27 @@ const PaymentSimulation = ({ initialRouteId, initialVehicleNumber, onBack }: Pay
           {useLiveMpesa ? 'Live M-Pesa Payment' : 'Payment Simulation (No real money involved)'}
         </p>
         <div className="mt-2 mb-4">
-          <select
-            value={selectedRouteId}
-            onChange={(e) => setSelectedRouteId(e.target.value)}
-            className="w-full rounded-md border px-3 py-2 bg-background text-sm"
-            disabled={Boolean(initialRouteId)}
-          >
-            {allRoutes.map((r) => (
-              <option key={r.id} value={r.id}>{r.name} — {r.from} → {r.to} — KES {r.fare}</option>
-            ))}
-          </select>
+          {Boolean(initialRouteId) ? (
+            <div className="w-full rounded-md border px-3 py-2 bg-secondary/40 text-sm text-foreground">
+              {selectedRoute?.name || initialRouteName || `Route ${initialRouteId}`} — {selectedRoute?.from || initialRouteFrom || ''} → {selectedRoute?.to || initialRouteTo || ''} — KES {fare}
+            </div>
+          ) : (
+            <select
+              value={selectedRouteId}
+              onChange={(e) => setSelectedRouteId(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 bg-background text-sm"
+            >
+              {availableRoutes.length === 0 && routesLoading && (
+                <option value="">Loading routes...</option>
+              )}
+              {availableRoutes.length === 0 && !routesLoading && (
+                <option value="">No routes available</option>
+              )}
+              {availableRoutes.map((r) => (
+                <option key={r.id} value={r.id}>{r.name} — {r.from} → {r.to} — KES {r.fare}</option>
+              ))}
+            </select>
+          )}
         </div>
         <p className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground">KES {fare}</p>
       </div>
@@ -190,12 +364,32 @@ const PaymentSimulation = ({ initialRouteId, initialVehicleNumber, onBack }: Pay
       {/* Vehicle Number */}
       <div className="space-y-2">
         <Label htmlFor="paymentVehicle" className="text-sm">Vehicle Number</Label>
+        <select
+          value={selectedVehicle}
+          onChange={(e) => setSelectedVehicle(e.target.value)}
+          className="w-full rounded-md border px-3 py-2 bg-background text-sm"
+          disabled={vehicleLocked}
+        >
+          <option value="">Select a vehicle from this route</option>
+          {vehiclesLoading && <option value="">Loading vehicles...</option>}
+          {!vehiclesLoading && routeVehicles.length === 0 && (
+            <option value="">No vehicles available</option>
+          )}
+          {routeVehicles.map((vehicle) => (
+            <option key={vehicle} value={vehicle}>{vehicle}</option>
+          ))}
+        </select>
         <Input
           id="paymentVehicle"
           type="text"
           placeholder="e.g., KCA 123X"
           value={vehicleNumber}
-          onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+          onChange={(e) => {
+            setVehicleNumber(e.target.value.toUpperCase());
+            if (!vehicleLocked) {
+              setSelectedVehicle('');
+            }
+          }}
           className={cn(
             "uppercase text-center text-base sm:text-lg",
             vehicleNumber && !vehicleValid && "border-destructive focus-visible:ring-destructive"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import { Helmet } from "react-helmet-async";
@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 
 // Fallback popular routes for when backend is unavailable
 const POPULAR_ROUTES = [
-  { id: 1, name: "Route 23", from: "CBD Nairobi", to: "Westlands", price: 80, distance: 7.2, vehicles: 15, rating: 4.8 },
-  { id: 2, name: "Route 33", from: "Thika Road", to: "CBD", price: 100, distance: 12.5, vehicles: 20, rating: 4.6 },
-  { id: 3, name: "Route 111", from: "Ngong Road", to: "Town", price: 70, distance: 6.8, vehicles: 12, rating: 4.7 },
-  { id: 4, name: "Route 45", from: "Eastleigh", to: "CBD", price: 60, distance: 5.4, vehicles: 18, rating: 4.9 },
+  { id: 1, name: "Route 23", from: "CBD Nairobi", to: "Westlands", fare: 80, distance: 7.2, vehicles: 15, rating: 4.8 },
+  { id: 2, name: "Route 33", from: "Thika Road", to: "CBD", fare: 100, distance: 12.5, vehicles: 20, rating: 4.6 },
+  { id: 3, name: "Route 111", from: "Ngong Road", to: "Town", fare: 70, distance: 6.8, vehicles: 12, rating: 4.7 },
+  { id: 4, name: "Route 45", from: "Eastleigh", to: "CBD", fare: 60, distance: 5.4, vehicles: 18, rating: 4.9 },
 ];
 
 const TESTIMONIALS = [
@@ -34,19 +34,57 @@ export default function Index() {
     staleTime: 30000,
   });
 
+  const { data: backendVehicles } = useQuery({
+    queryKey: ['vehicles'],
+    queryFn: api.vehicles.getAll,
+    retry: 1,
+    staleTime: 30000,
+  });
+
   // Use backend routes if available, otherwise show popular routes
-  const displayRoutes = backendRoutes && backendRoutes.length > 0 
-    ? backendRoutes.map((r: any) => ({
+  const routeList = Array.isArray(backendRoutes)
+    ? backendRoutes
+    : Array.isArray((backendRoutes as any)?.routes)
+      ? (backendRoutes as any).routes
+      : [];
+
+  const vehicleCounts = useMemo(() => {
+    const vehicleList = Array.isArray(backendVehicles)
+      ? backendVehicles
+      : Array.isArray((backendVehicles as any)?.vehicles)
+        ? (backendVehicles as any).vehicles
+        : [];
+
+    return vehicleList.reduce((acc: Record<string, number>, vehicle: any) => {
+      const routeId = String(vehicle.route_id ?? vehicle.routeId ?? '');
+      if (!routeId) return acc;
+      acc[routeId] = (acc[routeId] || 0) + 1;
+      return acc;
+    }, {});
+  }, [backendVehicles]);
+
+  const displayRoutes = routeList.length > 0
+    ? routeList.map((r: any) => ({
         id: r.id,
-        name: r.route_name,
-        from: r.start_location,
-        to: r.end_location,
-        price: r.price,
-        distance: r.distance_km,
-        vehicles: 15, // placeholder
-        rating: 4.7, // placeholder
+        name: r.route_name || r.routeName || `Route ${r.id}`,
+        from: r.start_location || r.startLocation || '',
+        to: r.end_location || r.endLocation || '',
+        fare: Number(r.base_fare ?? r.baseFare ?? r.price ?? 0),
+        distance: r.distance_km ?? r.distance ?? null,
+        vehicles: vehicleCounts[String(r.id)] ?? r.vehicles_count ?? r.vehicle_count ?? 0,
+        rating: r.rating ?? 4.7,
       }))
     : POPULAR_ROUTES;
+
+  const buildPaymentParams = (route: any) => {
+    const params = new URLSearchParams();
+    params.set('routeId', String(route.id));
+    params.set('routeName', route.name);
+    if (route.from) params.set('from', route.from);
+    if (route.to) params.set('to', route.to);
+    if (Number.isFinite(route.fare)) params.set('fare', String(route.fare));
+    return params.toString();
+  };
 
   const handleQuickSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,8 +163,8 @@ export default function Index() {
           <div className="absolute inset-0 bg-gradient-to-br from-green-700/60 to-emerald-500/60" />
 
           {/* Decorative images (provided) */}
-          <img src="/images/image1.png" alt="decor1" className="hidden sm:block absolute left-6 top-6 w-36 opacity-90 pointer-events-none select-none" />
-          <img src="/images/image2png" alt="decor2" className="hidden sm:block absolute right-6 bottom-8 w-44 opacity-80 pointer-events-none select-none" />
+          <img src="/images/image1.png" alt="" aria-hidden="true" className="hidden sm:block absolute left-6 top-6 w-36 opacity-90 pointer-events-none select-none" />
+          <img src="/images/image2png" alt="" aria-hidden="true" className="hidden sm:block absolute right-6 bottom-8 w-44 opacity-80 pointer-events-none select-none" />
 
           <div className="relative max-w-6xl mx-auto py-12 sm:py-16 md:py-24 px-4 sm:px-6">
             <div className="text-center max-w-3xl mx-auto">
@@ -148,8 +186,11 @@ export default function Index() {
               <form onSubmit={handleQuickSearch} className="max-w-2xl mx-auto mb-8 animate-fade-in" style={{ animationDelay: '0.2s' }}>
                 <div className="flex flex-col sm:flex-row gap-3 bg-white rounded-xl sm:rounded-full p-2 shadow-2xl">
                   <div className="flex-1 relative">
+                    <label htmlFor="route-search" className="sr-only">Search routes</label>
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <Input
+                      id="route-search"
+                      name="route-search"
                       type="text"
                       placeholder="Search routes (e.g., CBD to Westlands)"
                       value={searchQuery}
@@ -169,21 +210,21 @@ export default function Index() {
 
               {/* CTA Buttons */}
               <div className="flex flex-wrap justify-center gap-3 sm:gap-4 animate-fade-in" style={{ animationDelay: '0.3s' }}>
-                <Link to="/occupancy">
-                  <Button size="lg" className="bg-white text-green-600 hover:bg-gray-50 px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all">
+                <Button asChild size="lg" className="bg-white text-green-600 hover:bg-gray-50 px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all">
+                  <Link to="/occupancy">
                     <MapPin className="h-5 w-5 mr-2" />
                     View All Routes
-                  </Button>
-                </Link>
-                <Link to="/payment">
-                  <Button size="lg" className="bg-yellow-400 text-gray-900 hover:bg-yellow-300 px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all group">
+                  </Link>
+                </Button>
+                <Button asChild size="lg" className="bg-yellow-400 text-gray-900 hover:bg-yellow-300 px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all group">
+                  <Link to="/payment">
                     <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Quick Payment
                     <span className="ml-2 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all">→</span>
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </div>
 
               {/* Trust Indicators */}
@@ -205,7 +246,7 @@ export default function Index() {
           </div>
         </header>
 
-        <main id="main-content" className="max-w-6xl mx-auto py-12 sm:py-16 px-4 sm:px-6 space-y-16 sm:space-y-20" role="main">
+        <main id="main-content" tabIndex={-1} className="max-w-6xl mx-auto py-12 sm:py-16 px-4 sm:px-6 space-y-16 sm:space-y-20" role="main">
           {/* Popular Routes Section */}
           <section className="animate-fade-in" aria-labelledby="popular-routes-heading">
             <div className="flex items-center justify-between mb-6 sm:mb-8">
@@ -215,7 +256,7 @@ export default function Index() {
                   <h2 id="popular-routes-heading" className="text-2xl sm:text-3xl font-bold text-gray-900">Popular Routes</h2>
                 </div>
                 <p className="text-sm sm:text-base text-gray-600">
-                  {backendRoutes && backendRoutes.length > 0 
+                  {routeList.length > 0 
                     ? "Live routes from our network" 
                     : "Most traveled routes in Nairobi"}
                 </p>
@@ -239,7 +280,7 @@ export default function Index() {
                 {displayRoutes.slice(0, 4).map((route: any) => (
                   <Link 
                     key={route.id} 
-                    to={`/payment?routeId=${route.id}`}
+                    to={`/payment?${buildPaymentParams(route)}`}
                     className="group bg-white rounded-xl p-4 sm:p-6 border-2 border-gray-200 hover:border-green-500 hover:shadow-xl transition-all duration-300"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -260,19 +301,23 @@ export default function Index() {
                           <span>{route.to}</span>
                         </div>
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                          <span>{route.distance} km</span>
-                          <span>•</span>
+                          {route.distance !== null && route.distance !== undefined && (
+                            <>
+                              <span>{route.distance} km</span>
+                              <span>•</span>
+                            </>
+                          )}
                           <span>{route.vehicles} vehicles active</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 sm:gap-6">
                         <div className="text-right">
-                          <div className="text-2xl sm:text-3xl font-bold text-gray-900">KES {route.price}</div>
+                          <div className="text-2xl sm:text-3xl font-bold text-gray-900">KES {route.fare}</div>
                           <div className="text-xs text-gray-500">per trip</div>
                         </div>
-                        <Button className="bg-green-600 hover:bg-green-700 group-hover:scale-105 transition-transform">
-                          Book Now
-                        </Button>
+                        <span className="inline-flex items-center justify-center bg-green-600 text-white rounded-md px-4 py-2 font-medium group-hover:scale-105 transition-transform">
+                          Pay Now
+                        </span>
                       </div>
                     </div>
                   </Link>

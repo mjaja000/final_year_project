@@ -13,6 +13,10 @@ export default function Payment() {
   const params = new URLSearchParams(location.search);
   const routeId = params.get('routeId') ?? undefined;
   const vehicle = params.get('vehicle') ?? undefined;
+  const routeName = params.get('routeName') ?? undefined;
+  const routeFrom = params.get('from') ?? undefined;
+  const routeTo = params.get('to') ?? undefined;
+  const routeFare = params.get('fare') ? Number(params.get('fare')) : undefined;
 
   return (
     <>
@@ -58,6 +62,10 @@ export default function Payment() {
           <PaymentSimulation
             initialRouteId={routeId ?? undefined}
             initialVehicleNumber={vehicle ?? undefined}
+            initialRouteName={routeName}
+            initialRouteFrom={routeFrom}
+            initialRouteTo={routeTo}
+            initialRouteFare={Number.isFinite(routeFare) ? routeFare : undefined}
             onBack={handleBack}
           />
         </div>
