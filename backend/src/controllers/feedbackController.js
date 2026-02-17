@@ -61,6 +61,17 @@ class FeedbackController {
             console.log('✓ WhatsApp feedback confirmation sent');
           } else {
             console.warn('⚠️ WhatsApp feedback confirmation failed:', whatsappResult.error);
+            
+            // If user not in sandbox (error 63007), send SMS with join instructions
+            if (whatsappResult.needsJoin || whatsappResult.code === 63007) {
+              try {
+                const joinInstructions = `MatatuConnect: Feedback received! Get WhatsApp alerts - Send "join break-additional" to +14155238886. Join now!`;
+                await SmsService.sendSms(phoneNumber, joinInstructions);
+                console.log('✓ SMS join instructions sent as fallback');
+              } catch (smsFallbackError) {
+                console.error('SMS join instructions failed:', smsFallbackError.message);
+              }
+            }
           }
         } catch (whatsappError) {
           console.error('WhatsApp notification failed:', whatsappError.message);
