@@ -31,7 +31,6 @@ const initializeTables = async () => {
     await PaymentModel.createTable();
     await FeedbackModel.createTable();
     await ActivityLogModel.createTable();
-    await DatabaseStatsModel.createTable();
     await createReportsTable();
 
     console.log('✓ All database tables initialized successfully');
