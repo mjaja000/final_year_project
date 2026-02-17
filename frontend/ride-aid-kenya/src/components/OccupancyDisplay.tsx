@@ -6,7 +6,10 @@ import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
 
 type Occ = 'empty' | 'half' | 'full';
-
+type OccupancyDisplayProps = {
+  interactive?: boolean;
+  showPayButton?: boolean;
+};
 type RouteRecord = {
   id: number;
   route_name?: string;

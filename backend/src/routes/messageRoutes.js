@@ -12,6 +12,8 @@ router.get('/conversation', authMiddleware, MessageController.getConversation);
 router.get('/unread', authMiddleware, MessageController.getUnreadCounts);
 // Admin: recent messages overview
 router.get('/admin/recent', authMiddleware, MessageController.getAdminRecent);
+// Driver: get admin user for chat
+router.get('/admin-user', authMiddleware, MessageController.getAdminUser);
 // Mark read
 router.put('/mark_read', authMiddleware, MessageController.markRead);
 

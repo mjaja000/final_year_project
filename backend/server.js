@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const app = require('./src/app');
 const pool = require('./src/config/database');
 
@@ -74,6 +74,16 @@ const server = app.listen(PORT, async () => {
       }
     });
 
+    const presenceCounts = new Map();
+    const updatePresence = (userId, delta) => {
+      if (!userId) return;
+      const current = presenceCounts.get(userId) || 0;
+      const next = Math.max(0, current + delta);
+      if (next === 0) presenceCounts.delete(userId);
+      else presenceCounts.set(userId, next);
+      io.to('admin').emit('chat.presence', { userId, isOnline: next > 0 });
+    };
+
     io.on('connection', (socket) => {
       console.log('⚡️ Socket connected:', socket.id);
 
@@ -96,12 +106,15 @@ const server = app.listen(PORT, async () => {
       // Chat: driver or admin can join their user room: 'user_<id>'
       socket.on('chat.join', (userId) => {
         if (!userId) return;
+        socket.data.userId = userId;
         socket.join(`user_${userId}`);
+        updatePresence(userId, 1);
       });
 
       socket.on('chat.leave', (userId) => {
         if (!userId) return;
         socket.leave(`user_${userId}`);
+        updatePresence(userId, -1);
       });
 
       socket.on('chat.message', (payload) => {
@@ -114,7 +127,14 @@ const server = app.listen(PORT, async () => {
         io.to('admin').emit('chat.notification', { from: senderId, to: receiverId, tripId, message });
       });
 
+      socket.on('chat.typing', (payload) => {
+        // payload: { senderId, receiverId, isTyping }
+        const { receiverId } = payload || {};
+        if (receiverId) io.to(`user_${receiverId}`).emit('chat.typing', payload);
+      });
+
       socket.on('disconnect', () => {
+        if (socket.data?.userId) updatePresence(socket.data.userId, -1);
         console.log('⚡️ Socket disconnected:', socket.id);
       });
     });

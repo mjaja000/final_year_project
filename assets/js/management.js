@@ -12,6 +12,7 @@ let chartsInstances = {};
 let allClients = [];
 let allFeedback = [];
 let allOccupancy = [];
+let socket = null;
 
 // Uptime tracking
 let serverOnlineTime = null;
@@ -32,6 +33,7 @@ function initializeDashboard() {
         showDashboard();
         loadAllData();
         startRealtimeUpdates();
+        initSocket();
     }
 }
 
@@ -71,6 +73,7 @@ function handleLogin(e) {
     showDashboard();
     loadAllData();
     startRealtimeUpdates();
+    initSocket();
 }
 
 function showDashboard() {
@@ -81,6 +84,10 @@ function showDashboard() {
 
 function logout() {
     if (confirm('Are you sure you want to logout?')) {
+        if (socket) {
+            socket.disconnect();
+            socket = null;
+        }
         authToken = null;
         localStorage.removeItem('dashboardToken');
         document.getElementById('dashboardPage').classList.remove('active');
@@ -88,6 +95,44 @@ function logout() {
         document.getElementById('username').value = '';
         document.getElementById('password').value = '';
     }
+}
+
+function normalizePhoneForCompare(value) {
+    return String(value || '').replace(/[^0-9]/g, '');
+}
+
+function addWhatsAppJoinerToClients(joiner) {
+    if (!joiner) return;
+    const normalized = normalizePhoneForCompare(joiner.phone);
+    if (!normalized) return;
+    const exists = allClients.some(client => normalizePhoneForCompare(client.phone) === normalized);
+    if (exists) return;
+
+    allClients.unshift({
+        username: 'WhatsApp join',
+        email: '--',
+        phone: joiner.phone,
+        status: 'whatsapp',
+        lastActivity: joiner.joinedAt || joiner.joined_at,
+        sessions: 1
+    });
+
+    if (document.getElementById('clients')?.classList.contains('active')) {
+        displayClientsTable(allClients);
+    }
+}
+
+function initSocket() {
+    if (socket || typeof io === 'undefined') return;
+    socket = io('http://localhost:5000');
+
+    socket.on('connect', () => {
+        socket.emit('join', 'admin');
+    });
+
+    socket.on('whatsapp.join_request', (payload) => {
+        addWhatsAppJoinerToClients(payload);
+    });
 }
 
 // ===== TAB NAVIGATION =====
@@ -231,6 +276,51 @@ async function loadClientsData() {
             lastActivity: user.last_activity || user.updated_at,
             sessions: 1
         }));
+
+        const knownPhones = new Set(allClients.map(client => normalizePhoneForCompare(client.phone)));
+
+        try {
+            const participantsResponse = await fetch(`${API_URL}/admin/whatsapp/participants`);
+            const participantsData = await participantsResponse.json();
+            const participants = (participantsData.participants || []).map(participant => ({
+                username: 'WhatsApp join',
+                email: '--',
+                phone: participant.phone || '--',
+                status: 'whatsapp',
+                lastActivity: participant.last_message_at,
+                sessions: 1
+            }));
+
+            participants.forEach((participant) => {
+                const normalized = normalizePhoneForCompare(participant.phone);
+                if (!normalized || knownPhones.has(normalized)) return;
+                knownPhones.add(normalized);
+                allClients.push(participant);
+            });
+        } catch (participantsError) {
+            console.error('Error loading WhatsApp participants:', participantsError);
+            try {
+                const joinersResponse = await fetch(`${API_URL}/admin/whatsapp/joiners`);
+                const joinersData = await joinersResponse.json();
+                const joiners = (joinersData.joiners || []).map(joiner => ({
+                    username: 'WhatsApp join',
+                    email: '--',
+                    phone: joiner.phone || '--',
+                    status: 'whatsapp',
+                    lastActivity: joiner.joined_at,
+                    sessions: 1
+                }));
+
+                joiners.forEach((joiner) => {
+                    const normalized = normalizePhoneForCompare(joiner.phone);
+                    if (!normalized || knownPhones.has(normalized)) return;
+                    knownPhones.add(normalized);
+                    allClients.push(joiner);
+                });
+            } catch (joinersError) {
+                console.error('Error loading WhatsApp joiners:', joinersError);
+            }
+        }
         
         displayClientsTable(allClients);
     } catch (error) {
@@ -402,7 +492,8 @@ function filterClients() {
     
     const filtered = allClients.filter(client => {
         const matchesSearch = client.username.toLowerCase().includes(searchText) ||
-                            client.email.toLowerCase().includes(searchText);
+                            client.email.toLowerCase().includes(searchText) ||
+                            String(client.phone || '').toLowerCase().includes(searchText);
         const matchesStatus = !statusFilter || client.status === statusFilter;
         return matchesSearch && matchesStatus;
     });

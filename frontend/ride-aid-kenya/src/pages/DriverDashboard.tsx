@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
-const socket = io(API_BASE.replace(/http(s?):\/\//, '')); // rely on same host
+const socket = API_BASE ? io(API_BASE) : io(); // fall back to same host
 
 export default function DriverDashboard() {
   const [driver, setDriver] = useState<any>(null);
@@ -15,6 +15,21 @@ export default function DriverDashboard() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [messageText, setMessageText] = useState('');
+  const [adminUser, setAdminUser] = useState<any>(null);
+  const [adminTyping, setAdminTyping] = useState(false);
+  const typingTimeoutRef = useRef<number | null>(null);
+  const lastTypingRef = useRef(false);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const driverIdRef = useRef<number | null>(null);
+  const adminIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    driverIdRef.current = driver?.id ?? null;
+  }, [driver]);
+
+  useEffect(() => {
+    adminIdRef.current = adminUser?.id ?? null;
+  }, [adminUser]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -44,12 +59,12 @@ export default function DriverDashboard() {
           setBookings(bdata.bookings || []);
         }
 
-        // fetch conversation with admin (default admin id = 1)
+        // fetch admin user for chat routing
         try {
-          const mRes = await fetch(API_BASE + '/api/messages/conversation?otherId=1', { headers });
-          if (mRes.ok) {
-            const mdata = await mRes.json();
-            setMessages(mdata.messages || []);
+          const aRes = await fetch(API_BASE + '/api/messages/admin-user', { headers });
+          if (aRes.ok) {
+            const adata = await aRes.json();
+            setAdminUser(adata.admin || null);
           }
         } catch (e) {
           // ignore
@@ -76,11 +91,24 @@ export default function DriverDashboard() {
     socket.on('chat.message', (m: any) => {
       console.log('received chat.message', m);
       setMessages(prev => [...prev, m]);
+      if (driverIdRef.current && m.receiver_id === driverIdRef.current && m.id) {
+        markMessagesRead([m.id]);
+      }
     });
 
     socket.on('chat.notification', (n: any) => {
       console.log('chat.notification', n);
       toast({ title: 'New chat', description: n.message || 'New chat message' });
+    });
+
+    socket.on('chat.typing', (payload: any) => {
+      const driverId = driverIdRef.current;
+      const adminId = adminIdRef.current;
+      if (!driverId) return;
+      if (payload.receiverId !== driverId) return;
+      if (adminId && payload.senderId === adminId) {
+        setAdminTyping(Boolean(payload.isTyping));
+      }
     });
 
     socket.on('driver.statusUpdated', (payload: any) => {
@@ -91,9 +119,52 @@ export default function DriverDashboard() {
       socket.off('driver.statusUpdated');
       socket.off('chat.message');
       socket.off('chat.notification');
+      socket.off('chat.typing');
       socket.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [messages, adminTyping]);
+
+  useEffect(() => {
+    if (!adminUser?.id) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const headers = { Authorization: `Bearer ${token}` };
+    (async () => {
+      try {
+        const mRes = await fetch(API_BASE + `/api/messages/conversation?otherId=${adminUser.id}`, { headers });
+        if (mRes.ok) {
+          const mdata = await mRes.json();
+          setMessages(mdata.messages || []);
+          const unreadIds = (mdata.messages || []).filter((m: any) => m.receiver_id === driverIdRef.current && !m.is_read).map((m: any) => m.id);
+          if (unreadIds.length > 0) {
+            markMessagesRead(unreadIds);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, [adminUser?.id]);
+
+  const markMessagesRead = async (ids: number[]) => {
+    if (!ids.length) return;
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(API_BASE + '/api/messages/mark_read', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids }),
+      });
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const toggleStatus = async () => {
     if (!driver) return;
@@ -134,8 +205,13 @@ export default function DriverDashboard() {
   const sendMessage = async () => {
     if (!messageText || messageText.trim().length === 0) return;
     try {
+      if (!adminUser?.id) {
+        toast({ title: 'Admin unavailable', description: 'Admin chat user is not ready yet.' });
+        return;
+      }
+      emitTyping(false);
       const token = localStorage.getItem('token');
-      const res = await fetch(API_BASE + '/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ receiverId: 1, tripId: trip?.id, message: messageText }) });
+      const res = await fetch(API_BASE + '/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ receiverId: adminUser.id, tripId: trip?.id, message: messageText }) });
       const data = await res.json();
       if (res.ok) {
         setMessages(prev => [...prev, data.msg]);
@@ -148,6 +224,46 @@ export default function DriverDashboard() {
       toast({ title: 'Error', description: err.message || 'Network error' });
     }
   };
+
+  const emitTyping = (isTyping: boolean) => {
+    if (!driver || !socket || !adminUser?.id) return;
+    if (lastTypingRef.current === isTyping) return;
+    socket.emit('chat.typing', { senderId: driver.id, receiverId: adminUser.id, isTyping });
+    lastTypingRef.current = isTyping;
+  };
+
+  const handleInputChange = (value: string) => {
+    setMessageText(value);
+    emitTyping(true);
+    if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = window.setTimeout(() => {
+      emitTyping(false);
+    }, 1200);
+  };
+
+  const handleInputBlur = () => {
+    if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    emitTyping(false);
+  };
+
+  const formatDayLabel = (value: string) => {
+    const d = new Date(value);
+    return d.toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const messageRows = (() => {
+    let lastDay = '';
+    const rows: Array<{ type: 'day' | 'msg'; day?: string; msg?: any }> = [];
+    messages.forEach((m) => {
+      const day = formatDayLabel(m.created_at);
+      if (day !== lastDay) {
+        rows.push({ type: 'day', day });
+        lastDay = day;
+      }
+      rows.push({ type: 'msg', msg: m });
+    });
+    return rows;
+  })();
 
 
   return (
@@ -227,20 +343,68 @@ export default function DriverDashboard() {
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="font-semibold">Driver Chat (Admin)</h3>
-            <div className="h-64 overflow-auto border rounded p-2 mt-2">
-              {messages.map(m => (
-                <div key={m.id} className={`mb-2 p-2 rounded ${m.sender_id === driver.id ? 'bg-blue-100 self-end' : 'bg-gray-100'}`}>
-                  <div className="text-sm">{m.message}</div>
-                  <div className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</div>
+          <div className="bg-white/80 backdrop-blur p-4 rounded-xl border shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-semibold">
+                  {adminUser?.name ? adminUser.name.charAt(0).toUpperCase() : 'A'}
                 </div>
-              ))}
+                <div>
+                  <div className="text-sm font-semibold">Admin Support</div>
+                  <div className="text-xs text-muted-foreground">Online help desk</div>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">Online</div>
             </div>
 
-            <div className="mt-3 flex gap-2">
-              <input className="flex-1 border rounded px-2 py-1" value={messageText} onChange={e => setMessageText(e.target.value)} placeholder="Message admin..." />
-              <Button onClick={sendMessage}>Send</Button>
+            <div className="h-64 overflow-auto border rounded-lg mt-3 bg-[radial-gradient(circle_at_1px_1px,rgba(16,185,129,0.12)_1px,transparent_0)] bg-[length:16px_16px] p-4 flex flex-col gap-2">
+              {messageRows.map((row, idx) => {
+                if (row.type === 'day') {
+                  return (
+                    <div key={`day-${row.day}-${idx}`} className="self-center text-[11px] text-muted-foreground bg-white/80 border rounded-full px-3 py-1">
+                      {row.day}
+                    </div>
+                  );
+                }
+                const m = row.msg;
+                return (
+                  <div
+                    key={m.id}
+                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm ${m.sender_id === driver.id ? 'self-end bg-emerald-200' : 'self-start bg-white border border-emerald-100'}`}
+                  >
+                    <div>{m.message}</div>
+                    <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <span>{new Date(m.created_at).toLocaleString()}</span>
+                      {m.sender_id === driver.id && (
+                        <span>{m.is_read ? 'Read' : 'Sent'}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {adminTyping && (
+                <div className="self-start rounded-2xl bg-white px-3 py-2 text-sm text-muted-foreground animate-pulse border border-emerald-100">
+                  Typing...
+                </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
+
+            <div className="mt-3 flex gap-2 items-center">
+              <input
+                className="flex-1 border rounded-full px-4 py-2"
+                value={messageText}
+                onChange={e => handleInputChange(e.target.value)}
+                onBlur={handleInputBlur}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                placeholder="Message admin..."
+              />
+              <Button onClick={sendMessage} className="rounded-full px-5">Send</Button>
             </div>
           </div>
         </div>

@@ -91,6 +91,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+    initiate: (data: any) => apiFetch<any>('/api/payments/initiate-payment', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
     getAll: () => apiFetch<any[]>('/api/payments'),
     getById: (id: number) => apiFetch<any>(`/api/payments/${id}`),
   },
@@ -107,6 +111,22 @@ export const api = {
 
   // Admin APIs
   admin: {
+    // Get dashboard overview
+    getDashboard: () => apiFetch<any>('/api/admin/dashboard'),
+    
+    // Get all payments
+    getPayments: (params?: { limit?: number; offset?: number; routeId?: string; status?: string; startDate?: string; endDate?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.offset) qs.set('offset', String(params.offset));
+      if (params?.routeId) qs.set('routeId', params.routeId);
+      if (params?.status) qs.set('status', params.status);
+      if (params?.startDate) qs.set('startDate', params.startDate);
+      if (params?.endDate) qs.set('endDate', params.endDate);
+      const query = qs.toString() ? `?${qs.toString()}` : '';
+      return apiFetch<any>(`/api/admin/payments${query}`);
+    },
+    
     // Get revenue summary. params: { startDate?: string, endDate?: string, period?: 'day'|'week'|'month' }
     getRevenue: (params?: { startDate?: string; endDate?: string; period?: string }) => {
       const qs = new URLSearchParams();

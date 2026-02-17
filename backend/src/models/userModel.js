@@ -177,6 +177,17 @@ class UserModel {
     }
   }
 
+  // Get primary admin user (first admin by id)
+  static async getPrimaryAdmin() {
+    const query = "SELECT id, name, email, role FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1;";
+    try {
+      const result = await pool.query(query);
+      return result.rows[0] || null;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   // Get all users
   static async getAllUsers() {
     const query = 'SELECT id, name, email, phone, role, status, created_at FROM users ORDER BY created_at DESC;';

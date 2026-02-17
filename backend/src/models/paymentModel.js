@@ -112,10 +112,11 @@ class PaymentModel {
   // Get all payments (admin)
   static async getAllPayments(limit = 100, offset = 0, filters = {}) {
     let query = `
-      SELECT p.*, r.route_name, u.name as passenger_name
+      SELECT p.*, r.route_name, u.name as passenger_name, v.registration_number as vehicle_number
       FROM payments p
       JOIN routes r ON p.route_id = r.id
       LEFT JOIN users u ON p.user_id = u.id
+      LEFT JOIN vehicles v ON p.vehicle_id = v.id
       WHERE 1=1
     `;
     const params = [];
@@ -166,7 +167,8 @@ class PaymentModel {
         COUNT(*) as total_payments,
         COUNT(CASE WHEN status = 'completed' THEN 1 END) as successful_payments,
         COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_payments,
-        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_payments
+        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_payments,
+        COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0)::numeric::float8 as total_revenue
       FROM payments
       WHERE 1=1
     `;
