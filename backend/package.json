@@ -42,7 +42,8 @@
     "jsonwebtoken": "^9.0.3",
     "node-telegram-bot-api": "^0.66.0",
     "pg": "^8.17.1",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "jest": "^30.2.0",

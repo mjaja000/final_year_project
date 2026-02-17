@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,6 +16,7 @@ import DriverLogin from "./pages/DriverLogin";
 import DriverDashboard from "./pages/DriverDashboard";
 import Drivers from "./pages/Drivers";
 import NotFound from "./pages/NotFound";
+import ComplaintDemo from "./pages/ComplaintDemo";
 import Footer from "@/components/Footer";
 import ScrollToTop from "@/components/ScrollToTop";
 
@@ -30,7 +31,7 @@ const queryClient = new QueryClient({
 });
 
 // Lazy-load the driver/admn combined login page
-const DriverAdmn = lazy(() => import('./pages/DriverAdmn'));
+const DriverAdmn = lazy(() => import("./pages/DriverAdmn"));
 
 const App = () => (
   <ErrorBoundary>
@@ -43,9 +44,13 @@ const App = () => (
             <ScrollToTop />
             <Routes>
               <Route path="/" element={<Index />} />
-                <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
+              <Route
+                path="/admin"
+                element={<Navigate to="/admin/login" replace />}
+              />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              <Route path="/complaint-demo" element={<ComplaintDemo />} />
               <Route path="/feedback" element={<Feedback />} />
               <Route
                 path="/driver/admn"
@@ -66,6 +71,7 @@ const App = () => (
               <Route path="/pay" element={<Navigate to="/payment" replace />} />
               <Route path="/driver/login" element={<DriverLogin />} />
               <Route path="/drivers" element={<Drivers />} />
+
               <Route path="/driver/dashboard" element={<DriverDashboard />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
