@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
+import WhatsAppConnect from "@/components/WhatsAppConnect";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -444,6 +445,9 @@ export default function Index() {
               </div>
             </div>
           </section>
+
+          {/* WhatsApp Sandbox Connection Section */}
+          <WhatsAppConnect />
 
           {/* CTA Section */}
           <section className="text-center bg-gradient-to-r from-green-600 to-emerald-500 rounded-3xl p-8 sm:p-12 text-white animate-fade-in">

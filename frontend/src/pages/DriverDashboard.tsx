@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
-const socket = io(API_BASE.replace(/http(s?):\/\//, '')); // rely on same host
+const socket = API_BASE ? io(API_BASE) : io(); // fall back to same host
 
 export default function DriverDashboard() {
   const [driver, setDriver] = useState<any>(null);

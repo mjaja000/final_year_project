@@ -40,7 +40,7 @@ export function trackEvent(
     }
 
     // Log in development
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('📊 Analytics Event:', { category, action, label, value });
     }
   }
@@ -59,7 +59,7 @@ export function trackPageView(path: string) {
     }
 
     // Log in development
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('📊 Page View:', path);
     }
   }
@@ -84,7 +84,7 @@ export function trackConversion(
     }
 
     // Log in development
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('📊 Conversion:', { conversionType, value });
     }
   }

@@ -67,9 +67,12 @@ class MessageController {
 
   static async markRead(req, res) {
     try {
-      const { ids } = req.body; // array of ids
-      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: 'Missing ids' });
-      const rows = await MessageModel.markRead(ids);
+      const rawIds = req.body?.ids; // array of ids
+      const ids = Array.isArray(rawIds)
+        ? rawIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+        : [];
+      if (ids.length === 0) return res.status(400).json({ message: 'Missing ids' });
+      const rows = await MessageModel.markReadForReceiver(ids, req.userId);
       res.json({ updated: rows.length, rows });
     } catch (error) {
       console.error('Mark read error:', error.message);

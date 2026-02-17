@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/Header';
 import DataTable from '@/components/DataTable';
-import { mockPayments, PaymentEntry } from '@/lib/mockData';
 import { Helmet } from 'react-helmet-async';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -14,6 +13,7 @@ import OccupancyManager from '@/components/admin/OccupancyManager';
 import DriverManager from '@/components/admin/DriverManager';
 import AdminRevenue from '@/components/admin/AdminRevenue';
 import AdminMessages from '@/components/admin/AdminMessages';
+import WhatsAppChats from '@/components/admin/WhatsAppChats';
 import io from 'socket.io-client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import OccupancyDisplay from '@/components/OccupancyDisplay';
@@ -35,6 +35,59 @@ const AdminDashboard = () => {
     status: 'pending' | 'reviewed' | 'resolved';
   }
 
+  interface PaymentEntry {
+    id: string;
+    transactionId: string;
+    vehicleNumber: string;
+    route: string;
+    amount: number;
+    timestamp: Date;
+    status: 'completed' | 'pending' | 'failed';
+  }
+
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+
+  // Fetch dashboard stats
+  const { data: dashboardData } = useQuery({
+    queryKey: ['admin', 'dashboard'],
+    queryFn: () => api.admin.getDashboard(),
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  // Fetch payments from database
+  const { data: paymentsResponse } = useQuery({
+    queryKey: ['admin', 'payments'],
+    queryFn: () => api.admin.getPayments({ limit: 1000 }),
+    refetchInterval: 30000,
+  });
+
+  const { data: whatsappData } = useQuery({
+    queryKey: ['admin', 'whatsapp', 'chats'],
+    queryFn: async () => {
+      const res = await fetch(API_BASE + '/api/whatsapp/chats');
+      return res.json();
+    },
+    refetchInterval: 15000,
+  });
+
+  // Transform database payments to match PaymentEntry interface
+  const dbPayments: PaymentEntry[] = useMemo(() => {
+    if (!paymentsResponse?.payments) return [];
+    return paymentsResponse.payments.map((p: any) => ({
+      id: String(p.id),
+      transactionId: p.transaction_id || `TXN-${p.id}`,
+      vehicleNumber: p.vehicle_number || 'N/A',
+      route: p.route_name || 'Unknown Route',
+      amount: Number(p.amount),
+      timestamp: new Date(p.created_at),
+      status: p.status,
+    }));
+  }, [paymentsResponse]);
+
+  const whatsappUnreadCount = useMemo(() => {
+    const contacts = Array.isArray(whatsappData?.contacts) ? whatsappData.contacts : [];
+    return contacts.reduce((sum: number, contact: any) => sum + (Number(contact.unread_count) || 0), 0);
+  }, [whatsappData]);
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -50,6 +103,7 @@ const AdminDashboard = () => {
   };
 
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [activeTab, setActiveTab] = useState('feedback');
 
   const sendWhatsAppTest = async () => {
     try {
@@ -147,13 +201,13 @@ const AdminDashboard = () => {
   // Filter payments
   const filteredPayments = useMemo(() => {
     const search = paymentSearch.toLowerCase();
-    return mockPayments.filter(
+    return dbPayments.filter(
       (p) =>
         p.vehicleNumber.toLowerCase().includes(search) ||
         p.route.toLowerCase().includes(search) ||
         p.transactionId.toLowerCase().includes(search)
     );
-  }, [paymentSearch]);
+  }, [dbPayments, paymentSearch]);
 
   const feedbackColumns = [
     {
@@ -320,17 +374,6 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2"> 
-                <Button
-                  onClick={async () => {
-                    // call sendWhatsAppTest (defined below)
-                    await sendWhatsAppTest();
-                  }}
-                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white mr-2"
-                >
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Send WhatsApp test
-                </Button>
-
                 <Button 
                   onClick={handleLogout} 
                   className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white"
@@ -345,8 +388,12 @@ const AdminDashboard = () => {
 
         <main className="container py-6 sm:py-8 px-4">
           {/* Stats - Enhanced Design */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-6 mb-6 sm:mb-8">
+            <button
+              type="button"
+              onClick={() => setActiveTab('feedback')}
+              className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <MessageSquare className="h-6 w-6" />
@@ -355,9 +402,13 @@ const AdminDashboard = () => {
               </div>
               <p className="text-sm opacity-90 mb-1">Total Feedback</p>
               <p className="text-3xl sm:text-4xl font-bold">{feedbackEntries.length}</p>
-            </div>
+            </button>
 
-            <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+            <button
+              type="button"
+              onClick={() => setActiveTab('feedback')}
+              className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <AlertCircle className="h-6 w-6" />
@@ -368,9 +419,13 @@ const AdminDashboard = () => {
               <p className="text-3xl sm:text-4xl font-bold">
                 {feedbackEntries.filter((f) => f.status === 'pending').length}
               </p>
-            </div>
+            </button>
 
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+            <button
+              type="button"
+              onClick={() => setActiveTab('payments')}
+              className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <CreditCard className="h-6 w-6" />
@@ -378,10 +433,16 @@ const AdminDashboard = () => {
                 <Users className="h-5 w-5 opacity-70" />
               </div>
               <p className="text-sm opacity-90 mb-1">Total Payments</p>
-              <p className="text-3xl sm:text-4xl font-bold">{mockPayments.length}</p>
-            </div>
+              <p className="text-3xl sm:text-4xl font-bold">
+                {dashboardData?.paymentStats?.total_payments || dbPayments.length}
+              </p>
+            </button>
 
-            <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+            <button
+              type="button"
+              onClick={() => setActiveTab('revenue')}
+              className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                   <DollarSign className="h-6 w-6" />
@@ -390,16 +451,33 @@ const AdminDashboard = () => {
               </div>
               <p className="text-sm opacity-90 mb-1">Revenue</p>
               <p className="text-2xl sm:text-3xl font-bold">
-                KES {mockPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+                KES {(dashboardData?.paymentStats?.total_revenue || dbPayments.reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
               </p>
-            </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                setActiveTab('whatsapp');
+              }}
+              className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <MessageSquare className="h-6 w-6" />
+                </div>
+                <TrendingUp className="h-5 w-5 opacity-70" />
+              </div>
+              <p className="text-sm opacity-90 mb-1">WhatsApp Chats</p>
+              <p className="text-2xl sm:text-3xl font-bold">{whatsappUnreadCount}</p>
+            </button>
           </div>
 
           {/* Tabs - Enhanced Design */}
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-            <Tabs defaultValue="feedback" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 p-4">
-                <TabsList className="w-full grid grid-cols-2 sm:grid-cols-6 h-auto bg-white rounded-xl shadow-sm p-1">
+                <TabsList className="w-full grid grid-cols-2 sm:grid-cols-7 h-auto bg-white rounded-xl shadow-sm p-1">
                   <TabsTrigger value="feedback" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white">
                     <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">Feedback</span>
@@ -432,6 +510,11 @@ const AdminDashboard = () => {
                     <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">Revenue</span>
                     <span className="sm:hidden">Rev</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="whatsapp" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-teal-600 data-[state=active]:text-white">
+                    <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">WhatsApp</span>
+                    <span className="sm:hidden">WA</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -517,6 +600,13 @@ const AdminDashboard = () => {
                       </p>
                       <OccupancyDisplay interactive={false} showPayButton={false} />
                     </section>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="whatsapp" className="animate-fade-in m-0">
+                  <div className="p-2">
+                    <h3 className="font-semibold mb-3">WhatsApp Chats</h3>
+                    <WhatsAppChats />
                   </div>
                 </TabsContent>
               </div>

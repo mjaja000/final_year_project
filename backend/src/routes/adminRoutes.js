@@ -41,4 +41,9 @@ router.get('/activity/logs', AdminController.getActivityLogs);
 router.post('/activity/log', AdminController.logActivity);
 router.get('/database/stats', AdminController.getDatabaseStats);
 
+// WhatsApp joiners (users who sent join keyword)
+router.get('/whatsapp/joiners', AdminController.getWhatsAppJoiners);
+// WhatsApp participants from Twilio
+router.get('/whatsapp/participants', AdminController.getWhatsAppParticipants);
+
 module.exports = router;

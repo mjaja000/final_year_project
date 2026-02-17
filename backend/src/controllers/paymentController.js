@@ -1,7 +1,6 @@
 const PaymentModel = require('../models/paymentModel');
 const SmsService = require('../services/smsService');
 const WhatsappService = require('../services/whatsappService');
-const { sendTelegramMessage } = require('../telegram/sendMessage');
 const UserModel = require('../models/userModel');
 const MpesaService = require('../services/mpesaService');
 
@@ -99,8 +98,33 @@ class PaymentController {
       const resultCode =
         callbackBody?.Body?.stkCallback?.ResultCode ?? callbackBody?.ResultCode;
 
+      const metadataItems = callbackBody?.Body?.stkCallback?.CallbackMetadata?.Item || [];
+      const metadata = metadataItems.reduce((acc, item) => {
+        if (item?.Name) {
+          acc[item.Name] = item.Value;
+        }
+        return acc;
+      }, {});
+
       if (String(resultCode) === '0') {
         console.log('Simulated payment success');
+
+        const phoneNumber = metadata.PhoneNumber;
+        const amount = metadata.Amount;
+        const transactionId = metadata.MpesaReceiptNumber || metadata.CheckoutRequestID;
+
+        if (phoneNumber && amount) {
+          try {
+            await WhatsappService.sendPaymentConfirmation(phoneNumber, {
+              routeName: 'N/A',
+              amount: amount,
+              transactionId: transactionId || 'M-Pesa'
+            });
+            console.log('✓ WhatsApp payment confirmation sent from callback');
+          } catch (whatsappError) {
+            console.error('WhatsApp callback notification failed:', whatsappError.message);
+          }
+        }
       } else {
         console.log('Simulated payment failed:', callbackBody?.Body?.stkCallback?.ResultDesc);
       }
@@ -140,19 +164,6 @@ class PaymentController {
       // Simulate successful payment after 2 seconds
       setTimeout(async () => {
         await PaymentModel.updatePaymentStatus(payment.id, 'completed', simulatedTransactionId);
-        try {
-          if (userId) {
-            const chatId = await UserModel.getTelegramChatIdByUserId(userId);
-            if (chatId) {
-              await sendTelegramMessage(
-                chatId,
-                `✅ <b>Payment Received</b>\n\nHello,\nWe received KES ${amount} successfully. Thank you!`
-              );
-            }
-          }
-        } catch (telegramError) {
-          console.error('Telegram notification failed:', telegramError.message);
-        }
       }, 2000);
 
       // Send SMS notification (FR4)
@@ -180,6 +191,17 @@ class PaymentController {
           console.log('✓ WhatsApp payment confirmation sent');
         } else {
           console.warn('⚠️ WhatsApp payment confirmation failed:', whatsappResult.error);
+          
+          // If user not in sandbox (error 63007), send SMS with join instructions
+          if (whatsappResult.needsJoin || whatsappResult.code === 63007) {
+            try {
+              const joinInstructions = `MatatuConnect: Payment received KES ${amount}! Get WhatsApp alerts - Send "join break-additional" to +14155238886. Takes 5 sec!`;
+              await SmsService.sendSms(phoneNumber, joinInstructions);
+              console.log('✓ SMS join instructions sent as fallback');
+            } catch (smsFallbackError) {
+              console.error('SMS join instructions failed:', smsFallbackError.message);
+            }
+          }
         }
       } catch (whatsappError) {
         console.error('WhatsApp notification failed:', whatsappError.message);
