@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import LostAndFoundAdmin from "./pages/LostAndFoundAdmin";
+import LostAndFound from "./pages/LostAndFound";
 import Feedback from "./pages/Feedback";
 import Occupancy from "./pages/Occupancy";
 import Payment from "./pages/Payment";
@@ -52,6 +53,7 @@ const App = () => (
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/admin/lost-and-found" element={<LostAndFoundAdmin />} />
+              <Route path="/lost-and-found" element={<LostAndFound />} />
               <Route path="/complaint-demo" element={<ComplaintDemo />} />
               <Route path="/feedback" element={<Feedback />} />
               <Route
