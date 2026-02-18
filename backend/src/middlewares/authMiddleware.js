@@ -33,4 +33,20 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-module.exports = authMiddleware;
+const authorizeRoles = (allowedRoles) => (req, res, next) => {
+  try {
+    // Convert single role string to array
+    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+
+    if (!roles.includes(req.userRole)) {
+      return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
+    }
+    next();
+  } catch (error) {
+    res.status(500).json({ message: 'Authorization check failed', error: error.message });
+  }
+};
+
+const authenticateToken = authMiddleware;
+
+module.exports = { authMiddleware, authorizeRoles, authenticateToken };

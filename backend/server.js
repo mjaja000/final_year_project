@@ -17,6 +17,7 @@ const initializeTables = async () => {
     const TripModel = require('./src/models/tripModel');
     const BookingModel = require('./src/models/bookingModel');
     const MessageModel = require('./src/models/messageModel');
+    const LostAndFoundModel = require('./src/models/lostAndFoundModel');
     const { createReportsTable } = require('./src/migrations/createReportsTable');
 
     // Create tables in dependency order
@@ -32,6 +33,7 @@ const initializeTables = async () => {
     await FeedbackModel.createTable();
     await ActivityLogModel.createTable();
     await createReportsTable();
+    await LostAndFoundModel.createTable();
 
     console.log('✓ All database tables initialized successfully');
   } catch (error) {

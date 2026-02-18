@@ -16,6 +16,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const whatsappRoutes = require('./routes/whatsappRoutes');
 const driverRoutes = require('./routes/driverRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const lostAndFoundRoutes = require('./routes/lostAndFoundRoutes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
 const { createReportsTable } = require('./migrations/createReportsTable');
 
@@ -52,6 +53,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/drivers', driverRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/lost-and-found', lostAndFoundRoutes);
 
 // Root route
 app.get('/', (req, res) => {
