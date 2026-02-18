@@ -79,17 +79,52 @@ class DriverModel {
   }
 
   // Update driver fields (driving license, assigned vehicle)
-  static async updateDriver(userId, { drivingLicense = null, assignedVehicleId = null } = {}) {
+  static async updateDriver(userId, { drivingLicense = undefined, assignedVehicleId = undefined } = {}) {
+    // Build dynamic query to only update provided fields
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (drivingLicense !== undefined) {
+      updates.push(`driving_license = $${paramIndex++}`);
+      values.push(drivingLicense);
+    }
+
+    if (assignedVehicleId !== undefined) {
+      updates.push(`assigned_vehicle_id = $${paramIndex++}`);
+      values.push(assignedVehicleId);
+    }
+
+    if (updates.length === 0) {
+      // No fields to update, just return current record
+      const query = 'SELECT * FROM drivers WHERE user_id = $1';
+      const result = await pool.query(query, [userId]);
+      return result.rows[0];
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(userId);
+
     const query = `
       UPDATE drivers
-      SET driving_license = COALESCE($1, driving_license),
-          assigned_vehicle_id = COALESCE($2, assigned_vehicle_id),
-          updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = $3
+      SET ${updates.join(', ')}
+      WHERE user_id = $${paramIndex}
       RETURNING *;
     `;
+
     try {
-      const result = await pool.query(query, [drivingLicense, assignedVehicleId, userId]);
+      const result = await pool.query(query, values);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get driver assigned to a specific vehicle
+  static async getDriverByVehicleId(vehicleId) {
+    const query = 'SELECT d.*, u.username, u.name, u.phone, u.email, v.registration_number as vehicle_reg FROM drivers d LEFT JOIN users u on d.user_id = u.id LEFT JOIN vehicles v ON d.assigned_vehicle_id = v.id WHERE d.assigned_vehicle_id = $1';
+    try {
+      const result = await pool.query(query, [vehicleId]);
       return result.rows[0];
     } catch (error) {
       throw error;

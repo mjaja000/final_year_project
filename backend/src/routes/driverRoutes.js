@@ -27,5 +27,6 @@ router.get('/resets', authMiddleware, adminOnly, DriverController.getResetLogs);
 router.get('/me/trip', authMiddleware, DriverController.getMyActiveTrip);
 router.get('/me/trip/bookings', authMiddleware, DriverController.getBookingsForMyTrip);
 router.post('/me/trip/:tripId/occupancy', authMiddleware, DriverController.adjustOccupancy);
+router.get('/me/tickets', authMiddleware, DriverController.getMyVehicleTickets);
 
 module.exports = router;

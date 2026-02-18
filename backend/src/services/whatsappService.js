@@ -142,8 +142,9 @@ We appreciate your input to help improve our service. Your feedback helps us ser
 Your payment has been recorded.
 
 📍 Route: ${paymentData.routeName || 'N/A'}
+🚌 Vehicle: ${paymentData.vehicleNumber || 'N/A'}
 💵 Amount: KES ${paymentData.amount}
-🎟️ Transaction: ${paymentData.transactionId}
+🎟️ Ticket: ${paymentData.transactionId}
 📅 Date: ${date}
 
 Thank you for using MatatuConnect!`;

@@ -96,7 +96,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
     getAll: () => apiFetch<any[]>('/api/payments'),
-    getById: (id: number) => apiFetch<any>(`/api/payments/${id}`),
+    getById: (id: number, refresh = false) => apiFetch<any>(`/api/payments/${id}${refresh ? '?refresh=1' : ''}`),
   },
 
   // Feedback

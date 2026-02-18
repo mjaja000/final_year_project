@@ -89,6 +89,28 @@ class AuthController {
         return res.status(404).json({ message: 'User not found' });
       }
 
+      // If user is a driver, fetch driver details including assigned vehicle
+      if (user.role === 'driver') {
+        try {
+          const DriverModel = require('../models/driverModel');
+          const driverDetails = await DriverModel.getDriverByUserId(userId);
+          console.log('Driver details for userId', userId, ':', driverDetails);
+          if (driverDetails) {
+            // Merge driver details with user data
+            user.assigned_vehicle_id = driverDetails.assigned_vehicle_id;
+            user.vehicle_reg = driverDetails.vehicle_reg;
+            user.driving_license = driverDetails.driving_license;
+            user.driver_status = driverDetails.status;
+            console.log('Assigned vehicle:', user.assigned_vehicle_id, 'Reg:', user.vehicle_reg);
+          } else {
+            console.log('No driver record found for userId', userId);
+          }
+        } catch (driverError) {
+          console.error('Error fetching driver details:', driverError.message);
+          // Continue without driver details
+        }
+      }
+
       res.json({ message: 'Profile fetched', user });
     } catch (error) {
       console.error('Get profile error:', error);

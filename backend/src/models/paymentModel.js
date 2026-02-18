@@ -34,6 +34,12 @@ class PaymentModel {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payments' AND column_name='failure_reason') THEN
           ALTER TABLE payments ADD COLUMN failure_reason VARCHAR(255);
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payments' AND column_name='merchant_request_id') THEN
+          ALTER TABLE payments ADD COLUMN merchant_request_id VARCHAR(100);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payments' AND column_name='checkout_request_id') THEN
+          ALTER TABLE payments ADD COLUMN checkout_request_id VARCHAR(100);
+        END IF;
         IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payments' AND column_name='user_id' AND is_nullable='NO') THEN
           ALTER TABLE payments ALTER COLUMN user_id DROP NOT NULL;
           ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_user_id_fkey;
@@ -51,14 +57,14 @@ class PaymentModel {
   }
 
   // Initiate payment simulation
-  static async initiatePayment(userId, routeId, amount, phoneNumber) {
+  static async initiatePayment(userId, routeId, amount, phoneNumber, vehicleId = null) {
     const query = `
-      INSERT INTO payments (user_id, route_id, amount, phone_number, status)
-      VALUES ($1, $2, $3, $4, 'pending')
+      INSERT INTO payments (user_id, route_id, vehicle_id, amount, phone_number, status)
+      VALUES ($1, $2, $3, $4, $5, 'pending')
       RETURNING *;
     `;
     try {
-      const result = await pool.query(query, [userId, routeId, amount, phoneNumber]);
+      const result = await pool.query(query, [userId, routeId, vehicleId, amount, phoneNumber]);
       return result.rows[0];
     } catch (error) {
       throw error;
@@ -81,6 +87,33 @@ class PaymentModel {
     }
   }
 
+  static async updateMpesaRequestIds(paymentId, merchantRequestId, checkoutRequestId) {
+    const query = `
+      UPDATE payments
+      SET merchant_request_id = $1,
+          checkout_request_id = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING *;
+    `;
+    const result = await pool.query(query, [merchantRequestId || null, checkoutRequestId || null, paymentId]);
+    return result.rows[0];
+  }
+
+  static async updateStatusByCheckoutRequestId(checkoutRequestId, status, transactionId = null, failureReason = null) {
+    const query = `
+      UPDATE payments
+      SET status = $1,
+          transaction_id = COALESCE($2, transaction_id),
+          failure_reason = $3,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE checkout_request_id = $4
+      RETURNING *;
+    `;
+    const result = await pool.query(query, [status, transactionId, failureReason, checkoutRequestId]);
+    return result.rows[0];
+  }
+
   // Get payment by ID
   static async getPaymentById(id) {
     const query = 'SELECT * FROM payments WHERE id = $1;';
@@ -90,6 +123,25 @@ class PaymentModel {
     } catch (error) {
       throw error;
     }
+  }
+
+  static async getPaymentByCheckoutRequestId(checkoutRequestId) {
+    const query = 'SELECT * FROM payments WHERE checkout_request_id = $1 ORDER BY id DESC LIMIT 1;';
+    const result = await pool.query(query, [checkoutRequestId]);
+    return result.rows[0];
+  }
+
+  static async getPaymentByIdWithDetails(id) {
+    const query = `
+      SELECT p.*, r.route_name, v.registration_number as vehicle_number
+      FROM payments p
+      JOIN routes r ON p.route_id = r.id
+      LEFT JOIN vehicles v ON p.vehicle_id = v.id
+      WHERE p.id = $1
+      LIMIT 1;
+    `;
+    const result = await pool.query(query, [id]);
+    return result.rows[0];
   }
 
   // Get user payments
