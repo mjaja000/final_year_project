@@ -13,6 +13,7 @@ export default function DriverDashboard() {
 
   const [trip, setTrip] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [messageText, setMessageText] = useState('');
   const [adminUser, setAdminUser] = useState<any>(null);
@@ -22,6 +23,26 @@ export default function DriverDashboard() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const driverIdRef = useRef<number | null>(null);
   const adminIdRef = useRef<number | null>(null);
+
+  const refreshDriverData = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const headers = { Authorization: `Bearer ${token}` };
+
+    try {
+      const res = await fetch(API_BASE + '/api/auth/profile', { headers });
+      const data = await res.json();
+      if (res.ok) {
+        console.log('🔄 Refreshed driver profile data:', data.user);
+        setDriver(data.user);
+        toast({ title: 'Profile refreshed', description: 'Vehicle assignment updated' });
+      }
+    } catch (err) {
+      console.error('Error refreshing driver data:', err);
+      toast({ title: 'Refresh failed', description: 'Could not update profile', variant: 'destructive' });
+    }
+  };
 
   useEffect(() => {
     driverIdRef.current = driver?.id ?? null;
@@ -42,7 +63,12 @@ export default function DriverDashboard() {
         const res = await fetch(API_BASE + '/api/auth/profile', { headers });
         const data = await res.json();
         if (res.ok) {
+          console.log('Driver profile data:', data.user);
+          console.log('Assigned vehicle ID:', data.user?.assigned_vehicle_id);
+          console.log('Vehicle registration:', data.user?.vehicle_reg);
           setDriver(data.user);
+        } else {
+          console.error('Failed to fetch profile:', data);
         }
 
         // fetch active trip
@@ -57,6 +83,20 @@ export default function DriverDashboard() {
         if (bRes.ok) {
           const bdata = await bRes.json();
           setBookings(bdata.bookings || []);
+        }
+
+        // fetch vehicle tickets
+        try {
+          const ticketsRes = await fetch(API_BASE + '/api/drivers/me/tickets', { headers });
+          if (ticketsRes.ok) {
+            const ticketsData = await ticketsRes.json();
+            console.log('Vehicle tickets response:', ticketsData);
+            setTickets(ticketsData.tickets || []);
+          } else {
+            console.error('Failed to fetch tickets:', ticketsRes.status, await ticketsRes.text());
+          }
+        } catch (ticketsError) {
+          console.error('Error fetching tickets:', ticketsError);
         }
 
         // fetch admin user for chat routing
@@ -286,8 +326,32 @@ export default function DriverDashboard() {
             </div>
 
             <div className="mt-4">
-              <h3 className="font-semibold">Assigned Vehicle</h3>
-              <p className="text-sm">{driver.vehicle_reg || 'Not assigned'}</p>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Assigned Vehicle</h3>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={refreshDriverData}
+                  className="text-xs"
+                >
+                  🔄 Refresh
+                </Button>
+              </div>
+              {console.log('Driver object in render:', {
+                id: driver.id,
+                name: driver.name,
+                assigned_vehicle_id: driver.assigned_vehicle_id,
+                vehicle_reg: driver.vehicle_reg
+              })}
+              {driver.assigned_vehicle_id ? (
+                <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                  ✓ {driver.vehicle_reg || `Vehicle ID: ${driver.assigned_vehicle_id}`}
+                </p>
+              ) : (
+                <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+                  ⚠ No vehicle assigned. Contact admin to assign a vehicle.
+                </p>
+              )}
             </div>
 
             <div className="mt-6">
@@ -334,6 +398,53 @@ export default function DriverDashboard() {
                         <div className="text-right">
                           <div className="text-sm">{b.origin_stop} → {b.destination_stop}</div>
                           <div className="text-xs text-muted-foreground">{b.status || b.booking_status}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6">
+              <h3 className="font-semibold">Vehicle Tickets ({tickets.length})</h3>
+              <p className="text-xs text-muted-foreground mb-2">Completed payments for {driver.vehicle_reg || 'your vehicle'}</p>
+              {tickets.length === 0 ? (
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>No tickets yet.</p>
+                  {!driver.assigned_vehicle_id && (
+                    <p className="text-amber-600 dark:text-amber-400">⚠ You don't have an assigned vehicle. Contact admin.</p>
+                  )}
+                  {driver.assigned_vehicle_id && (
+                    <p className="text-xs">Tickets will appear here when customers pay in vehicle {driver.vehicle_reg}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-2 space-y-2 max-h-64 overflow-auto">
+                  {tickets.slice(0, 20).map(t => (
+                    <div key={t.id} className="p-3 border rounded bg-white/50">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="text-sm font-semibold">KES {t.amount}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {t.route_name || `Route ${t.route_id}`}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {t.phone_number}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs font-mono text-success">
+                            {t.transaction_id || t.checkout_request_id?.slice(-8)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(t.created_at).toLocaleDateString('en-KE', { 
+                              day: '2-digit', 
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>

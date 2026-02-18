@@ -18,11 +18,15 @@ class DriverController {
         assigned_vehicle_id = Number.isNaN(parsed) ? null : parsed;
       }
 
+      console.log('Creating driver with vehicle assignment:', assigned_vehicle_id);
+
       // Create user with driver role and generated username
       const user = await UserModel.createDriverUser({ name, email, phone, password });
 
       // Create driver record
       const driver = await DriverModel.createDriver({ userId: user.id, drivingLicense: driving_license, assignedVehicleId: assigned_vehicle_id, documents });
+
+      console.log('Driver created:', { userId: user.id, driverId: driver.id, assignedVehicleId: driver.assigned_vehicle_id });
 
       // Log driver creation action
       try {
@@ -193,12 +197,16 @@ class DriverController {
 
       let { name, phone, driving_license, assigned_vehicle_id } = req.body;
 
+      console.log('Update driver request:', { userId, name, phone, driving_license, assigned_vehicle_id });
+
       // sanitize assigned vehicle id
       if (assigned_vehicle_id === '' || assigned_vehicle_id === undefined) assigned_vehicle_id = null;
       if (assigned_vehicle_id != null) {
         const parsed = parseInt(assigned_vehicle_id, 10);
         assigned_vehicle_id = Number.isNaN(parsed) ? null : parsed;
       }
+
+      console.log('Sanitized assigned_vehicle_id:', assigned_vehicle_id);
 
       // Update user basic info
       let updatedUser = null;
@@ -207,7 +215,13 @@ class DriverController {
       }
 
       // Update driver-specific fields
-      const updatedDriver = await DriverModel.updateDriver(userId, { drivingLicense: driving_license, assignedVehicleId: assigned_vehicle_id });
+      const driverUpdate = {};
+      if (driving_license !== undefined) driverUpdate.drivingLicense = driving_license;
+      if (assigned_vehicle_id !== undefined) driverUpdate.assignedVehicleId = assigned_vehicle_id;
+
+      const updatedDriver = await DriverModel.updateDriver(userId, driverUpdate);
+
+      console.log('Driver updated:', updatedDriver);
 
       res.json({ message: 'Driver updated', user: updatedUser, driver: updatedDriver });
     } catch (error) {
@@ -259,6 +273,65 @@ class DriverController {
     } catch (error) {
       console.error('Reset password error:', error.message);
       res.status(500).json({ message: 'Failed to reset password', error: error.message });
+    }
+  }
+
+  // Driver: Get all tickets/payments for their assigned vehicle
+  static async getMyVehicleTickets(req, res) {
+    try {
+      const userId = req.userId;
+      const driver = await DriverModel.getDriverByUserId(userId);
+      
+      console.log('Fetching tickets for driver userId:', userId, 'vehicle_id:', driver?.assigned_vehicle_id);
+      
+      if (!driver) {
+        return res.status(404).json({ message: 'Driver not found' });
+      }
+      
+      if (!driver.assigned_vehicle_id) {
+        console.log('Driver has no assigned vehicle');
+        return res.json({ message: 'No vehicle assigned', tickets: [] });
+      }
+
+      // Fetch all completed payments for this vehicle
+      const pool = require('../config/database');
+      
+      // Debug: Check total completed payments
+      const debugQuery = `SELECT COUNT(*) as total FROM payments WHERE status = 'completed'`;
+      const debugResult = await pool.query(debugQuery);
+      console.log('Total completed payments in database:', debugResult.rows[0]?.total);
+      
+      const debugVehicleQuery = `SELECT COUNT(*) as total FROM payments WHERE vehicle_id IS NOT NULL AND status = 'completed'`;
+      const debugVehicleResult = await pool.query(debugVehicleQuery);
+      console.log('Completed payments with vehicle_id:', debugVehicleResult.rows[0]?.total);
+      
+      const query = `
+        SELECT p.*, r.route_name, v.registration_number as vehicle_number
+        FROM payments p
+        LEFT JOIN routes r ON p.route_id = r.id
+        LEFT JOIN vehicles v ON p.vehicle_id = v.id
+        WHERE p.vehicle_id = $1 AND p.status = 'completed'
+        ORDER BY p.created_at DESC
+        LIMIT 100
+      `;
+      
+      console.log('Executing query for vehicle_id:', driver.assigned_vehicle_id);
+      
+      const result = await pool.query(query, [driver.assigned_vehicle_id]);
+      
+      console.log('Found', result.rows.length, 'tickets for vehicle', driver.assigned_vehicle_id);
+      
+      res.json({ 
+        message: 'Vehicle tickets fetched',
+        tickets: result.rows,
+        vehicle: {
+          id: driver.assigned_vehicle_id,
+          registration: driver.vehicle_reg
+        }
+      });
+    } catch (error) {
+      console.error('Get vehicle tickets error:', error.message);
+      res.status(500).json({ message: 'Failed to fetch tickets', error: error.message });
     }
   }
 }

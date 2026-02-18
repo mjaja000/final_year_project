@@ -80,6 +80,43 @@ class MpesaService {
     }
   }
 
+  static async queryStkPushStatus(checkoutRequestId) {
+    try {
+      if (!checkoutRequestId) {
+        throw new Error('Missing checkoutRequestId for STK status query');
+      }
+
+      const businessCode = process.env.MPESA_BUSINESS_CODE || process.env.MPESA_SHORTCODE;
+      if (!businessCode) {
+        throw new Error('Missing M-Pesa business code');
+      }
+
+      const accessToken = await this.getAccessToken();
+      const timestamp = this.formatTimestamp();
+      const password = this.buildPassword(timestamp);
+
+      const response = await axios.post(
+        `${process.env.MPESA_API_URL}/mpesa/stkpushquery/v1/query`,
+        {
+          BusinessShortCode: businessCode,
+          Password: password,
+          Timestamp: timestamp,
+          CheckoutRequestID: checkoutRequestId,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error('M-Pesa STK query error:', error?.response?.data || error.message);
+      throw error;
+    }
+  }
+
   static async validateTransaction(transactionId) {
     try {
       const businessCode = process.env.MPESA_BUSINESS_CODE || process.env.MPESA_SHORTCODE;

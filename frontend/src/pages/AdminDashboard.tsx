@@ -44,7 +44,7 @@ const AdminDashboard = () => {
     status: 'completed' | 'pending' | 'failed';
   }
 
-  const API_BASE = import.meta.env.VITE_API_URL || '';
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   // Fetch dashboard stats
   const { data: dashboardData } = useQuery({
@@ -140,7 +140,9 @@ const AdminDashboard = () => {
     refetchInterval: 15000,
   });
   useEffect(() => {
-    const socket = io(API_BASE.replace(/http(s?):\/\//, ''));
+    const socket = io(API_BASE, {
+      transports: ['websocket', 'polling'],
+    });
 
     socket.on('connect', () => {
       socket.emit('join', 'admin');
@@ -491,6 +493,12 @@ const AdminDashboard = () => {
                     <Users className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">Drivers</span>
                     <span className="sm:hidden">Drv</span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="vehicles" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-blue-500 data-[state=active]:text-white">
+                    <Truck className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Vehicles</span>
+                    <span className="sm:hidden">Veh</span>
                   </TabsTrigger>
 
                   <TabsTrigger value="routes" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white">
