@@ -5,7 +5,7 @@ import WhatsAppConnect from "@/components/WhatsAppConnect";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import { Star, MapPin, Clock, Shield, Zap, Search, TrendingUp } from "lucide-react";
+import { Star, MapPin, Clock, Shield, Zap, Search, TrendingUp, PackageSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -330,6 +330,29 @@ export default function Index() {
               <Link to="/occupancy" className="text-green-600 hover:text-green-700 font-semibold text-sm">
                 View All Routes →
               </Link>
+            </div>
+          </section>
+
+          {/* Lost and Found Section - Quick Access Button */}
+          <section className="animate-fade-in scroll-mt-20">
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200 p-8 sm:p-12 shadow-lg">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="p-4 bg-orange-600 rounded-xl">
+                    <PackageSearch className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">Lost Something?</h3>
+                    <p className="text-base text-gray-600">Report your lost item and get instant WhatsApp confirmation from our team</p>
+                  </div>
+                </div>
+                <Link to="/lost-and-found">
+                  <Button className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-6 text-base font-semibold shadow-lg hover:shadow-xl transition-all whitespace-nowrap">
+                    Report Lost Item
+                    <span className="ml-2">→</span>
+                  </Button>
+                </Link>
+              </div>
             </div>
           </section>
 
