@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, MessageSquare, CreditCard, ThumbsUp, ThumbsDown, Trello, Gauge, TrendingUp, Users, DollarSign, AlertCircle } from 'lucide-react';
+import { LogOut, MessageSquare, CreditCard, ThumbsUp, ThumbsDown, Trello, Gauge, TrendingUp, Users, DollarSign, AlertCircle, Truck, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/Header';
@@ -100,6 +100,224 @@ const AdminDashboard = () => {
     localStorage.removeItem('userRole');
     localStorage.removeItem('adminLoginTime');
     navigate('/admin/login');
+  };
+
+  const printTicket = (payment: PaymentEntry) => {
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (!printWindow) {
+      toast({ title: 'Print blocked', description: 'Please allow popups to print tickets', variant: 'destructive' });
+      return;
+    }
+
+    const escapeHtml = (value: string) =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const safeTransactionId = escapeHtml(String(payment.transactionId || 'N/A'));
+    const safeVehicleNumber = escapeHtml(String(payment.vehicleNumber || 'N/A'));
+    const safeRoute = escapeHtml(String(payment.route || 'N/A'));
+    const safeStatus = escapeHtml(String(payment.status || 'unknown').toUpperCase());
+    const normalizedStatus = String(payment.status || '').toLowerCase();
+    const formattedPaymentDate = payment.timestamp.toLocaleString('en-KE', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const formattedAmount = Number(payment.amount || 0).toLocaleString('en-KE');
+    const printedAt = new Date().toLocaleString('en-KE');
+    const barcodeValue = safeTransactionId.replace(/[^A-Za-z0-9]/g, '').slice(-12) || '000000000000';
+
+    const ticketHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Payment Ticket - ${safeTransactionId}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Courier New', monospace;
+            padding: 16px;
+            background: #f8fafc;
+            color: #0f172a;
+            max-width: 420px;
+            margin: 0 auto;
+            line-height: 1.35;
+          }
+          .ticket {
+            border: 2px dashed #334155;
+            border-radius: 10px;
+            padding: 18px;
+            background: white;
+            box-shadow: 0 8px 30px rgba(2, 6, 23, 0.08);
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #1e293b;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+          }
+          .logo {
+            font-size: 22px;
+            font-weight: bold;
+            color: #16a34a;
+            margin-bottom: 4px;
+          }
+          .subtitle {
+            font-size: 12px;
+            color: #64748b;
+          }
+          .section {
+            margin: 12px 0;
+            padding: 8px 0;
+            border-bottom: 1px dashed #cbd5e1;
+          }
+          .row {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            align-items: start;
+            gap: 6px;
+            margin: 7px 0;
+            font-size: 14px;
+          }
+          .label {
+            font-weight: bold;
+            color: #1e293b;
+          }
+          .value {
+            text-align: right;
+            color: #0f172a;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+          }
+          .value--mono {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            letter-spacing: 0.1px;
+          }
+          .amount {
+            font-size: 20px;
+            font-weight: bold;
+            color: #16a34a;
+          }
+          .status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+          }
+          .status.completed { background: #dcfce7; color: #16a34a; }
+          .status.pending { background: #fef3c7; color: #d97706; }
+          .status.failed { background: #fee2e2; color: #dc2626; }
+          .status.default { background: #e2e8f0; color: #334155; }
+          .footer {
+            text-align: center;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 2px solid #1e293b;
+            font-size: 11px;
+            color: #64748b;
+          }
+          .barcode {
+            text-align: center;
+            font-size: 16px;
+            margin: 12px 0 4px;
+            letter-spacing: 4px;
+            font-weight: 700;
+            color: #0f172a;
+          }
+          .barcode-caption {
+            text-align: center;
+            font-size: 10px;
+            color: #64748b;
+          }
+          @media print {
+            body { padding: 0; background: white; }
+            .ticket { box-shadow: none; border-radius: 0; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="ticket">
+          <div class="header">
+            <div class="logo">🚌 MatatuConnect</div>
+            <div class="subtitle">Payment Receipt</div>
+          </div>
+
+          <div class="section">
+            <div class="row">
+              <span class="label">Transaction ID:</span>
+              <span class="value value--mono">${safeTransactionId}</span>
+            </div>
+            <div class="row">
+              <span class="label">Date:</span>
+              <span class="value">${formattedPaymentDate}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="row">
+              <span class="label">Vehicle:</span>
+              <span class="value">${safeVehicleNumber}</span>
+            </div>
+            <div class="row">
+              <span class="label">Route:</span>
+              <span class="value">${safeRoute}</span>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="row">
+              <span class="label">Amount Paid:</span>
+              <span class="value amount">KES ${formattedAmount}</span>
+            </div>
+            <div class="row">
+              <span class="label">Status:</span>
+              <span class="value">
+                <span class="status ${normalizedStatus === 'completed' || normalizedStatus === 'pending' || normalizedStatus === 'failed' ? normalizedStatus : 'default'}">${safeStatus}</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="barcode">${barcodeValue}</div>
+          <div class="barcode-caption">Ticket Reference</div>
+
+          <div class="footer">
+            <div style="margin-bottom: 5px;">Thank you for using MatatuConnect</div>
+            <div>Keep this receipt for your records</div>
+            <div style="margin-top: 10px; font-size: 10px;">
+              Printed: ${printedAt}
+            </div>
+          </div>
+        </div>
+
+        <div class="no-print" style="text-align: center; margin-top: 20px;">
+          <button onclick="window.print()" style="padding: 10px 20px; background: #16a34a; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">
+            🖨️ Print Ticket
+          </button>
+          <button onclick="window.close()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; margin-left: 10px;">
+            Close
+          </button>
+        </div>
+
+        <script>
+          // Auto-print on load (optional)
+          // window.onload = () => window.print();
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(ticketHTML);
+    printWindow.document.close();
   };
 
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
@@ -344,6 +562,22 @@ const AdminDashboard = () => {
         >
           {item.status}
         </span>
+      ),
+      className: 'w-24',
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (item: PaymentEntry) => (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => printTicket(item)}
+          className="flex items-center gap-1"
+        >
+          <Printer className="h-3 w-3" />
+          <span className="hidden sm:inline">Print</span>
+        </Button>
       ),
       className: 'w-24',
     },
