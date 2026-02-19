@@ -4,10 +4,25 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'An error occurred' }));
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    try {
+      const error = await response.json();
+      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    } catch (e) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
   }
-  return response.json();
+  
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Invalid response: expected JSON');
+  }
+  
+  const text = await response.text();
+  if (!text) {
+    throw new Error('Empty response from server');
+  }
+  
+  return JSON.parse(text);
 }
 
 // Generic fetch wrapper

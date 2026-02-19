@@ -65,7 +65,11 @@ const AdminDashboard = () => {
     queryKey: ['admin', 'whatsapp', 'chats'],
     queryFn: async () => {
       const res = await fetch(API_BASE + '/api/whatsapp/chats');
-      return res.json();
+      if (!res.ok) {
+        throw new Error(`Failed to fetch WhatsApp chats: ${res.status}`);
+      }
+      const data = await res.json();
+      return data || { contacts: [] };
     },
     refetchInterval: 15000,
   });
