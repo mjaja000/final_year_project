@@ -44,16 +44,10 @@ async function apiFetch<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  console.log('[API] Request:', {
-    method: options.method || 'GET',
-    url,
-    baseURL: API_BASE_URL,
-    endpoint,
-    hasBody: !!options.body
-  });
-  
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
   const config: RequestInit = {
@@ -149,6 +143,11 @@ export const api = {
     }),
     getAll: () => apiFetch<any[]>('/api/feedback'),
     getById: (id: number) => apiFetch<any>(`/api/feedback/${id}`),
+    getNTSAStats: () => apiFetch<any>('/api/feedback/admin/ntsa-stats'),
+    forwardToNTSA: (feedbackId: number, data?: any) => apiFetch<any>(`/api/feedback/admin/ntsa-forward/${feedbackId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   },
 
   // Admin APIs
@@ -177,6 +176,15 @@ export const api = {
       if (params?.period) qs.set('period', params.period);
       const query = qs.toString() ? `?${qs.toString()}` : '';
       return apiFetch<any>(`/api/admin/revenue${query}`);
+    },
+
+    // Get reports from complaint-demo
+    getReports: (params?: { limit?: number; offset?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.offset) qs.set('offset', String(params.offset));
+      const query = qs.toString() ? `?${qs.toString()}` : '';
+      return apiFetch<any>(`/api/admin/reports${query}`);
     },
   },
 

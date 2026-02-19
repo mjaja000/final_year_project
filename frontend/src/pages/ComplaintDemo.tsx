@@ -50,6 +50,9 @@ export default function ComplaintDemo() {
                 <li>
                   • <strong>Incident (INCIDENT):</strong> Report a specific issue (category + details)
                 </li>
+                <li>
+                  • <strong>Report to NTSA (REPORT_TO_NTSA):</strong> Escalated incident report (category + details)
+                </li>
               </ul>
               <p>
                 <strong>Validation:</strong> Plate number is always required. For feedback, a rating (1-5) is required. For incidents, a category must be selected.

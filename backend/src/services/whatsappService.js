@@ -125,15 +125,53 @@ Do it now - takes 5 seconds!`;
   }
 
   async sendFeedbackConfirmation(phoneNumber, feedbackData) {
-    const message = `✅ *Feedback Received*
+    const priority = feedbackData.priority;
+    const category = feedbackData.category;
+    
+    let message = `✅ *Feedback Received*
 Thank you for your ${feedbackData.feedbackType.toLowerCase()}!
 
 Route: ${feedbackData.routeName || 'N/A'}
 Vehicle: ${feedbackData.vehicleReg || 'N/A'}
-Feedback ID: ${feedbackData.feedbackId}
+Feedback ID: ${feedbackData.feedbackId}`;
+
+    // Add priority info if this is a critical complaint
+    if (priority === 'CRITICAL') {
+      message += `
+
+🚨 *URGENT - CRITICAL PRIORITY*
+Category: ${category}
+This complaint has been classified as critical and forwarded to NTSA for immediate action.`;
+    } else if (priority === 'HIGH') {
+      message += `
+
+⚠️ *HIGH PRIORITY*
+Category: ${category}
+This complaint is being escalated for priority review.`;
+    }
+
+    message += `
 
 We appreciate your input to help improve our service. Your feedback helps us serve you better!`;
     return this.sendMessage(phoneNumber, message, 'feedback_confirmation');
+  }
+
+  async sendNTSAForwardNotification(phoneNumber, feedbackData) {
+    const message = `🚔 *Report Forwarded to NTSA*
+
+Your complaint has been forwarded to the National Transport and Safety Authority (NTSA) for official investigation.
+
+📋 Case Details:
+- Type: ${feedbackData.category || 'N/A'}
+- Priority: ${feedbackData.priority || 'N/A'}
+- Vehicle: ${feedbackData.vehicleReg || 'N/A'}
+- Route: ${feedbackData.routeName || 'N/A'}
+
+Reference: ${feedbackData.feedbackId}
+
+You will be contacted if NTSA requires additional information. Thank you for helping improve our transport system!`;
+
+    return this.sendMessage(phoneNumber, message, 'ntsa_forward_notification');
   }
 
   async sendPaymentConfirmation(phoneNumber, paymentData) {

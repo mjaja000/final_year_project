@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Send, ThumbsUp, ThumbsDown, CheckCircle } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -16,17 +16,95 @@ interface FeedbackFormProps {
 }
 
 type FeedbackType = 'complaint' | 'compliment';
+type ReportType = 'FEEDBACK' | 'INCIDENT' | 'REPORT_TO_NTSA';
 
 const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [feedbackType, setFeedbackType] = useState<FeedbackType | null>(null);
+  const [reportType, setReportType] = useState<ReportType>('FEEDBACK');
   const [message, setMessage] = useState('');
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(route?.id ? String(route.id) : null);
   const [incidentCategory, setIncidentCategory] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [whatsappStatus, setWhatsappStatus] = useState<'idle' | 'sent' | 'failed'>('idle');
+  const [incidentDate, setIncidentDate] = useState('');
+  const [incidentTime, setIncidentTime] = useState('');
+  const [crewDetails, setCrewDetails] = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [evidence, setEvidence] = useState('');
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
+  const [saccoName, setSaccoName] = useState('');
+  const [ntsaPriority, setNtsaPriority] = useState<string | null>(null);
+  const [ntsaCategory, setNtsaCategory] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const ntsaOptions = [
+    {
+      priority: 'CRITICAL',
+      category: 'Vehicle Safety Violations',
+      examples: [
+        'Missing three-point seatbelts',
+        'Poorly mounted seats',
+        'Missing anti-roll bars',
+        'No conformity plate',
+        'Unroadworthy vehicles operating with RSL Direct violations',
+      ],
+      reason: 'Core NTSA safety mandate. These issues can lead to fatal accidents.',
+    },
+    {
+      priority: 'CRITICAL',
+      category: 'Sexual Harassment & Assault',
+      examples: [
+        'Inappropriate physical touching',
+        'Stripping or undressing incidents',
+        'Sexual comments with gestures',
+        'Crew blocking women from exiting',
+      ],
+      reason: 'NTSA can revoke PSV licenses and enforce operator compliance.',
+    },
+    {
+      priority: 'HIGH',
+      category: 'Dangerous Driving & Operations',
+      examples: [
+        'Speeding and reckless overtaking',
+        'Overloading beyond capacity',
+        'Unauthorized route deviations',
+        'Forcing passengers to alight early',
+      ],
+      reason: 'NTSA can suspend licenses of repeat offenders and enforce safety standards.',
+    },
+    {
+      priority: 'MEDIUM',
+      category: 'Commercial Exploitation',
+      examples: [
+        'Mid-journey fare hikes',
+        'Overcharging without refund',
+        'Fare manipulation by touts',
+      ],
+      reason: 'Handle locally first; escalate if a pattern emerges.',
+    },
+    {
+      priority: 'MEDIUM',
+      category: 'Verbal Abuse & Harassment',
+      examples: [
+        'Abusive language from crew',
+        'Obscene music forced on passengers',
+        'Intimidation when complaining',
+      ],
+      reason: 'Document under consumer rights protections; escalate after multiple reports.',
+    },
+    {
+      priority: 'LOW',
+      category: 'Service Quality Issues',
+      examples: [
+        'Dirty or unhygienic vehicles',
+        'Makeshift seats',
+        'Poor customer service',
+      ],
+      reason: 'Track trends locally and monitor SACCO compliance.',
+    },
+  ];
 
   const routesQuery = useQuery({
     queryKey: ['routes'],
@@ -74,13 +152,14 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
     : vehicles;
 
   const messageValid = message.trim().length > 0 && message.length <= 200;
-  const needsCategory = feedbackType === 'complaint';
+  const needsNtsaSelection = feedbackType === 'complaint' && reportType === 'REPORT_TO_NTSA';
+  const ntsaSelectionValid = !needsNtsaSelection || Boolean(ntsaPriority && ntsaCategory);
   const canSubmit = Boolean(
-    selectedRouteId && 
-    selectedVehicleId && 
-    feedbackType && 
-    (!needsCategory || incidentCategory) && 
-    messageValid && 
+    selectedRouteId &&
+    selectedVehicleId &&
+    feedbackType &&
+    messageValid &&
+    ntsaSelectionValid &&
     !isSubmitting
   );
 
@@ -90,27 +169,55 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
 
     setIsSubmitting(true);
     try {
-      const payload: any = {
+      let evidencePayload: string | undefined = evidence || undefined;
+      if (reportType === 'REPORT_TO_NTSA' && evidenceFiles.length > 0) {
+        const formData = new FormData();
+        evidenceFiles.forEach((file) => formData.append('files', file));
+
+        const uploadRes = await fetch(`${api.baseURL}/api/feedback/evidence`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error('Failed to upload evidence files');
+        }
+
+        const uploadData = await uploadRes.json();
+        const fileUrls = Array.isArray(uploadData?.files)
+          ? uploadData.files.map((file: any) => file.url).filter(Boolean)
+          : [];
+
+        evidencePayload = JSON.stringify({
+          files: fileUrls,
+          notes: evidence || undefined,
+        });
+      }
+
+      const payload = {
         routeId: Number(selectedRouteId),
         vehicleId: Number(selectedVehicleId),
         feedbackType: feedbackType === 'complaint' ? 'Complaint' : 'Compliment',
         comment: message.trim(),
+        reportType: feedbackType === 'complaint' ? reportType : undefined,
+        ntsaPriority: reportType === 'REPORT_TO_NTSA' ? ntsaPriority : undefined,
+        ntsaCategory: reportType === 'REPORT_TO_NTSA' ? ntsaCategory : undefined,
+        saccoName: reportType === 'REPORT_TO_NTSA' ? saccoName : undefined,
+        incidentDate: incidentDate || undefined,
+        incidentTime: incidentTime || undefined,
+        crewDetails: crewDetails || undefined,
+        vehicleNumber: vehicleNumber || undefined,
+        evidence: evidencePayload,
       };
 
-      // Include incident category for complaints
-      if (incidentCategory) {
-        payload.incidentCategory = incidentCategory;
-      }
-
-      console.log('[FeedbackForm] Submitting feedback via ComplaintService:', payload);
-      
-      const result = await ComplaintService.submitComplaint(payload);
-      console.log('[FeedbackForm] Feedback submission successful:', result);
+      await api.feedback.create(payload);
 
       setSubmitted(true);
       toast({
         title: "Feedback Submitted!",
-        description: "Your feedback has been saved.",
+        description: reportType === 'REPORT_TO_NTSA' 
+          ? "Your complaint has been classified and forwarded to NTSA if critical."
+          : "Your feedback has been saved.",
       });
 
       setTimeout(() => {
@@ -268,39 +375,190 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
         </div>
       </div>
 
-      {/* Incident Category - Only show when Complaint is selected */}
+      {/* Report Type - Only show for complaints */}
       {feedbackType === 'complaint' && (
-        <div className="space-y-2 p-4 bg-destructive/5 rounded-lg border border-destructive/30">
-          <Label className="text-sm font-medium">Incident Category</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {[
-              { value: 'speeding', label: 'Speeding' },
-              { value: 'reckless', label: 'Reckless' },
-              { value: 'overcharging', label: 'Overcharging' },
-              { value: 'harassment', label: 'Harassment' },
-              { value: 'loud_music', label: 'Loud Music' },
-              { value: 'others', label: 'Others' },
-            ].map((category) => (
-              <button
-                key={category.value}
-                type="button"
-                onClick={() => setIncidentCategory(category.value)}
-                className={cn(
-                  "p-2.5 rounded-md border text-xs sm:text-sm font-medium transition-all duration-200 text-center",
-                  incidentCategory === category.value
-                    ? "border-destructive bg-destructive text-white shadow-sm"
-                    : "border-destructive/30 bg-white hover:border-destructive/60 hover:bg-destructive/5 text-foreground"
-                )}
-              >
-                {category.label}
-              </button>
-            ))}
+        <div className="space-y-2 p-4 bg-amber-50 rounded-lg border border-amber-200">
+          <Label className="text-sm font-semibold">Report Type</Label>
+          <div className="grid grid-cols-1 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setReportType('FEEDBACK');
+                setNtsaPriority(null);
+                setNtsaCategory(null);
+              }}
+              className={cn(
+                "text-left p-3 rounded-lg border-2 transition-all text-xs sm:text-sm",
+                reportType === 'FEEDBACK'
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-border hover:border-blue-300"
+              )}
+            >
+              <span className="font-medium">💬 General Feedback</span>
+              <p className="text-xs text-gray-600 mt-1">Regular complaints about service</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setReportType('INCIDENT');
+                setNtsaPriority(null);
+                setNtsaCategory(null);
+              }}
+              className={cn(
+                "text-left p-3 rounded-lg border-2 transition-all text-xs sm:text-sm",
+                reportType === 'INCIDENT'
+                  ? "border-orange-500 bg-orange-50"
+                  : "border-border hover:border-orange-300"
+              )}
+            >
+              <span className="font-medium">🚨 Serious Incident</span>
+              <p className="text-xs text-gray-600 mt-1">Safety, harassment, or dangerous behavior</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setReportType('REPORT_TO_NTSA')}
+              className={cn(
+                "text-left p-3 rounded-lg border-2 transition-all text-xs sm:text-sm",
+                reportType === 'REPORT_TO_NTSA'
+                  ? "border-red-500 bg-red-50"
+                  : "border-border hover:border-red-300"
+              )}
+            >
+              <span className="font-medium flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                🚔 Report to NTSA
+              </span>
+              <p className="text-xs text-gray-600 mt-1">
+                Vehicle safety violations, reckless driving, licensing issues
+              </p>
+            </button>
           </div>
-          {incidentCategory === 'others' && (
-            <p className="text-xs text-muted-foreground mt-2 italic">
-              Please describe your complaint in the details below.
-            </p>
-          )}
+        </div>
+      )}
+
+      {/* NTSA-specific fields */}
+      {feedbackType === 'complaint' && reportType === 'REPORT_TO_NTSA' && (
+        <div className="space-y-3 p-4 bg-red-50 rounded-lg border border-red-200">
+          <p className="text-xs text-red-800 font-semibold">
+            📋 NTSA Reporting Details (helps authorities take action)
+          </p>
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">Priority & Complaint Category</Label>
+            <div className="grid grid-cols-1 gap-2">
+              {ntsaOptions.map((option) => {
+                const isSelected = ntsaPriority === option.priority && ntsaCategory === option.category;
+                return (
+                  <button
+                    key={`${option.priority}-${option.category}`}
+                    type="button"
+                    onClick={() => {
+                      setNtsaPriority(option.priority);
+                      setNtsaCategory(option.category);
+                    }}
+                    className={cn(
+                      "text-left p-3 rounded-lg border-2 transition-all text-xs sm:text-sm",
+                      isSelected
+                        ? "border-red-500 bg-white"
+                        : "border-border hover:border-red-300"
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-red-700">{option.priority}</span>
+                      <span className="font-medium">{option.category}</span>
+                    </div>
+                    <ul className="mt-2 text-xs text-gray-600 list-disc list-inside">
+                      {option.examples.map((example) => (
+                        <li key={example}>{example}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-xs text-gray-700">{option.reason}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="incidentDate" className="text-xs">Incident Date</Label>
+              <input
+                id="incidentDate"
+                type="date"
+                value={incidentDate}
+                onChange={(e) => setIncidentDate(e.target.value)}
+                className="w-full rounded-md border px-2 py-1.5 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="incidentTime" className="text-xs">Time</Label>
+              <input
+                id="incidentTime"
+                type="time"
+                value={incidentTime}
+                onChange={(e) => setIncidentTime(e.target.value)}
+                className="w-full rounded-md border px-2 py-1.5 text-xs"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="vehicleNumber" className="text-xs">Vehicle Plate Number</Label>
+            <input
+              id="vehicleNumber"
+              type="text"
+              placeholder="e.g., KAA 123B"
+              value={vehicleNumber}
+              onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+              className="w-full rounded-md border px-2 py-1.5 text-xs uppercase"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="saccoName" className="text-xs">SACCO Name</Label>
+            <input
+              id="saccoName"
+              type="text"
+              placeholder="e.g., Kenya Mpya"
+              value={saccoName}
+              onChange={(e) => setSaccoName(e.target.value)}
+              className="w-full rounded-md border px-2 py-1.5 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="crewDetails" className="text-xs">Crew Details (if identifiable)</Label>
+            <input
+              id="crewDetails"
+              type="text"
+              placeholder="Driver/conductor name, ID, or description"
+              value={crewDetails}
+              onChange={(e) => setCrewDetails(e.target.value)}
+              className="w-full rounded-md border px-2 py-1.5 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="evidence" className="text-xs">Evidence Notes or Links</Label>
+            <input
+              id="evidence"
+              type="text"
+              placeholder="Links to evidence if available"
+              value={evidence}
+              onChange={(e) => setEvidence(e.target.value)}
+              className="w-full rounded-md border px-2 py-1.5 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="evidenceFiles" className="text-xs">Upload Evidence Files</Label>
+            <input
+              id="evidenceFiles"
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              onChange={(e) => setEvidenceFiles(Array.from(e.target.files || []))}
+              className="w-full rounded-md border px-2 py-1.5 text-xs"
+            />
+            {evidenceFiles.length > 0 && (
+              <p className="text-[11px] text-gray-600">
+                Selected: {evidenceFiles.map((file) => file.name).join(', ')}
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -339,7 +597,7 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
             {!selectedRouteId && <li>Select a route</li>}
             {!selectedVehicleId && <li>Select a vehicle</li>}
             {!feedbackType && <li>Select a feedback type (Compliment or Complaint)</li>}
-            {feedbackType === 'complaint' && !incidentCategory && <li>Select an incident category</li>}
+            {!ntsaSelectionValid && <li>Select an NTSA priority and category</li>}
             {!messageValid && <li>Write a message between 1 and 200 characters</li>}
           </ul>
         </div>

@@ -246,6 +246,51 @@ class ReportRepository {
   }
 
   /**
+   * Get all reports for admin listing.
+   * @param {Object} options - Pagination options
+   * @param {number} options.limit - Max rows
+   * @param {number} options.offset - Offset
+   * @returns {Promise<Object>} Reports and total count
+   */
+  static async getAllReports(options = {}) {
+    const { limit = 100, offset = 0 } = options;
+
+    const query = `
+      SELECT
+        r.id,
+        r.user_id,
+        r.matatu_id,
+        r.type,
+        r.category,
+        r.rating,
+        r.comment,
+        r.created_at,
+        r.updated_at,
+        v.registration_number,
+        v.route_id,
+        rt.route_name
+      FROM reports r
+      JOIN vehicles v ON r.matatu_id = v.id
+      LEFT JOIN routes rt ON v.route_id = rt.id
+      ORDER BY r.created_at DESC
+      LIMIT $1 OFFSET $2
+    `;
+
+    try {
+      const result = await pool.query(query, [limit, offset]);
+      const countResult = await pool.query('SELECT COUNT(*) as total FROM reports');
+      return {
+        reports: result.rows,
+        total: parseInt(countResult.rows[0].total, 10),
+        limit,
+        offset,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get reports: ${error.message}`);
+    }
+  }
+
+  /**
    * Get incident categories breakdown for a matatu.
    * @param {string} matatuId - UUID of the matatu
    * @returns {Promise<Array>} Array of category counts

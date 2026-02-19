@@ -168,12 +168,21 @@ process.on('SIGINT', async () => {
   console.log('✓ Database pool closed');
   process.exit(0);
 });
-const pool = {
-  query: (...args) => queryWithRetry(...args),
-  connect: (...args) => activePool.connect(...args),
-  end: (...args) => activePool.end(...args),
-  on: (...args) => activePool.on(...args),
-};
+const pool = new Proxy({}, {
+  get(_target, prop, _receiver) {
+    if (prop === 'query') {
+      return (...args) => queryWithRetry(...args);
+    }
 
+    const value = activePool[prop];
+
+    // Bind methods to activePool so `this` is correct
+    if (typeof value === 'function') {
+      return value.bind(activePool);
+    }
+
+    return value;
+  },
+});
 module.exports = pool;
 
