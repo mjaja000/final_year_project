@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Send, ThumbsUp, ThumbsDown, CheckCircle } from 'lucide-react';
+import { Send, ThumbsUp, ThumbsDown, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -15,15 +15,22 @@ interface FeedbackFormProps {
 }
 
 type FeedbackType = 'complaint' | 'compliment';
+type ReportType = 'FEEDBACK' | 'INCIDENT' | 'REPORT_TO_NTSA';
 
 const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [feedbackType, setFeedbackType] = useState<FeedbackType | null>(null);
+  const [reportType, setReportType] = useState<ReportType>('FEEDBACK');
   const [message, setMessage] = useState('');
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(route?.id ? String(route.id) : null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [whatsappStatus, setWhatsappStatus] = useState<'idle' | 'sent' | 'failed'>('idle');
+  const [incidentDate, setIncidentDate] = useState('');
+  const [incidentTime, setIncidentTime] = useState('');
+  const [crewDetails, setCrewDetails] = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [evidence, setEvidence] = useState('');
   const { toast } = useToast();
 
   const routesQuery = useQuery({
@@ -85,6 +92,12 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
         vehicleId: Number(selectedVehicleId),
         feedbackType: feedbackType === 'complaint' ? 'Complaint' : 'Compliment',
         comment: message.trim(),
+        reportType: feedbackType === 'complaint' ? reportType : undefined,
+        incidentDate: incidentDate || undefined,
+        incidentTime: incidentTime || undefined,
+        crewDetails: crewDetails || undefined,
+        vehicleNumber: vehicleNumber || undefined,
+        evidence: evidence || undefined,
       };
 
       await api.feedback.create(payload);
@@ -92,7 +105,9 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
       setSubmitted(true);
       toast({
         title: "Feedback Submitted!",
-        description: "Your feedback has been saved.",
+        description: reportType === 'REPORT_TO_NTSA' 
+          ? "Your complaint has been classified and forwarded to NTSA if critical."
+          : "Your feedback has been saved.",
       });
 
       setTimeout(() => {
@@ -234,6 +249,123 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
           </button>
         </div>
       </div>
+
+      {/* Report Type - Only show for complaints */}
+      {feedbackType === 'complaint' && (
+        <div className="space-y-2 p-4 bg-amber-50 rounded-lg border border-amber-200">
+          <Label className="text-sm font-semibold">Report Type</Label>
+          <div className="grid grid-cols-1 gap-2">
+            <button
+              type="button"
+              onClick={() => setReportType('FEEDBACK')}
+              className={cn(
+                "text-left p-3 rounded-lg border-2 transition-all text-xs sm:text-sm",
+                reportType === 'FEEDBACK'
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-border hover:border-blue-300"
+              )}
+            >
+              <span className="font-medium">💬 General Feedback</span>
+              <p className="text-xs text-gray-600 mt-1">Regular complaints about service</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setReportType('INCIDENT')}
+              className={cn(
+                "text-left p-3 rounded-lg border-2 transition-all text-xs sm:text-sm",
+                reportType === 'INCIDENT'
+                  ? "border-orange-500 bg-orange-50"
+                  : "border-border hover:border-orange-300"
+              )}
+            >
+              <span className="font-medium">🚨 Serious Incident</span>
+              <p className="text-xs text-gray-600 mt-1">Safety, harassment, or dangerous behavior</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setReportType('REPORT_TO_NTSA')}
+              className={cn(
+                "text-left p-3 rounded-lg border-2 transition-all text-xs sm:text-sm",
+                reportType === 'REPORT_TO_NTSA'
+                  ? "border-red-500 bg-red-50"
+                  : "border-border hover:border-red-300"
+              )}
+            >
+              <span className="font-medium flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                🚔 Report to NTSA
+              </span>
+              <p className="text-xs text-gray-600 mt-1">
+                Vehicle safety violations, reckless driving, licensing issues
+              </p>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* NTSA-specific fields */}
+      {feedbackType === 'complaint' && reportType === 'REPORT_TO_NTSA' && (
+        <div className="space-y-3 p-4 bg-red-50 rounded-lg border border-red-200">
+          <p className="text-xs text-red-800 font-semibold">
+            📋 NTSA Reporting Details (helps authorities take action)
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="incidentDate" className="text-xs">Incident Date</Label>
+              <input
+                id="incidentDate"
+                type="date"
+                value={incidentDate}
+                onChange={(e) => setIncidentDate(e.target.value)}
+                className="w-full rounded-md border px-2 py-1.5 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="incidentTime" className="text-xs">Time</Label>
+              <input
+                id="incidentTime"
+                type="time"
+                value={incidentTime}
+                onChange={(e) => setIncidentTime(e.target.value)}
+                className="w-full rounded-md border px-2 py-1.5 text-xs"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="vehicleNumber" className="text-xs">Vehicle Plate Number</Label>
+            <input
+              id="vehicleNumber"
+              type="text"
+              placeholder="e.g., KAA 123B"
+              value={vehicleNumber}
+              onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+              className="w-full rounded-md border px-2 py-1.5 text-xs uppercase"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="crewDetails" className="text-xs">Crew Details (if identifiable)</Label>
+            <input
+              id="crewDetails"
+              type="text"
+              placeholder="Driver/conductor name, ID, or description"
+              value={crewDetails}
+              onChange={(e) => setCrewDetails(e.target.value)}
+              className="w-full rounded-md border px-2 py-1.5 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="evidence" className="text-xs">Evidence (photos, videos URL)</Label>
+            <input
+              id="evidence"
+              type="text"
+              placeholder="Links to evidence if available"
+              value={evidence}
+              onChange={(e) => setEvidence(e.target.value)}
+              className="w-full rounded-md border px-2 py-1.5 text-xs"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Message */}
       <div className="space-y-2">

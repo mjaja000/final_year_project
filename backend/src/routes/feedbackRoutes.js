@@ -1,6 +1,6 @@
 const express = require('express');
 const FeedbackController = require('../controllers/feedbackController');
-const { authMiddleware } = require('../middlewares/authMiddleware');
+const { authMiddleware, authorizeRoles } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
@@ -14,5 +14,9 @@ router.use(authMiddleware);
 
 // Delete feedback
 router.delete('/:feedbackId', FeedbackController.deleteFeedback);
+
+// Admin routes
+router.get('/admin/ntsa-stats', authorizeRoles('admin'), FeedbackController.getNTSAStats);
+router.post('/admin/ntsa-forward/:feedbackId', authorizeRoles('admin'), FeedbackController.forwardToNTSA);
 
 module.exports = router;

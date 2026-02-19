@@ -1,6 +1,7 @@
 const FeedbackModel = require('../models/feedbackModel');
 const SmsService = require('../services/smsService');
 const WhatsappService = require('../services/whatsappService');
+const NTSAService = require('../services/ntsaService');
 const UserModel = require('../models/userModel');
 
 class FeedbackController {
@@ -8,7 +9,20 @@ class FeedbackController {
   static async submitFeedback(req, res) {
     try {
       const userId = req.userId || null;
-      const { routeId, vehicleId, feedbackType, comment, phoneNumber } = req.body;
+      const { 
+        routeId, 
+        vehicleId, 
+        feedbackType, 
+        comment, 
+        phoneNumber,
+        reportType, // 'FEEDBACK' | 'INCIDENT' | 'REPORT_TO_NTSA'
+        incidentDate,
+        incidentTime,
+        crewDetails,
+        vehicleNumber,
+        routeName,
+        evidence
+      } = req.body;
 
       // Validate required fields
       if (!routeId || !vehicleId || !feedbackType || !comment) {
@@ -17,7 +31,7 @@ class FeedbackController {
         });
       }
 
-      // Validate feedback type (must be Complaint or Compliment)
+      // Validate feedback type
       if (!['Complaint', 'Compliment'].includes(feedbackType)) {
         return res.status(400).json({ 
           message: 'Feedback type must be either "Complaint" or "Compliment"' 
@@ -33,15 +47,48 @@ class FeedbackController {
         comment
       );
 
+      // Classify complaint and check if it should go to NTSA
+      let ntsaClassification = null;
+      if (feedbackType === 'Complaint') {
+        ntsaClassification = NTSAService.classifyComplaint({
+          complaintType: reportType,
+          comment,
+          vehicleNumber: vehicleNumber || `Vehicle ${vehicleId}`,
+          routeName: routeName || `Route ${routeId}`,
+        });
+      }
+
+      // Handle NTSA reporting if it's a critical complaint
+      let ntsaResult = null;
+      if (ntsaClassification && ntsaClassification.shouldForwardToNTSA) {
+        ntsaResult = await NTSAService.forwardToNTSA(
+          {
+            complaintType: reportType,
+            comment,
+            vehicleNumber: vehicleNumber || `Vehicle ${vehicleId}`,
+            routeName: routeName || `Route ${routeId}`,
+            crewDetails,
+            incidentDate,
+            incidentTime,
+            evidence,
+            passengerContact: phoneNumber,
+            ntsaCategory: ntsaClassification.category,
+          },
+          ntsaClassification
+        );
+        console.log('NTSA Forwarding Result:', ntsaResult);
+      }
+
       // Send SMS notification if phone number provided (FR4)
       let smsSent = false;
       let whatsappSent = false;
       if (phoneNumber) {
         try {
-          await SmsService.sendSms(
-            phoneNumber,
-            `Thank you for your ${feedbackType.toLowerCase()} on route. Your feedback ID: ${feedback.id}`
-          );
+          const smsMessage = ntsaClassification
+            ? `Thank you for your ${feedbackType.toLowerCase()} (${ntsaClassification.priority}). Your complaint ID: ${feedback.id}. Priority escalation in progress.`
+            : `Thank you for your ${feedbackType.toLowerCase()} on route. Your feedback ID: ${feedback.id}`;
+          
+          await SmsService.sendSms(phoneNumber, smsMessage);
           smsSent = true;
         } catch (smsError) {
           console.error('SMS notification failed:', smsError);
@@ -51,9 +98,11 @@ class FeedbackController {
         try {
           const whatsappResult = await WhatsappService.sendFeedbackConfirmation(phoneNumber, {
             feedbackType: feedbackType,
-            routeName: `Route ${routeId}`,
-            vehicleReg: `Vehicle ${vehicleId}`,
-            feedbackId: feedback.id
+            routeName: routeName || `Route ${routeId}`,
+            vehicleReg: vehicleNumber || `Vehicle ${vehicleId}`,
+            feedbackId: feedback.id,
+            priority: ntsaClassification?.priority,
+            category: ntsaClassification?.category,
           });
           whatsappSent = whatsappResult.success !== false;
           if (whatsappSent) {
@@ -83,7 +132,9 @@ class FeedbackController {
         notificationsSent: {
           sms: smsSent,
           whatsapp: whatsappSent
-        }
+        },
+        ntsaClassification,
+        ntsaForwarding: ntsaResult
       });
     } catch (error) {
       console.error('Submit feedback error:', error);
@@ -160,6 +211,87 @@ class FeedbackController {
     } catch (error) {
       console.error('Delete feedback error:', error);
       res.status(500).json({ message: 'Failed to delete feedback', error: error.message });
+    }
+  }
+
+  // Admin: Get NTSA classification statistics
+  static async getNTSAStats(req, res) {
+    try {
+      const feedback = await FeedbackModel.getAllFeedback(1000, 0, {});
+      const complaints = feedback.filter(f => f.feedback_type === 'Complaint');
+
+      const summary = NTSAService.getClassificationSummary(
+        complaints.map(c => ({
+          complaintType: c.report_type,
+          comment: c.comment,
+          vehicleNumber: c.vehicle_registration,
+          routeName: c.route_name,
+        }))
+      );
+
+      res.json({
+        message: 'NTSA statistics fetched',
+        stats: summary,
+        criticalComplaints: feedback.filter(f => {
+          const classification = NTSAService.classifyComplaint({
+            comment: f.comment,
+            complaintType: f.report_type,
+          });
+          return classification.priority === 'CRITICAL';
+        }),
+      });
+    } catch (error) {
+      console.error('Get NTSA stats error:', error);
+      res.status(500).json({ message: 'Failed to fetch NTSA stats', error: error.message });
+    }
+  }
+
+  // Admin: Forward specific feedback to NTSA
+  static async forwardToNTSA(req, res) {
+    try {
+      const { feedbackId } = req.params;
+      const { reason, additionalInfo } = req.body;
+
+      const feedback = await FeedbackModel.getFeedbackById(feedbackId);
+      if (!feedback) {
+        return res.status(404).json({ message: 'Feedback not found' });
+      }
+
+      const classification = NTSAService.classifyComplaint({
+        comment: feedback.comment,
+        complaintType: feedback.report_type,
+        vehicleNumber: feedback.vehicle_registration,
+        routeName: feedback.route_name,
+      });
+
+      const result = await NTSAService.forwardToNTSA(
+        {
+          complaintType: feedback.report_type,
+          comment: feedback.comment + (additionalInfo ? '\n\nAdmin Notes: ' + additionalInfo : ''),
+          vehicleNumber: feedback.vehicle_registration,
+          routeName: feedback.route_name,
+          reason,
+        },
+        classification
+      );
+
+      // Update feedback with NTSA status
+      if (result.success) {
+        // TODO: Add ntsa_forwarded and ntsa_message_id columns to feedback table
+        console.log('✓ Feedback forwarded to NTSA:', {
+          feedbackId,
+          messageId: result.messageId,
+        });
+      }
+
+      res.json({
+        message: 'Forward to NTSA processed',
+        classification,
+        result,
+      });
+    } catch (error) {
+      console.error('Forward to NTSA error:', error);
+      res.status(500).json({ message: 'Failed to forward to NTSA', error: error.message });
     }
   }
 }
