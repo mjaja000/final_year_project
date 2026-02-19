@@ -107,6 +107,11 @@ export const api = {
     }),
     getAll: () => apiFetch<any[]>('/api/feedback'),
     getById: (id: number) => apiFetch<any>(`/api/feedback/${id}`),
+    getNTSAStats: () => apiFetch<any>('/api/feedback/admin/ntsa-stats'),
+    forwardToNTSA: (feedbackId: number, data?: any) => apiFetch<any>(`/api/feedback/admin/ntsa-forward/${feedbackId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   },
 
   // Admin APIs
