@@ -146,6 +146,28 @@ export default function FeedbackManager({ showNTSAOnly = false }: FeedbackManage
     },
   });
 
+  // Send WhatsApp mutation
+  const sendWhatsAppMutation = useMutation({
+    mutationFn: async (feedbackId: number) => {
+      const phoneNumber = selectedFeedback?.phone_number;
+      return fetch(`/api/feedback/admin/whatsapp/${feedbackId}/${phoneNumber}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).then((res) => res.json());
+    },
+    onSuccess: () => {
+      toast({ title: 'WhatsApp Sent', description: 'Feedback summary sent via WhatsApp.' });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Send failed',
+        description: error.message || 'Unable to send WhatsApp',
+        variant: 'destructive',
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -344,6 +366,24 @@ export default function FeedbackManager({ showNTSAOnly = false }: FeedbackManage
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Forward to NTSA
+                  </Button>
+                </div>
+              )}
+
+              {/* Send WhatsApp notification */}
+              {selectedFeedback.phone_number && (
+                <div className="space-y-3 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <h4 className="font-semibold text-sm text-green-900">Send WhatsApp Notification</h4>
+                  <p className="text-xs text-green-800">
+                    Send feedback summary to customer via WhatsApp
+                  </p>
+                  <Button
+                    onClick={() => sendWhatsAppMutation.mutate(selectedFeedback.id)}
+                    disabled={sendWhatsAppMutation.isPending}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Send WhatsApp
                   </Button>
                 </div>
               )}

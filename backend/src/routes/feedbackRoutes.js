@@ -18,5 +18,6 @@ router.delete('/:feedbackId', FeedbackController.deleteFeedback);
 // Admin routes
 router.get('/admin/ntsa-stats', authorizeRoles('admin'), FeedbackController.getNTSAStats);
 router.post('/admin/ntsa-forward/:feedbackId', authorizeRoles('admin'), FeedbackController.forwardToNTSA);
+router.post('/admin/whatsapp/:feedbackId/:phoneNumber?', authorizeRoles('admin'), FeedbackController.sendFeedbackWhatsApp);
 
 module.exports = router;

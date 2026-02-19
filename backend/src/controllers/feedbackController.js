@@ -294,6 +294,58 @@ class FeedbackController {
       res.status(500).json({ message: 'Failed to forward to NTSA', error: error.message });
     }
   }
+
+  // Admin: Send WhatsApp feedback summary to customers
+  static async sendFeedbackWhatsApp(req, res) {
+    try {
+      const { feedbackId, phoneNumber } = req.params;
+
+      const feedback = await FeedbackModel.getFeedbackById(feedbackId);
+      if (!feedback) {
+        return res.status(404).json({ message: 'Feedback not found' });
+      }
+
+      const classification = NTSAService.classifyComplaint({
+        comment: feedback.comment,
+        complaintType: feedback.report_type,
+        vehicleNumber: feedback.vehicle_registration,
+        routeName: feedback.route_name,
+      });
+
+      // Send WhatsApp notification
+      const whatsappResult = await WhatsappService.sendFeedbackConfirmation(phoneNumber || feedback.phone_number, {
+        feedbackType: feedback.feedback_type,
+        routeName: feedback.route_name,
+        vehicleReg: feedback.vehicle_registration,
+        feedbackId: feedback.id,
+        priority: classification.priority,
+        category: classification.category,
+      });
+
+      // If NTSA-forwarded, send additional notification
+      if (classification.shouldForwardToNTSA) {
+        try {
+          await WhatsappService.sendNTSAForwardNotification(phoneNumber || feedback.phone_number, {
+            feedbackId: feedback.id,
+            category: classification.category,
+            priority: classification.priority,
+            vehicleReg: feedback.vehicle_registration,
+            routeName: feedback.route_name,
+          });
+        } catch (ntsaError) {
+          console.warn('Failed to send NTSA notification:', ntsaError.message);
+        }
+      }
+
+      res.json({
+        message: 'WhatsApp notifications sent',
+        whatsappResult,
+      });
+    } catch (error) {
+      console.error('Send feedback WhatsApp error:', error);
+      res.status(500).json({ message: 'Failed to send WhatsApp', error: error.message });
+    }
+  }
 }
 
 module.exports = FeedbackController;
