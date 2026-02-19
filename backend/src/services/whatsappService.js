@@ -186,6 +186,29 @@ Route: ${complaintData.routeName || 'N/A'}
     return this.sendMessage(phoneNumber, message, 'complaint_acknowledgment');
   }
 
+  async sendLostAndFoundConfirmation(phoneNumber, reportData) {
+    const date = new Date().toLocaleDateString('en-KE');
+    const time = new Date().toLocaleTimeString('en-KE');
+    const message = `📦 *Lost Item Report Confirmed*
+
+✅ Your report has been registered in our system!
+
+*Item Description:*
+${reportData.itemDescription}
+
+*Report ID:* ${reportData.reportId}
+${reportData.vehiclePlate ? `*Matatu Plate:* ${reportData.vehiclePlate}\n` : ''}*Report Date:* ${date}
+*Time:* ${time}
+
+🔍 *Next Steps:*
+Our team will actively search for your item. We'll contact you immediately if we find any matching items.
+
+📱 Keep your phone available for our calls and messages.
+
+🙏 Thank you for using MatatuConnect!`;
+    return this.sendMessage(phoneNumber, message, 'lost_and_found_confirmation');
+  }
+
   async sendInteractiveMessage(phoneNumber, title, options, messageType = 'interactive_menu') {
     // Twilio WhatsApp doesn't support interactive buttons in sandbox
     // Fall back to text message with numbered options

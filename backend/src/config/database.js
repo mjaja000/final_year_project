@@ -47,43 +47,42 @@ const dbConfig = useLocal
       keepAliveInitialDelayMillis: 10000,
     };
 
-const activeLabel = useLocal ? 'local PostgreSQL' : 'cloud PostgreSQL';
+let activeLabel = useLocal ? 'local PostgreSQL' : 'cloud PostgreSQL';
 
-// Create the pool
-const pool = new Pool(dbConfig);
-
-// Handle pool errors with retry logic
-pool.on('error', (err, client) => {
-  console.error('⚠ Database pool error:', err.message);
-  if (err.message.includes('Connection terminated') || err.message.includes('timeout')) {
-    console.log('🔄 Attempting to recover connection...');
-  }
-});
-
-// Connection health check
-pool.on('connect', (client) => {
-  client.on('error', (err) => {
-    console.error('⚠ Client connection error:', err.message);
+const createPool = (config, label) => {
+  const nextPool = new Pool(config);
+  nextPool.on('error', (err) => {
+    console.error('⚠ Database pool error:', err.message);
+    if (err.message.includes('Connection terminated') || err.message.includes('timeout')) {
+      console.log('🔄 Attempting to recover connection...');
+    }
   });
-});
+  nextPool.on('connect', (client) => {
+    client.on('error', (err) => {
+      console.error('⚠ Client connection error:', err.message);
+    });
+  });
+  nextPool.__label = label;
+  return nextPool;
+};
 
-// Graceful query wrapper with retry
-const originalQuery = pool.query.bind(pool);
-pool.query = async function (...args) {
+let activePool = createPool(dbConfig, activeLabel);
+
+const queryWithRetry = async (...args) => {
   const maxRetries = 2;
   let lastError;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      return await originalQuery(...args);
+      return await activePool.query(...args);
     } catch (err) {
       lastError = err;
-      const isRecoverable = 
+      const isRecoverable =
         err.message?.includes('Connection terminated') ||
         err.message?.includes('timeout') ||
         err.code === 'ECONNRESET' ||
         err.code === '57P01';
-      
+
       if (isRecoverable && attempt < maxRetries) {
         console.warn(`⚠ Query failed (attempt ${attempt}/${maxRetries}), retrying...`);
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
@@ -92,7 +91,7 @@ pool.query = async function (...args) {
       throw err;
     }
   }
-  
+
   throw lastError;
 };
 
@@ -103,24 +102,53 @@ pool.query = async function (...args) {
   let retries = 3;
   while (retries > 0) {
     try {
-      const client = await pool.connect();
+      const client = await activePool.connect();
       console.log(`✓ ${activeLabel} connection successful`);
-      console.log(`  Database: ${dbConfig.database}`);
+      console.log(`  Database: ${activePool.options?.database || dbConfig.database}`);
       client.release();
-      break;
+      return;
     } catch (err) {
       retries--;
       console.error(`✗ ${activeLabel} connection failed (${3 - retries}/3):`, err.message);
-      
+
       if (retries > 0) {
         console.log('  Retrying in 2 seconds...');
         await new Promise(resolve => setTimeout(resolve, 2000));
-      } else {
-        if (useLocal) {
+        continue;
+      }
+
+      if (!useLocal && hasLocalConfig) {
+        console.warn('⚠ Falling back to local PostgreSQL...');
+        activeLabel = 'local PostgreSQL';
+        activePool = createPool({
+          host: process.env.DB_HOST_LOCAL || 'localhost',
+          port: Number(process.env.DB_PORT_LOCAL || 5432),
+          database: process.env.DB_NAME_LOCAL || 'matatuconnect',
+          user: process.env.DB_USER_LOCAL || 'postgres',
+          password: process.env.DB_PASSWORD_LOCAL || 'postgres',
+          ssl: parseSsl(process.env.DB_SSL_LOCAL, false),
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 5000,
+        }, activeLabel);
+
+        try {
+          const localClient = await activePool.connect();
+          console.log(`✓ ${activeLabel} connection successful`);
+          console.log(`  Database: ${activePool.options?.database || process.env.DB_NAME_LOCAL || 'matatuconnect'}`);
+          localClient.release();
+          return;
+        } catch (localErr) {
+          console.error('✗ Local PostgreSQL connection failed:', localErr.message);
           console.error('  Hint: Ensure local PostgreSQL is running and DB_*_LOCAL credentials are correct.');
-        } else {
-          console.error('  Hint: Check DB_HOST/DB_NAME/DB_USER/DB_PASSWORD (cloud credentials) in .env.');
+          return;
         }
+      }
+
+      if (useLocal) {
+        console.error('  Hint: Ensure local PostgreSQL is running and DB_*_LOCAL credentials are correct.');
+      } else {
+        console.error('  Hint: Check DB_HOST/DB_NAME/DB_USER/DB_PASSWORD (cloud credentials) in .env.');
       }
     }
   }
@@ -129,17 +157,23 @@ pool.query = async function (...args) {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('🔄 SIGTERM received, closing database pool...');
-  await pool.end();
+  await activePool.end();
   console.log('✓ Database pool closed');
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('🔄 SIGINT received, closing database pool...');
-  await pool.end();
+  await activePool.end();
   console.log('✓ Database pool closed');
   process.exit(0);
 });
+const pool = {
+  query: (...args) => queryWithRetry(...args),
+  connect: (...args) => activePool.connect(...args),
+  end: (...args) => activePool.end(...args),
+  on: (...args) => activePool.on(...args),
+};
 
 module.exports = pool;
 
