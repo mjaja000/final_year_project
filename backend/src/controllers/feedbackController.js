@@ -16,6 +16,9 @@ class FeedbackController {
         comment, 
         phoneNumber,
         reportType, // 'FEEDBACK' | 'INCIDENT' | 'REPORT_TO_NTSA'
+        ntsaPriority,
+        ntsaCategory,
+        saccoName,
         incidentDate,
         incidentTime,
         crewDetails,
@@ -38,25 +41,37 @@ class FeedbackController {
         });
       }
 
-      // Submit feedback to database
-      const feedback = await FeedbackModel.submitFeedback(
-        userId, 
-        routeId, 
-        vehicleId, 
-        feedbackType, 
-        comment
-      );
-
       // Classify complaint and check if it should go to NTSA
       let ntsaClassification = null;
       if (feedbackType === 'Complaint') {
+        const useOverride = reportType === 'REPORT_TO_NTSA' && ntsaPriority && ntsaCategory;
         ntsaClassification = NTSAService.classifyComplaint({
           complaintType: reportType,
           comment,
           vehicleNumber: vehicleNumber || `Vehicle ${vehicleId}`,
           routeName: routeName || `Route ${routeId}`,
+          ntsaPriority: useOverride ? ntsaPriority : undefined,
+          ntsaCategory: useOverride ? ntsaCategory : undefined,
         });
       }
+
+      // Submit feedback to database with NTSA metadata when available
+      const feedback = await FeedbackModel.submitFeedback(
+        userId,
+        routeId,
+        vehicleId,
+        feedbackType,
+        comment,
+        reportType,
+        ntsaClassification?.priority || null,
+        ntsaClassification?.category || null,
+        saccoName || null,
+        incidentDate || null,
+        incidentTime || null,
+        crewDetails || null,
+        evidence || null,
+        vehicleNumber || null
+      );
 
       // Handle NTSA reporting if it's a critical complaint
       let ntsaResult = null;
@@ -67,6 +82,7 @@ class FeedbackController {
             comment,
             vehicleNumber: vehicleNumber || `Vehicle ${vehicleId}`,
             routeName: routeName || `Route ${routeId}`,
+            saccoName: saccoName || null,
             crewDetails,
             incidentDate,
             incidentTime,
@@ -77,6 +93,9 @@ class FeedbackController {
           ntsaClassification
         );
         console.log('NTSA Forwarding Result:', ntsaResult);
+        if (ntsaResult?.success) {
+          await FeedbackModel.updateNTSAForwarded(feedback.id, true);
+        }
       }
 
       // Send SMS notification if phone number provided (FR4)
@@ -159,6 +178,30 @@ class FeedbackController {
     }
   }
 
+  // Upload evidence files for NTSA reports
+  static async uploadEvidence(req, res) {
+    try {
+      const files = (req.files || []).map((file) => {
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        return {
+          filename: file.filename,
+          originalName: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          url: `${baseUrl}/uploads/feedback-evidence/${file.filename}`,
+        };
+      });
+
+      res.json({
+        message: 'Evidence uploaded successfully',
+        files,
+      });
+    } catch (error) {
+      console.error('Upload evidence error:', error);
+      res.status(500).json({ message: 'Failed to upload evidence', error: error.message });
+    }
+  }
+
   // Public: list feedback (for dashboard)
   static async getAllPublic(req, res) {
     try {
@@ -226,6 +269,8 @@ class FeedbackController {
           comment: c.comment,
           vehicleNumber: c.vehicle_registration,
           routeName: c.route_name,
+          ntsaPriority: c.ntsa_priority,
+          ntsaCategory: c.ntsa_category,
         }))
       );
 
@@ -236,6 +281,8 @@ class FeedbackController {
           const classification = NTSAService.classifyComplaint({
             comment: f.comment,
             complaintType: f.report_type,
+            ntsaPriority: f.ntsa_priority,
+            ntsaCategory: f.ntsa_category,
           });
           return classification.priority === 'CRITICAL';
         }),
@@ -262,6 +309,8 @@ class FeedbackController {
         complaintType: feedback.report_type,
         vehicleNumber: feedback.vehicle_registration,
         routeName: feedback.route_name,
+        ntsaPriority: feedback.ntsa_priority,
+        ntsaCategory: feedback.ntsa_category,
       });
 
       const result = await NTSAService.forwardToNTSA(
@@ -270,14 +319,18 @@ class FeedbackController {
           comment: feedback.comment + (additionalInfo ? '\n\nAdmin Notes: ' + additionalInfo : ''),
           vehicleNumber: feedback.vehicle_registration,
           routeName: feedback.route_name,
+          saccoName: feedback.sacco_name,
+          crewDetails: feedback.crew_details,
+          incidentDate: feedback.incident_date,
+          incidentTime: feedback.incident_time,
+          evidence: feedback.evidence,
           reason,
         },
         classification
       );
 
-      // Update feedback with NTSA status
       if (result.success) {
-        // TODO: Add ntsa_forwarded and ntsa_message_id columns to feedback table
+        await FeedbackModel.updateNTSAForwarded(feedbackId, true);
         console.log('✓ Feedback forwarded to NTSA:', {
           feedbackId,
           messageId: result.messageId,

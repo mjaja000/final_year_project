@@ -57,7 +57,7 @@ const AdminLogin = () => {
         localStorage.setItem('userRole', data.user?.role || 'admin');
         localStorage.setItem('adminLoginTime', new Date().toISOString());
         localStorage.setItem('adminEmail', email.trim());
-        localStorage.setItem('adminAuth', 'true');
+
         toast({ title: 'Welcome back!', description: 'Admin portal access granted.' });
         navigate('/admin/dashboard');
       } else {

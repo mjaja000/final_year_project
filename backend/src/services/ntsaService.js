@@ -1,4 +1,10 @@
-const nodemailer = require('nodemailer');
+let nodemailer;
+try {
+  nodemailer = require('nodemailer');
+} catch (error) {
+  console.warn('⚠️ nodemailer not installed - NTSA email forwarding disabled');
+  nodemailer = null;
+}
 
 /**
  * NTSA Service - Handles classification and forwarding of complaints to NTSA
@@ -10,9 +16,28 @@ class NTSAService {
     this.ntsaEmail = process.env.NTSA_EMAIL || 'complaints@ntsa.go.ke';
     this.devEmail = process.env.DEV_EMAIL || 'mjajaaa00@gmail.com'; // Development phase
     this.appEmail = process.env.APP_EMAIL || 'noreply@matatuconnect.com';
+    this.overrideReasons = {
+      'Vehicle Safety Violations':
+        'Violation of NTSA safety mandate under the NTSA Act. These issues can lead to fatal accidents.',
+      'Sexual Harassment & Assault':
+        'NTSA can revoke PSV licenses. Escalation required for passenger safety.',
+      'Dangerous Driving & Operations':
+        'NTSA can suspend licenses of repeat offenders and enforce safety compliance.',
+      'Commercial Exploitation':
+        'Handle locally first; escalate if a pattern emerges across trips or vehicles.',
+      'Verbal Abuse & Harassment':
+        'Document under consumer rights protections; escalate after multiple reports.',
+      'Service Quality Issues':
+        'Track trends locally; use for monitoring and improvement actions.',
+    };
   }
 
   initializeEmailTransporter() {
+    if (!nodemailer) {
+      console.warn('⚠️ Email transporter not available - install nodemailer to enable NTSA forwarding');
+      return null;
+    }
+    
     // Using Gmail for development
     return nodemailer.createTransport({
       service: 'gmail',
@@ -28,8 +53,24 @@ class NTSAService {
    * Returns: { priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW', shouldForwardToNTSA: boolean }
    */
   classifyComplaint(complaintData) {
-    const { complaintType, comment, vehicleNumber, routeName } = complaintData;
+    const {
+      complaintType,
+      comment,
+      vehicleNumber,
+      routeName,
+      ntsaPriority,
+      ntsaCategory,
+    } = complaintData;
     const commentLower = (comment || '').toLowerCase();
+
+    if (ntsaPriority && ntsaCategory) {
+      return {
+        priority: ntsaPriority,
+        category: ntsaCategory,
+        shouldForwardToNTSA: ['CRITICAL', 'HIGH'].includes(ntsaPriority),
+        reason: this.overrideReasons[ntsaCategory] || 'User-selected NTSA category',
+      };
+    }
 
     // Critical Safety Violations
     if (this.checkSafetyViolations(commentLower)) {
@@ -182,6 +223,7 @@ class NTSAService {
       comment,
       vehicleNumber,
       routeName,
+      saccoName,
       crewDetails,
       incidentDate,
       incidentTime,
@@ -189,6 +231,21 @@ class NTSAService {
       passengerContact,
       ntsaCategory,
     } = complaintData;
+
+    let evidenceText = 'No evidence provided';
+    if (evidence) {
+      try {
+        const parsed = JSON.parse(evidence);
+        const fileList = Array.isArray(parsed?.files) ? parsed.files : [];
+        const notes = parsed?.notes ? `Notes: ${parsed.notes}` : '';
+        const fileLines = fileList.length
+          ? `Files: ${fileList.join(', ')}`
+          : '';
+        evidenceText = [fileLines, notes].filter(Boolean).join(' | ') || 'Evidence provided';
+      } catch (err) {
+        evidenceText = evidence;
+      }
+    }
 
     return `
 NTSA COMPLAINT REPORT
@@ -203,6 +260,7 @@ Date: ${incidentDate || 'Not specified'}
 Time: ${incidentTime || 'Not specified'}
 Route: ${routeName || 'Not specified'}
 Vehicle Plate: ${vehicleNumber || 'Not specified'}
+SACCO: ${saccoName || 'Not specified'}
 
 COMPLAINT DESCRIPTION
 =====================
@@ -218,7 +276,7 @@ Contact: ${passengerContact || 'Not provided'}
 
 EVIDENCE
 ========
-${evidence ? 'Evidence attached: ' + evidence : 'No evidence provided'}
+${evidenceText}
 
 CLASSIFICATION NOTES
 ====================
@@ -240,6 +298,23 @@ Email: noreply@matatuconnect.com
           success: false,
           forwarded: false,
           message: 'Complaint will be handled locally',
+        };
+      }
+
+      // If nodemailer is not available, mock the forwarding
+      if (!this.emailTransporter) {
+        console.log('📧 [MOCK] Complaint would be forwarded to NTSA:', {
+          priority: classification.priority,
+          category: classification.category,
+          complaint: complaintData.comment?.substring(0, 50) + '...',
+        });
+        
+        return {
+          success: true,
+          forwarded: true,
+          messageId: 'MOCK_' + Date.now(),
+          destination: this.devEmail,
+          message: `[MOCK] Complaint classified for NTSA (${classification.priority}) - install nodemailer to enable real forwarding`,
         };
       }
 

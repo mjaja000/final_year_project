@@ -1,7 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { reportSchema, ReportData, ReportType } from "@/lib/reportSchema";
+import {
+  reportSchema,
+  ReportData,
+  ReportType,
+  NTSA_CATEGORIES,
+  NTSA_PRIORITIES,
+} from "@/lib/reportSchema";
 import StarRating from "./StarRating";
 import CategoryChips from "./CategoryChips";
 import { toast } from "sonner";
@@ -18,6 +24,66 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
   const [reportType, setReportType] = useState<ReportType>("GENERAL");
   const [isLoading, setIsLoading] = useState(false);
   const [plateQuery, setPlateQuery] = useState("");
+  const ntsaOptions = [
+    {
+      priority: "CRITICAL",
+      category: "Vehicle Safety Violations",
+      examples: [
+        "Missing three-point seatbelts",
+        "Poorly mounted seats",
+        "Missing anti-roll bars",
+        "No conformity plate",
+        "Unroadworthy vehicles operating with RSL Direct violations",
+      ],
+    },
+    {
+      priority: "CRITICAL",
+      category: "Sexual Harassment & Assault",
+      examples: [
+        "Inappropriate physical touching",
+        "Stripping or undressing incidents",
+        "Sexual comments with gestures",
+        "Crew blocking women from exiting",
+      ],
+    },
+    {
+      priority: "HIGH",
+      category: "Dangerous Driving & Operations",
+      examples: [
+        "Speeding and reckless overtaking",
+        "Overloading beyond capacity",
+        "Unauthorized route deviations",
+        "Forcing passengers to alight early",
+      ],
+    },
+    {
+      priority: "MEDIUM",
+      category: "Commercial Exploitation",
+      examples: [
+        "Mid-journey fare hikes",
+        "Overcharging without refund",
+        "Fare manipulation by touts",
+      ],
+    },
+    {
+      priority: "MEDIUM",
+      category: "Verbal Abuse & Harassment",
+      examples: [
+        "Abusive language from crew",
+        "Obscene music forced on passengers",
+        "Intimidation when complaining",
+      ],
+    },
+    {
+      priority: "LOW",
+      category: "Service Quality Issues",
+      examples: [
+        "Dirty or unhygienic vehicles",
+        "Makeshift seats",
+        "Poor customer service",
+      ],
+    },
+  ];
 
   const {
     register,
@@ -31,6 +97,8 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
       reportType: "GENERAL",
       plateNumber: "",
       rating: 0,
+      ntsaPriority: undefined,
+      ntsaCategory: undefined,
       details: "",
     } as any,
     mode: "onChange",
@@ -39,6 +107,8 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
   const watchedPlateNumber = watch("plateNumber");
   const watchedRating = watch("rating");
   const watchedCategory = watch("category");
+  const watchedNtsaPriority = watch("ntsaPriority");
+  const watchedNtsaCategory = watch("ntsaCategory");
   const watchedDetails = watch("details");
 
   const filteredPlates = useMemo(() => {
@@ -62,9 +132,14 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
   async function handleFormSubmit(data: ReportData) {
     setIsLoading(true);
     try {
+      const reportLabels: Record<ReportType, string> = {
+        GENERAL: "feedback",
+        INCIDENT: "incident",
+        REPORT_TO_NTSA: "report to NTSA",
+      };
       // Optimistic UI: show success toast before completing
       toast.success("Report submitted successfully!", {
-        description: `Your ${data.reportType.toLowerCase()} report has been recorded.`,
+        description: `Your ${reportLabels[data.reportType]} has been recorded.`,
       });
 
       // Call the onSubmit function if provided, or default behavior
@@ -80,6 +155,8 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
       setValue("plateNumber", "");
       setValue("rating", 0);
       setValue("category", undefined);
+      setValue("ntsaPriority", undefined);
+      setValue("ntsaCategory", undefined);
       setValue("details", "");
     } catch (error) {
       toast.error("Failed to submit report", {
@@ -96,8 +173,14 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
     // Reset conditional fields
     if (type === "GENERAL") {
       setValue("rating", 0, { shouldValidate: true });
+      setValue("ntsaPriority", undefined, { shouldValidate: true });
+      setValue("ntsaCategory", undefined, { shouldValidate: true });
     } else {
       setValue("rating", 0, { shouldValidate: true });
+    }
+    if (type !== "REPORT_TO_NTSA") {
+      setValue("ntsaPriority", undefined, { shouldValidate: true });
+      setValue("ntsaCategory", undefined, { shouldValidate: true });
     }
   }
 
@@ -158,13 +241,27 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Report Type
               </label>
-              <div className="grid grid-cols-2 gap-2">
-                {(["GENERAL", "INCIDENT"] as const).map((type) => {
+              <div className="grid grid-cols-3 gap-2">
+                {(["GENERAL", "INCIDENT", "REPORT_TO_NTSA"] as const).map((type) => {
                   const isActive = reportType === type;
                   const bgColor =
-                    type === "INCIDENT" ? "bg-red-600" : "bg-emerald-600";
+                    type === "INCIDENT"
+                      ? "bg-red-600"
+                      : type === "REPORT_TO_NTSA"
+                        ? "bg-red-700"
+                        : "bg-emerald-600";
                   const borderColor =
-                    type === "INCIDENT" ? "border-red-600" : "border-emerald-600";
+                    type === "INCIDENT"
+                      ? "border-red-600"
+                      : type === "REPORT_TO_NTSA"
+                        ? "border-red-700"
+                        : "border-emerald-600";
+                  const label =
+                    type === "GENERAL"
+                      ? "💬 Feedback"
+                      : type === "INCIDENT"
+                        ? "⚠️ Incident"
+                        : "🛡️ Report to NTSA";
 
                   return (
                     <button
@@ -182,7 +279,7 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
                         }
                       `}
                     >
-                      {type === "GENERAL" ? "💬 Feedback" : "⚠️ Incident"}
+                      {label}
                     </button>
                   );
                 })}
@@ -206,12 +303,18 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                {reportType === "GENERAL" ? "Share Your Feedback" : "Report Incident"}
+                {reportType === "GENERAL"
+                  ? "Share Your Feedback"
+                  : reportType === "REPORT_TO_NTSA"
+                    ? "Report to NTSA"
+                    : "Report Incident"}
               </h2>
               <p className="text-sm text-gray-600 mb-4">
                 {reportType === "GENERAL"
                   ? "Rate your experience with this matatu service."
-                  : "Provide details about the incident you experienced."}
+                  : reportType === "REPORT_TO_NTSA"
+                    ? "Provide details for an NTSA-reportable incident."
+                    : "Provide details about the incident you experienced."}
               </p>
 
               <input
@@ -251,6 +354,74 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
                 value={watchedCategory}
                 onChange={(v) => setValue("category", v as any, { shouldValidate: true })}
               />
+            )}
+
+            {/* NTSA: Priority and Category */}
+            {reportType === "REPORT_TO_NTSA" && (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 mb-2">Priority</p>
+                  <div className="flex flex-wrap gap-2">
+                    {NTSA_PRIORITIES.map((priority) => (
+                      <button
+                        key={priority}
+                        type="button"
+                        onClick={() => setValue("ntsaPriority", priority, { shouldValidate: true })}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                          watchedNtsaPriority === priority
+                            ? "bg-red-600 text-white border-red-600"
+                            : "bg-white text-gray-700 border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {priority}
+                      </button>
+                    ))}
+                  </div>
+                  {errors && "ntsaPriority" in errors && errors.ntsaPriority && (
+                    <p className="text-xs text-red-600 mt-2">{errors.ntsaPriority.message as string}</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 mb-2">Complaint Category</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {ntsaOptions.map((option) => {
+                      const isSelected =
+                        watchedNtsaCategory === option.category && watchedNtsaPriority === option.priority;
+                      return (
+                        <button
+                          key={`${option.priority}-${option.category}`}
+                          type="button"
+                          onClick={() => {
+                            setValue("ntsaPriority", option.priority, { shouldValidate: true });
+                            setValue("ntsaCategory", option.category as (typeof NTSA_CATEGORIES)[number], {
+                              shouldValidate: true,
+                            });
+                          }}
+                          className={`text-left rounded-lg border-2 p-3 transition-all ${
+                            isSelected
+                              ? "border-red-600 bg-red-50"
+                              : "border-gray-200 hover:border-gray-300"
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold text-red-700">{option.priority}</span>
+                            <span className="text-sm font-medium text-gray-900">{option.category}</span>
+                          </div>
+                          <ul className="mt-2 text-xs text-gray-600 list-disc list-inside">
+                            {option.examples.map((example) => (
+                              <li key={example}>{example}</li>
+                            ))}
+                          </ul>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {errors && "ntsaCategory" in errors && errors.ntsaCategory && (
+                    <p className="text-xs text-red-600 mt-2">{errors.ntsaCategory.message as string}</p>
+                  )}
+                </div>
+              </div>
             )}
 
             {/* Details Textarea */}

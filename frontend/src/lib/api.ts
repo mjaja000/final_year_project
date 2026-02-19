@@ -17,8 +17,10 @@ async function apiFetch<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
   const config: RequestInit = {
@@ -140,6 +142,15 @@ export const api = {
       if (params?.period) qs.set('period', params.period);
       const query = qs.toString() ? `?${qs.toString()}` : '';
       return apiFetch<any>(`/api/admin/revenue${query}`);
+    },
+
+    // Get reports from complaint-demo
+    getReports: (params?: { limit?: number; offset?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.offset) qs.set('offset', String(params.offset));
+      const query = qs.toString() ? `?${qs.toString()}` : '';
+      return apiFetch<any>(`/api/admin/reports${query}`);
     },
   },
 

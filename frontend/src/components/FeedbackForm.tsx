@@ -31,7 +31,78 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
   const [crewDetails, setCrewDetails] = useState('');
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [evidence, setEvidence] = useState('');
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
+  const [saccoName, setSaccoName] = useState('');
+  const [ntsaPriority, setNtsaPriority] = useState<string | null>(null);
+  const [ntsaCategory, setNtsaCategory] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const ntsaOptions = [
+    {
+      priority: 'CRITICAL',
+      category: 'Vehicle Safety Violations',
+      examples: [
+        'Missing three-point seatbelts',
+        'Poorly mounted seats',
+        'Missing anti-roll bars',
+        'No conformity plate',
+        'Unroadworthy vehicles operating with RSL Direct violations',
+      ],
+      reason: 'Core NTSA safety mandate. These issues can lead to fatal accidents.',
+    },
+    {
+      priority: 'CRITICAL',
+      category: 'Sexual Harassment & Assault',
+      examples: [
+        'Inappropriate physical touching',
+        'Stripping or undressing incidents',
+        'Sexual comments with gestures',
+        'Crew blocking women from exiting',
+      ],
+      reason: 'NTSA can revoke PSV licenses and enforce operator compliance.',
+    },
+    {
+      priority: 'HIGH',
+      category: 'Dangerous Driving & Operations',
+      examples: [
+        'Speeding and reckless overtaking',
+        'Overloading beyond capacity',
+        'Unauthorized route deviations',
+        'Forcing passengers to alight early',
+      ],
+      reason: 'NTSA can suspend licenses of repeat offenders and enforce safety standards.',
+    },
+    {
+      priority: 'MEDIUM',
+      category: 'Commercial Exploitation',
+      examples: [
+        'Mid-journey fare hikes',
+        'Overcharging without refund',
+        'Fare manipulation by touts',
+      ],
+      reason: 'Handle locally first; escalate if a pattern emerges.',
+    },
+    {
+      priority: 'MEDIUM',
+      category: 'Verbal Abuse & Harassment',
+      examples: [
+        'Abusive language from crew',
+        'Obscene music forced on passengers',
+        'Intimidation when complaining',
+      ],
+      reason: 'Document under consumer rights protections; escalate after multiple reports.',
+    },
+    {
+      priority: 'LOW',
+      category: 'Service Quality Issues',
+      examples: [
+        'Dirty or unhygienic vehicles',
+        'Makeshift seats',
+        'Poor customer service',
+      ],
+      reason: 'Track trends locally and monitor SACCO compliance.',
+    },
+  ];
 
   const routesQuery = useQuery({
     queryKey: ['routes'],
@@ -79,7 +150,16 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
     : vehicles;
 
   const messageValid = message.trim().length > 0 && message.length <= 200;
-  const canSubmit = Boolean(selectedRouteId && selectedVehicleId && feedbackType && messageValid && !isSubmitting);
+  const needsNtsaSelection = feedbackType === 'complaint' && reportType === 'REPORT_TO_NTSA';
+  const ntsaSelectionValid = !needsNtsaSelection || Boolean(ntsaPriority && ntsaCategory);
+  const canSubmit = Boolean(
+    selectedRouteId &&
+    selectedVehicleId &&
+    feedbackType &&
+    messageValid &&
+    ntsaSelectionValid &&
+    !isSubmitting
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,17 +167,45 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
 
     setIsSubmitting(true);
     try {
+      let evidencePayload: string | undefined = evidence || undefined;
+      if (reportType === 'REPORT_TO_NTSA' && evidenceFiles.length > 0) {
+        const formData = new FormData();
+        evidenceFiles.forEach((file) => formData.append('files', file));
+
+        const uploadRes = await fetch(`${api.baseURL}/api/feedback/evidence`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error('Failed to upload evidence files');
+        }
+
+        const uploadData = await uploadRes.json();
+        const fileUrls = Array.isArray(uploadData?.files)
+          ? uploadData.files.map((file: any) => file.url).filter(Boolean)
+          : [];
+
+        evidencePayload = JSON.stringify({
+          files: fileUrls,
+          notes: evidence || undefined,
+        });
+      }
+
       const payload = {
         routeId: Number(selectedRouteId),
         vehicleId: Number(selectedVehicleId),
         feedbackType: feedbackType === 'complaint' ? 'Complaint' : 'Compliment',
         comment: message.trim(),
         reportType: feedbackType === 'complaint' ? reportType : undefined,
+        ntsaPriority: reportType === 'REPORT_TO_NTSA' ? ntsaPriority : undefined,
+        ntsaCategory: reportType === 'REPORT_TO_NTSA' ? ntsaCategory : undefined,
+        saccoName: reportType === 'REPORT_TO_NTSA' ? saccoName : undefined,
         incidentDate: incidentDate || undefined,
         incidentTime: incidentTime || undefined,
         crewDetails: crewDetails || undefined,
         vehicleNumber: vehicleNumber || undefined,
-        evidence: evidence || undefined,
+        evidence: evidencePayload,
       };
 
       await api.feedback.create(payload);
@@ -257,7 +365,11 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
           <div className="grid grid-cols-1 gap-2">
             <button
               type="button"
-              onClick={() => setReportType('FEEDBACK')}
+              onClick={() => {
+                setReportType('FEEDBACK');
+                setNtsaPriority(null);
+                setNtsaCategory(null);
+              }}
               className={cn(
                 "text-left p-3 rounded-lg border-2 transition-all text-xs sm:text-sm",
                 reportType === 'FEEDBACK'
@@ -270,7 +382,11 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
             </button>
             <button
               type="button"
-              onClick={() => setReportType('INCIDENT')}
+              onClick={() => {
+                setReportType('INCIDENT');
+                setNtsaPriority(null);
+                setNtsaCategory(null);
+              }}
               className={cn(
                 "text-left p-3 rounded-lg border-2 transition-all text-xs sm:text-sm",
                 reportType === 'INCIDENT'
@@ -309,6 +425,41 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
           <p className="text-xs text-red-800 font-semibold">
             📋 NTSA Reporting Details (helps authorities take action)
           </p>
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">Priority & Complaint Category</Label>
+            <div className="grid grid-cols-1 gap-2">
+              {ntsaOptions.map((option) => {
+                const isSelected = ntsaPriority === option.priority && ntsaCategory === option.category;
+                return (
+                  <button
+                    key={`${option.priority}-${option.category}`}
+                    type="button"
+                    onClick={() => {
+                      setNtsaPriority(option.priority);
+                      setNtsaCategory(option.category);
+                    }}
+                    className={cn(
+                      "text-left p-3 rounded-lg border-2 transition-all text-xs sm:text-sm",
+                      isSelected
+                        ? "border-red-500 bg-white"
+                        : "border-border hover:border-red-300"
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-red-700">{option.priority}</span>
+                      <span className="font-medium">{option.category}</span>
+                    </div>
+                    <ul className="mt-2 text-xs text-gray-600 list-disc list-inside">
+                      {option.examples.map((example) => (
+                        <li key={example}>{example}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-xs text-gray-700">{option.reason}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label htmlFor="incidentDate" className="text-xs">Incident Date</Label>
@@ -343,6 +494,17 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
             />
           </div>
           <div className="space-y-1">
+            <Label htmlFor="saccoName" className="text-xs">SACCO Name</Label>
+            <input
+              id="saccoName"
+              type="text"
+              placeholder="e.g., Kenya Mpya"
+              value={saccoName}
+              onChange={(e) => setSaccoName(e.target.value)}
+              className="w-full rounded-md border px-2 py-1.5 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
             <Label htmlFor="crewDetails" className="text-xs">Crew Details (if identifiable)</Label>
             <input
               id="crewDetails"
@@ -354,7 +516,7 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="evidence" className="text-xs">Evidence (photos, videos URL)</Label>
+            <Label htmlFor="evidence" className="text-xs">Evidence Notes or Links</Label>
             <input
               id="evidence"
               type="text"
@@ -363,6 +525,22 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
               onChange={(e) => setEvidence(e.target.value)}
               className="w-full rounded-md border px-2 py-1.5 text-xs"
             />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="evidenceFiles" className="text-xs">Upload Evidence Files</Label>
+            <input
+              id="evidenceFiles"
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              onChange={(e) => setEvidenceFiles(Array.from(e.target.files || []))}
+              className="w-full rounded-md border px-2 py-1.5 text-xs"
+            />
+            {evidenceFiles.length > 0 && (
+              <p className="text-[11px] text-gray-600">
+                Selected: {evidenceFiles.map((file) => file.name).join(', ')}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -402,6 +580,7 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
             {!selectedRouteId && <li>Select a route</li>}
             {!selectedVehicleId && <li>Select a vehicle</li>}
             {!feedbackType && <li>Select a feedback type (Compliment or Complaint)</li>}
+            {!ntsaSelectionValid && <li>Select an NTSA priority and category</li>}
             {!messageValid && <li>Write a message between 1 and 200 characters</li>}
           </ul>
         </div>
