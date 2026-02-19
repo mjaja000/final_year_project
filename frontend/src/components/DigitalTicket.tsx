@@ -14,14 +14,16 @@ interface DigitalTicketProps {
     fare: number;
   };
   vehicleNumber: string;
+  transactionId?: string;
+  paidAt?: string | Date;
   onClose: () => void;
 }
 
-const DigitalTicket = ({ route, vehicleNumber, onClose }: DigitalTicketProps) => {
+const DigitalTicket = ({ route, vehicleNumber, transactionId, paidAt, onClose }: DigitalTicketProps) => {
   const [showSmsInfo, setShowSmsInfo] = useState(false);
   
-  const transactionId = generateTransactionId();
-  const timestamp = new Date();
+  const resolvedTransactionId = transactionId || generateTransactionId();
+  const timestamp = paidAt ? new Date(paidAt) : new Date();
   const formattedDate = timestamp.toLocaleDateString('en-KE', {
     day: '2-digit',
     month: 'short',
@@ -49,7 +51,7 @@ const DigitalTicket = ({ route, vehicleNumber, onClose }: DigitalTicketProps) =>
         {/* QR Code */}
         <div className="flex justify-center py-4 border-y border-dashed border-border">
           <div className="p-3 bg-card rounded-lg shadow-sm">
-            <QRCode value={transactionId} size={120} />
+            <QRCode value={resolvedTransactionId} size={120} />
           </div>
         </div>
 
@@ -86,7 +88,7 @@ const DigitalTicket = ({ route, vehicleNumber, onClose }: DigitalTicketProps) =>
 
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Transaction ID</span>
-            <span className="font-mono text-muted-foreground">{transactionId}</span>
+            <span className="font-mono text-muted-foreground">{resolvedTransactionId}</span>
           </div>
         </div>
       </div>

@@ -136,24 +136,41 @@ export default function DriverManager() {
                     const name = window.prompt('Name', d.name || '') || d.name;
                     const phone = window.prompt('Phone', d.phone || '') || d.phone;
                     const driving_license = window.prompt('Driving license', d.driving_license || '') || d.driving_license;
-                    const assigned_vehicle_id = window.prompt('Assigned vehicle id (leave blank to keep)', d.assigned_vehicle_id ? String(d.assigned_vehicle_id) : '') || d.assigned_vehicle_id;
+                    const vehicleInput = window.prompt('Assigned vehicle id (enter number, or leave blank to keep current)', d.assigned_vehicle_id ? String(d.assigned_vehicle_id) : '');
 
                     try {
                       const payload: any = { name, phone };
                       if (driving_license) payload.driving_license = driving_license;
-                      if (assigned_vehicle_id && String(assigned_vehicle_id).trim() !== '') {
-                        const av = Number(assigned_vehicle_id);
-                        payload.assigned_vehicle_id = Number.isNaN(av) ? null : av;
-                      } else {
-                        // explicitly set null to clear assignment
-                        payload.assigned_vehicle_id = null;
+                      
+                      // Handle vehicle assignment
+                      if (vehicleInput !== null) { // User didn't click cancel
+                        const trimmed = String(vehicleInput).trim();
+                        if (trimmed === '') {
+                          // Keep current assignment - don't include in payload
+                          // This way backend won't update the field
+                        } else if (trimmed.toLowerCase() === 'none' || trimmed === '0') {
+                          // Explicitly clear assignment
+                          payload.assigned_vehicle_id = null;
+                        } else {
+                          // Set new vehicle ID
+                          const av = Number(trimmed);
+                          if (!Number.isNaN(av) && av > 0) {
+                            payload.assigned_vehicle_id = av;
+                          } else {
+                            toast({ title: 'Invalid vehicle ID', description: 'Please enter a valid number', variant: 'destructive' });
+                            return;
+                          }
+                        }
                       }
 
-                      const res = await fetch(API_BASE + '/api/drivers/' + (d.user_id || d.userId || d.userId), {
+                      console.log('Updating driver with payload:', payload);
+
+                      const res = await fetch(API_BASE + '/api/drivers/' + (d.user_id || d.userId), {
                         method: 'PUT', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                         body: JSON.stringify(payload)
                       });
                       const data = await res.json();
+                      console.log('Update response:', data);
                       if (res.ok) {
                         toast({ title: 'Driver updated' });
                         fetchDrivers();
@@ -257,3 +274,4 @@ export default function DriverManager() {
     </div>
   );
 }
+

@@ -96,7 +96,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
     getAll: () => apiFetch<any[]>('/api/payments'),
-    getById: (id: number) => apiFetch<any>(`/api/payments/${id}`),
+    getById: (id: number, refresh = false) => apiFetch<any>(`/api/payments/${id}${refresh ? '?refresh=1' : ''}`),
   },
 
   // Feedback
@@ -150,6 +150,44 @@ export const api = {
       body: JSON.stringify(data),
     }),
   },
+
+  // Lost and Found
+  lostAndFound: {
+    createReport: (data: any) => apiFetch<any>('/api/lost-and-found/report', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    getAllReports: (token?: string) => {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      return apiFetch<any>('/api/lost-and-found', { headers });
+    },
+    getReportById: (id: number, token?: string) => {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      return apiFetch<any>(`/api/lost-and-found/${id}`, { headers });
+    },
+    updateStatus: (id: number, data: any, token?: string) => {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      return apiFetch<any>(`/api/lost-and-found/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+        headers,
+      });
+    },
+    deleteReport: (id: number, token?: string) => {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      return apiFetch<any>(`/api/lost-and-found/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+    },
+    getStats: (token?: string) => {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      return apiFetch<any>('/api/lost-and-found/stats', { headers });
+    },
+  },
+
+  // Export base URL for backward compatibility
+  baseURL: API_BASE_URL,
 };
 
 export default api;

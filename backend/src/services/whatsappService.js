@@ -142,8 +142,9 @@ We appreciate your input to help improve our service. Your feedback helps us ser
 Your payment has been recorded.
 
 📍 Route: ${paymentData.routeName || 'N/A'}
+🚌 Vehicle: ${paymentData.vehicleNumber || 'N/A'}
 💵 Amount: KES ${paymentData.amount}
-🎟️ Transaction: ${paymentData.transactionId}
+🎟️ Ticket: ${paymentData.transactionId}
 📅 Date: ${date}
 
 Thank you for using MatatuConnect!`;
@@ -183,6 +184,29 @@ Route: ${complaintData.routeName || 'N/A'}
 ⏱️ We'll investigate and get back to you within 24 hours.
 📞 Support: Contact us at +254712345678`;
     return this.sendMessage(phoneNumber, message, 'complaint_acknowledgment');
+  }
+
+  async sendLostAndFoundConfirmation(phoneNumber, reportData) {
+    const date = new Date().toLocaleDateString('en-KE');
+    const time = new Date().toLocaleTimeString('en-KE');
+    const message = `📦 *Lost Item Report Confirmed*
+
+✅ Your report has been registered in our system!
+
+*Item Description:*
+${reportData.itemDescription}
+
+*Report ID:* ${reportData.reportId}
+${reportData.vehiclePlate ? `*Matatu Plate:* ${reportData.vehiclePlate}\n` : ''}*Report Date:* ${date}
+*Time:* ${time}
+
+🔍 *Next Steps:*
+Our team will actively search for your item. We'll contact you immediately if we find any matching items.
+
+📱 Keep your phone available for our calls and messages.
+
+🙏 Thank you for using MatatuConnect!`;
+    return this.sendMessage(phoneNumber, message, 'lost_and_found_confirmation');
   }
 
   async sendInteractiveMessage(phoneNumber, title, options, messageType = 'interactive_menu') {

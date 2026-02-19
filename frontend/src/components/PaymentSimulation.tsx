@@ -47,10 +47,14 @@ const PaymentSimulation = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [showTicket, setShowTicket] = useState(false);
   const [transactionRef, setTransactionRef] = useState<string | null>(null);
+  const [paidAt, setPaidAt] = useState<string | null>(null);
+  const [whatsappStatus, setWhatsappStatus] = useState<{ sent: boolean; error: string | null } | null>(null);
+  const [driverWhatsappStatus, setDriverWhatsappStatus] = useState<{ sent: boolean; error: string | null } | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const { toast } = useToast();
   const [pollingId, setPollingId] = useState<number | null>(null);
-  const useLiveMpesa = import.meta.env.VITE_PAYMENT_MODE === 'mpesa';
+  const paymentMode = String(import.meta.env.VITE_PAYMENT_MODE || 'mpesa').toLowerCase();
+  const useLiveMpesa = paymentMode !== 'simulation' && paymentMode !== 'mock';
 
   const initialRouteFallback = useMemo<RouteOption | null>(() => {
     if (!initialRouteId) {
@@ -179,6 +183,56 @@ const PaymentSimulation = ({
   const phoneValid = phoneNumber.trim().length >= 9;
   const selectedRoute = availableRoutes.find((r) => r.id === selectedRouteId);
   const fare = selectedRoute?.fare ?? initialRouteFallback?.fare ?? 0;
+  const pollIntervalMs = useLiveMpesa ? 2000 : 1000;
+  const refreshEveryAttempts = useLiveMpesa ? 10 : 1;
+
+  const pollPaymentUntilResolved = (paymentId: number, maxAttempts = 90) => {
+    let attempts = 0;
+    const id = window.setInterval(async () => {
+      attempts += 1;
+      try {
+        const shouldRefresh = useLiveMpesa && attempts % refreshEveryAttempts === 0;
+        const statusRes = await api.payments.getById(paymentId, shouldRefresh);
+        const payment = statusRes.payment || statusRes;
+
+        if (payment?.status === 'completed') {
+          window.clearInterval(id);
+          const ref = statusRes.ticket?.reference || payment.transaction_id || `TKT-${payment.id}`;
+          setTransactionRef(ref);
+          setPaidAt(String(statusRes.ticket?.paidAt || payment.updated_at || new Date().toISOString()));
+          setWhatsappStatus(statusRes.whatsapp_status || null);
+          setDriverWhatsappStatus(statusRes.driver_whatsapp_status || null);
+          setPaymentStatus('success');
+          setIsProcessing(false);
+          toast({ title: 'Payment Confirmed', description: `Ticket: ${ref}` });
+          setTimeout(() => setShowTicket(true), 300);
+          return;
+        }
+
+        if (payment?.status === 'failed') {
+          window.clearInterval(id);
+          setIsProcessing(false);
+          setPaymentStatus('failed');
+          toast({
+            title: 'Payment Failed',
+            description: payment.failure_reason || 'M-Pesa payment was not completed.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      } catch {
+      }
+
+      if (attempts >= maxAttempts) {
+        window.clearInterval(id);
+        setIsProcessing(false);
+        setPaymentStatus('idle');
+        toast({ title: 'Still Waiting', description: 'Complete the M-Pesa prompt on your phone. Ticket will appear once verified.' });
+      }
+    }, pollIntervalMs);
+
+    setPollingId(id);
+  };
 
   const handlePayment = async () => {
     if (!vehicleValid) {
@@ -221,12 +275,13 @@ const PaymentSimulation = ({
           route: routeIdNumber,
         });
 
-        if (res.success) {
-          setPaymentStatus('success');
+        if (res.success && res.payment_id) {
+          setPaymentStatus('processing');
           toast({
             title: 'STK Prompt Sent',
             description: 'Check your phone for the M-Pesa prompt and enter your PIN.',
           });
+          pollPaymentUntilResolved(Number(res.payment_id), 120);
         } else {
           setPaymentStatus('failed');
           toast({
@@ -234,9 +289,8 @@ const PaymentSimulation = ({
             description: res.message || 'Failed to initiate M-Pesa prompt.',
             variant: 'destructive',
           });
+          setIsProcessing(false);
         }
-
-        setIsProcessing(false);
         return;
       }
 
@@ -261,36 +315,7 @@ const PaymentSimulation = ({
       }
 
       // Poll for payment completion/transaction id
-      const maxAttempts = 15; // ~15 seconds
-      let attempts = 0;
-
-      const id = window.setInterval(async () => {
-        attempts += 1;
-        try {
-          const statusRes = await api.payments.getById(createdPayment.id);
-          const payment = statusRes.payment || statusRes;
-          if (payment && payment.status === 'completed' && payment.transaction_id) {
-            window.clearInterval(id);
-            setTransactionRef(payment.transaction_id);
-            setPaymentStatus('success');
-            setIsProcessing(false);
-            toast({ title: 'Payment Confirmed', description: `Transaction ID: ${payment.transaction_id}` });
-            // Show ticket
-            setTimeout(() => setShowTicket(true), 400);
-          }
-        } catch (err) {
-          // ignore transient failures
-        }
-
-        if (attempts >= maxAttempts) {
-          window.clearInterval(id);
-          setIsProcessing(false);
-          setPaymentStatus('idle');
-          toast({ title: 'Payment Pending', description: 'Payment is still processing. You will receive confirmation via WhatsApp.' });
-        }
-      }, 1000);
-
-      setPollingId(id);
+      pollPaymentUntilResolved(Number(createdPayment.id), 15);
     } catch (error: any) {
       setIsProcessing(false);
       setPaymentStatus('failed');
@@ -320,6 +345,8 @@ const PaymentSimulation = ({
       <DigitalTicket
         route={selRoute}
         vehicleNumber={vehicleNumber}
+        transactionId={transactionRef || undefined}
+        paidAt={paidAt || undefined}
         onClose={() => {
           setShowTicket(false);
           onBack();
@@ -445,9 +472,31 @@ const PaymentSimulation = ({
                 : 'This is a demonstration — no real money will be charged.'}
             </p>
             {paymentStatus === 'success' && transactionRef && (
-              <p className="mt-2 text-xs sm:text-sm text-success font-medium break-all">
-                ✓ Transaction ref: <span className="font-mono">{transactionRef}</span>
-              </p>
+              <>
+                <p className="mt-2 text-xs sm:text-sm text-success font-medium break-all">
+                  ✓ Transaction ref: <span className="font-mono">{transactionRef}</span>
+                </p>
+                {whatsappStatus && (
+                  <p className={cn(
+                    "mt-1 text-xs sm:text-sm font-medium",
+                    whatsappStatus.sent ? "text-success" : "text-amber-600 dark:text-amber-400"
+                  )}>
+                    {whatsappStatus.sent
+                      ? "✓ Customer WhatsApp sent"
+                      : `⚠ Customer WhatsApp failed: ${whatsappStatus.error || "Unknown error"}`}
+                  </p>
+                )}
+                {driverWhatsappStatus && (
+                  <p className={cn(
+                    "mt-1 text-xs sm:text-sm font-medium",
+                    driverWhatsappStatus.sent ? "text-success" : "text-amber-600 dark:text-amber-400"
+                  )}>
+                    {driverWhatsappStatus.sent
+                      ? "✓ Driver WhatsApp sent"
+                      : `⚠ Driver WhatsApp failed: ${driverWhatsappStatus.error || "Unknown error"}`}
+                  </p>
+                )}
+              </>
             )}
             {paymentStatus === 'failed' && (
               <p className="mt-2 text-xs sm:text-sm text-destructive font-medium">✕ Payment failed. Try again.</p>
