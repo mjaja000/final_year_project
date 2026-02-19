@@ -1,165 +1,204 @@
-const FeedbackModel = require('../models/feedbackModel');
-const SmsService = require('../services/smsService');
-const WhatsappService = require('../services/whatsappService');
-const UserModel = require('../models/userModel');
+const pool = require('../config/database');
 
 class FeedbackController {
-  // Submit feedback (FR1: route, vehicle, feedback type, comment)
+  /**
+   * Submit feedback - Simple, direct implementation
+   * POST /api/feedback
+   */
   static async submitFeedback(req, res) {
+    const startTime = Date.now();
+    console.log('\n[FEEDBACK API] ========================================');
+    console.log('[FEEDBACK API] POST /api/feedback request received');
+    console.log('[FEEDBACK API] Time:', new Date().toISOString());
+    console.log('[FEEDBACK API] Body:', JSON.stringify(req.body, null, 2));
+
     try {
-      const userId = req.userId || null;
       const { routeId, vehicleId, feedbackType, comment, phoneNumber } = req.body;
+      const userId = req.userId || null;
 
       // Validate required fields
+      console.log('[FEEDBACK API] Validating fields...');
       if (!routeId || !vehicleId || !feedbackType || !comment) {
-        return res.status(400).json({ 
-          message: 'Missing required fields: routeId, vehicleId, feedbackType, comment' 
+        console.error('[FEEDBACK API] Validation failed - Missing fields:', {
+          routeId: !!routeId,
+          vehicleId: !!vehicleId,
+          feedbackType: !!feedbackType,
+          comment: !!comment,
+        });
+        return res.status(400).json({
+          success: false,
+          message: 'Missing required fields: routeId, vehicleId, feedbackType, comment',
+          received: { routeId, vehicleId, feedbackType, comment }
         });
       }
 
-      // Validate feedback type (must be Complaint or Compliment)
+      // Validate feedback type
       if (!['Complaint', 'Compliment'].includes(feedbackType)) {
-        return res.status(400).json({ 
-          message: 'Feedback type must be either "Complaint" or "Compliment"' 
+        console.error('[FEEDBACK API] Invalid feedback type:', feedbackType);
+        return res.status(400).json({
+          success: false,
+          message: 'Feedback type must be either "Complaint" or "Compliment"'
         });
       }
 
-      // Submit feedback to database
-      const feedback = await FeedbackModel.submitFeedback(
-        userId, 
-        routeId, 
-        vehicleId, 
-        feedbackType, 
+      console.log('[FEEDBACK API] Validation passed. Inserting into database...');
+
+      // Insert directly using pool.query - simple and reliable
+      const insertQuery = `
+        INSERT INTO feedback (user_id, route_id, vehicle_id, feedback_type, comment, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, 'pending', NOW(), NOW())
+        RETURNING id, user_id, route_id, vehicle_id, feedback_type, comment, status, created_at, updated_at;
+      `;
+
+      const result = await pool.query(insertQuery, [
+        userId,
+        Number(routeId),
+        Number(vehicleId),
+        feedbackType,
         comment
-      );
+      ]);
 
-      // Send SMS notification if phone number provided (FR4)
-      let smsSent = false;
-      let whatsappSent = false;
-      if (phoneNumber) {
-        try {
-          await SmsService.sendSms(
-            phoneNumber,
-            `Thank you for your ${feedbackType.toLowerCase()} on route. Your feedback ID: ${feedback.id}`
-          );
-          smsSent = true;
-        } catch (smsError) {
-          console.error('SMS notification failed:', smsError);
-        }
+      const feedback = result.rows[0];
+      console.log('[FEEDBACK API] ✓ Insert successful!');
+      console.log('[FEEDBACK API] Feedback ID:', feedback.id);
+      console.log('[FEEDBACK API] Duration:', Date.now() - startTime, 'ms');
 
-        // Send WhatsApp notification
-        try {
-          const whatsappResult = await WhatsappService.sendFeedbackConfirmation(phoneNumber, {
-            feedbackType: feedbackType,
-            routeName: `Route ${routeId}`,
-            vehicleReg: `Vehicle ${vehicleId}`,
-            feedbackId: feedback.id
-          });
-          whatsappSent = whatsappResult.success !== false;
-          if (whatsappSent) {
-            console.log('✓ WhatsApp feedback confirmation sent');
-          } else {
-            console.warn('⚠️ WhatsApp feedback confirmation failed:', whatsappResult.error);
-            
-            // If user not in sandbox (error 63007), send SMS with join instructions
-            if (whatsappResult.needsJoin || whatsappResult.code === 63007) {
-              try {
-                const joinInstructions = `MatatuConnect: Feedback received! Get WhatsApp alerts - Send "join break-additional" to +14155238886. Join now!`;
-                await SmsService.sendSms(phoneNumber, joinInstructions);
-                console.log('✓ SMS join instructions sent as fallback');
-              } catch (smsFallbackError) {
-                console.error('SMS join instructions failed:', smsFallbackError.message);
-              }
-            }
-          }
-        } catch (whatsappError) {
-          console.error('WhatsApp notification failed:', whatsappError.message);
-        }
-      }
-
+      // Return success response
       res.status(201).json({
+        success: true,
         message: 'Feedback submitted successfully',
-        feedback,
+        feedback: {
+          id: feedback.id,
+          user_id: feedback.user_id,
+          route_id: feedback.route_id,
+          vehicle_id: feedback.vehicle_id,
+          feedback_type: feedback.feedback_type,
+          comment: feedback.comment,
+          status: feedback.status,
+          created_at: feedback.created_at,
+          updated_at: feedback.updated_at
+        },
         notificationsSent: {
-          sms: smsSent,
-          whatsapp: whatsappSent
+          sms: false,
+          whatsapp: false
         }
       });
+
     } catch (error) {
-      console.error('Submit feedback error:', error);
-      res.status(500).json({ message: 'Failed to submit feedback', error: error.message });
-    }
-  }
+      console.error('[FEEDBACK API] ✗ ERROR:', error.message);
+      console.error('[FEEDBACK API] Stack:', error.stack);
+      console.error('[FEEDBACK API] Code:', error.code);
+      console.log('[FEEDBACK API] Duration:', Date.now() - startTime, 'ms');
 
-  // Get user feedback
-  static async getUserFeedback(req, res) {
-    try {
-      const userId = req.userId;
-      const feedback = await FeedbackModel.getUserFeedback(userId);
-
-      res.json({
-        message: 'User feedback fetched',
-        total: feedback.length,
-        feedback,
+      res.status(500).json({
+        success: false,
+        message: 'Failed to submit feedback',
+        error: error.message,
+        code: error.code
       });
-    } catch (error) {
-      console.error('Get user feedback error:', error);
-      res.status(500).json({ message: 'Failed to fetch feedback', error: error.message });
     }
   }
 
-  // Public: list feedback (for dashboard)
+  /**
+   * Get all feedback - Simple implementation
+   * GET /api/feedback
+   */
   static async getAllPublic(req, res) {
+    console.log('[FEEDBACK API] GET /api/feedback - Fetching all feedback');
     try {
-      const feedback = await FeedbackModel.getAllFeedback(100, 0, {});
+      const query = `
+        SELECT 
+          f.id, f.user_id, f.route_id, f.vehicle_id, 
+          f.feedback_type, f.comment, f.status, 
+          f.created_at, f.updated_at
+        FROM feedback f
+        ORDER BY f.created_at DESC
+        LIMIT 200;
+      `;
+
+      const result = await pool.query(query);
+      console.log('[FEEDBACK API] ✓ Fetched', result.rows.length, 'feedback items');
+
       res.json({
-        message: 'Feedback fetched',
-        total: feedback.length,
-        feedback,
+        success: true,
+        message: 'Feedback fetched successfully',
+        count: result.rows.length,
+        feedback: result.rows
       });
     } catch (error) {
-      console.error('Get feedback error:', error);
-      res.status(500).json({ message: 'Failed to fetch feedback', error: error.message });
+      console.error('[FEEDBACK API] Error fetching feedback:', error.message);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch feedback',
+        error: error.message
+      });
     }
   }
 
-  // Get feedback by ID
+  /**
+   * Get feedback by ID
+   * GET /api/feedback/:feedbackId
+   */
   static async getFeedbackById(req, res) {
-    try {
-      const { feedbackId } = req.params;
-      const feedback = await FeedbackModel.getFeedbackById(feedbackId);
+    const { feedbackId } = req.params;
+    console.log('[FEEDBACK API] GET /api/feedback/:id -', feedbackId);
 
-      if (!feedback) {
-        return res.status(404).json({ message: 'Feedback not found' });
+    try {
+      const query = 'SELECT * FROM feedback WHERE id = $1;';
+      const result = await pool.query(query, [feedbackId]);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Feedback not found'
+        });
       }
 
       res.json({
-        message: 'Feedback fetched',
-        feedback,
+        success: true,
+        feedback: result.rows[0]
       });
     } catch (error) {
-      console.error('Get feedback error:', error);
-      res.status(500).json({ message: 'Failed to fetch feedback', error: error.message });
+      console.error('[FEEDBACK API] Error fetching feedback:', error.message);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch feedback',
+        error: error.message
+      });
     }
   }
 
-  // Delete feedback
+  /**
+   * Delete feedback
+   * DELETE /api/feedback/:feedbackId
+   */
   static async deleteFeedback(req, res) {
-    try {
-      const userId = req.userId;
-      const { feedbackId } = req.params;
+    const { feedbackId } = req.params;
+    console.log('[FEEDBACK API] DELETE /api/feedback/:id -', feedbackId);
 
-      const feedback = await FeedbackModel.getFeedbackById(feedbackId);
-      if (!feedback || feedback.user_id !== userId) {
-        return res.status(403).json({ message: 'Unauthorized' });
+    try {
+      const query = 'DELETE FROM feedback WHERE id = $1 RETURNING id;';
+      const result = await pool.query(query, [feedbackId]);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Feedback not found'
+        });
       }
 
-      await FeedbackModel.deleteFeedback(feedbackId);
-
-      res.json({ message: 'Feedback deleted successfully' });
+      res.json({
+        success: true,
+        message: 'Feedback deleted successfully',
+        id: result.rows[0].id
+      });
     } catch (error) {
-      console.error('Delete feedback error:', error);
-      res.status(500).json({ message: 'Failed to delete feedback', error: error.message });
+      console.error('[FEEDBACK API] Error deleting feedback:', error.message);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete feedback',
+        error: error.message
+      });
     }
   }
 }
