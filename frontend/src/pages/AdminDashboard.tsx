@@ -769,11 +769,6 @@ const AdminDashboard = () => {
                     <span className="sm:hidden">Drv</span>
                   </TabsTrigger>
 
-                  <TabsTrigger value="vehicles" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-blue-500 data-[state=active]:text-white">
-                    <Truck className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Vehicles</span>
-                    <span className="sm:hidden">Veh</span>
-                  </TabsTrigger>
 
                   <TabsTrigger value="routes" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white">
                     <Trello className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -867,15 +862,6 @@ const AdminDashboard = () => {
                           <AdminMessages />
                         </div>
                       </div>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="vehicles" className="animate-fade-in m-0">
-                  <div className="p-2">
-                    <h3 className="font-semibold mb-3">Vehicle Management</h3>
-                    <div className="bg-muted rounded-lg p-4">
-                      <VehicleManager />
                     </div>
                   </div>
                 </TabsContent>
