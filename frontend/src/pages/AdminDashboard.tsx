@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { LogOut, MessageSquare, CreditCard, ThumbsUp, ThumbsDown, Trello, Gauge, TrendingUp, Users, DollarSign, AlertCircle, Flag, AlertTriangle, Truck, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/Header';
