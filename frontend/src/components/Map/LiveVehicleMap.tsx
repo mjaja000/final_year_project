@@ -180,12 +180,21 @@ const LiveVehicleMap = ({
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 <Navigation className="h-4 w-4 mr-2" />
-                {locationLoading ? 'Getting Location...' : 'Find Nearest Vehicle'}
+                {locationLoading ? 'Requesting location...' : 'Find Nearest Vehicle'}
               </Button>
             )}
           </div>
         )}
       </div>
+
+      {/* Location request help text */}
+      {!userWantsLocation && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+          <p className="text-amber-900">
+            💡 <strong>How to find the nearest vehicle:</strong> Click "Find Nearest Vehicle" to enable location sharing. Your location will appear as a blue dot on the map.
+          </p>
+        </div>
+      )}
 
       {/* Nearest vehicle info */}
       {nearestVehicle && (
@@ -217,6 +226,33 @@ const LiveVehicleMap = ({
           </div>
         </div>
       )}
+
+      {/* Driver locations legend */}
+      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+        <h3 className="font-semibold text-sm mb-2">Live Driver Locations</h3>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-green-500 border border-green-700"></div>
+            <span>Driver Online</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-red-500 border border-red-700"></div>
+            <span>Driver Offline</span>
+          </div>
+          {userWantsLocation && latitude && longitude && (
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-500 border border-blue-700"></div>
+              <span>Your Location</span>
+            </div>
+          )}
+          {nearestVehicle && (
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full border-2 border-yellow-500"></div>
+              <span>Nearest Vehicle</span>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Map */}
       <VehicleMap
