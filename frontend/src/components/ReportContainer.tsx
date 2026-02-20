@@ -20,8 +20,7 @@ type Props = {
 };
 
 export default function ReportContainer({ plateOptions = [], onSubmit, className = "" }: Props) {
-  const [step, setStep] = useState<1 | 2>(1);
-  const [reportType, setReportType] = useState<ReportType>("GENERAL");
+  const reportType = "GENERAL"; // Fixed to feedback only
   const [isLoading, setIsLoading] = useState(false);
   const [plateQuery, setPlateQuery] = useState("");
   const ntsaOptions = [
@@ -117,18 +116,6 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
     return plateOptions.filter((p) => p.toLowerCase().includes(q));
   }, [plateOptions, plateQuery]);
 
-  const canProceedStep1 = watchedPlateNumber.trim().length > 0;
-
-  async function handleStep1Next() {
-    if (canProceedStep1) {
-      setStep(2);
-    }
-  }
-
-  function handleStep2Back() {
-    setStep(1);
-  }
-
   async function handleFormSubmit(data: ReportData) {
     setIsLoading(true);
     try {
@@ -150,14 +137,11 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
       }
 
       // Reset form after successful submission
-      setStep(1);
-      setReportType("GENERAL");
       setValue("plateNumber", "");
       setValue("rating", 0);
       setValue("category", undefined);
-      setValue("ntsaPriority", undefined);
-      setValue("ntsaCategory", undefined);
       setValue("details", "");
+      setPlateQuery("");
     } catch (error) {
       toast.error("Failed to submit report", {
         description: error instanceof Error ? error.message : "Unknown error occurred",
@@ -185,83 +169,53 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
   }
 
   return (
-    <div className={`max-w-2xl mx-auto p-4 space-y-4 ${className}`}>
-      {/* Step Indicator */}
-      <div className="flex items-center justify-between mb-6">
-        <div className={`flex-1 h-2 rounded-full ${step === 1 ? "bg-indigo-600" : "bg-gray-200"}`} />
-        <span className="mx-2 text-sm font-medium text-gray-600">
-          Step {step} of 2
-        </span>
-        <div className={`flex-1 h-2 rounded-full ${step === 2 ? "bg-indigo-600" : "bg-gray-200"}`} />
-      </div>
+    <div className={`max-w-2xl mx-auto p-6 space-y-6 ${className}`}>
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+        <input type="hidden" {...register("reportType")} />
 
-      <form onSubmit={handleSubmit(handleFormSubmit)}>
-        {/* STEP 1: Matatu Selection */}
-        {step === 1 && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                Select Matatu
-              </h2>
-              <p className="text-sm text-gray-600 mb-4">
-                Enter or search for the matatu plate number you want to report.
-              </p>
-
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Matatu Plate Number
-              </label>
-              <div className="relative">
-                <input
-                  {...register("plateNumber")}
-                  onChange={(e) => {
-                    setValue("plateNumber", e.target.value);
-                    setPlateQuery(e.target.value);
-                  }}
-                  list="plates-list"
-                  placeholder="E.g., KAA-123A"
-                  autoComplete="off"
-                  className="w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-base focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition"
-                  aria-label="Matatu plate number"
-                />
-                <datalist id="plates-list">
-                  {filteredPlates.map((p) => (
-                    <option key={p} value={p} />
-                  ))}
-                </datalist>
-              </div>
-              {errors.plateNumber && (
-                <p className="text-xs text-red-600 mt-2">
-                  {errors.plateNumber.message}
-                </p>
-              )}
-            </div>
+        {/* Matatu Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Matatu Plate Number
+          </label>
+          <div className="relative">
+            <input
+              {...register("plateNumber")}
+              onChange={(e) => {
+                setValue("plateNumber", e.target.value);
+                setPlateQuery(e.target.value);
+              }}
+              list="plates-list"
+              placeholder="E.g., KAA-123A"
+              autoComplete="off"
+              className="w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-base focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition"
+              aria-label="Matatu plate number"
+            />
+            <datalist id="plates-list">
+              {filteredPlates.map((p) => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
+          </div>
+          {errors.plateNumber && (
+            <p className="text-xs text-red-600 mt-2">
+              {errors.plateNumber.message}
+            </p>
+          )}
+        </div>
 
             {/* Report Type Toggle */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Report Type
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(["GENERAL", "INCIDENT", "REPORT_TO_NTSA"] as const).map((type) => {
+              <div className="grid grid-cols-2 gap-2">
+                {(["GENERAL", "INCIDENT"] as const).map((type) => {
                   const isActive = reportType === type;
                   const bgColor =
-                    type === "INCIDENT"
-                      ? "bg-red-600"
-                      : type === "REPORT_TO_NTSA"
-                        ? "bg-red-700"
-                        : "bg-emerald-600";
+                    type === "INCIDENT" ? "bg-red-600" : "bg-emerald-600";
                   const borderColor =
-                    type === "INCIDENT"
-                      ? "border-red-600"
-                      : type === "REPORT_TO_NTSA"
-                        ? "border-red-700"
-                        : "border-emerald-600";
-                  const label =
-                    type === "GENERAL"
-                      ? "💬 Feedback"
-                      : type === "INCIDENT"
-                        ? "⚠️ Incident"
-                        : "🛡️ Report to NTSA";
+                    type === "INCIDENT" ? "border-red-600" : "border-emerald-600";
 
                   return (
                     <button
@@ -279,7 +233,7 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
                         }
                       `}
                     >
-                      {label}
+                      {type === "GENERAL" ? "💬 Feedback" : "⚠️ Incident"}
                     </button>
                   );
                 })}
@@ -303,18 +257,12 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                {reportType === "GENERAL"
-                  ? "Share Your Feedback"
-                  : reportType === "REPORT_TO_NTSA"
-                    ? "Report to NTSA"
-                    : "Report Incident"}
+                {reportType === "GENERAL" ? "Share Your Feedback" : "Report Incident"}
               </h2>
               <p className="text-sm text-gray-600 mb-4">
                 {reportType === "GENERAL"
                   ? "Rate your experience with this matatu service."
-                  : reportType === "REPORT_TO_NTSA"
-                    ? "Provide details for an NTSA-reportable incident."
-                    : "Provide details about the incident you experienced."}
+                  : "Provide details about the incident you experienced."}
               </p>
 
               <input
@@ -356,107 +304,27 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
               />
             )}
 
-            {/* NTSA: Priority and Category */}
-            {reportType === "REPORT_TO_NTSA" && (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 mb-2">Priority</p>
-                  <div className="flex flex-wrap gap-2">
-                    {NTSA_PRIORITIES.map((priority) => (
-                      <button
-                        key={priority}
-                        type="button"
-                        onClick={() => setValue("ntsaPriority", priority, { shouldValidate: true })}
-                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                          watchedNtsaPriority === priority
-                            ? "bg-red-600 text-white border-red-600"
-                            : "bg-white text-gray-700 border-gray-200 hover:border-gray-300"
-                        }`}
-                      >
-                        {priority}
-                      </button>
-                    ))}
-                  </div>
-                  {errors && "ntsaPriority" in errors && errors.ntsaPriority && (
-                    <p className="text-xs text-red-600 mt-2">{errors.ntsaPriority.message as string}</p>
-                  )}
-                </div>
+        {/* Details Textarea */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Additional Details (Optional)
+          </label>
+          <textarea
+            {...register("details")}
+            rows={4}
+            placeholder="Share your experience or provide additional feedback"
+            className="w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-base focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition"
+          />
+        </div>
 
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 mb-2">Complaint Category</p>
-                  <div className="grid grid-cols-1 gap-2">
-                    {ntsaOptions.map((option) => {
-                      const isSelected =
-                        watchedNtsaCategory === option.category && watchedNtsaPriority === option.priority;
-                      return (
-                        <button
-                          key={`${option.priority}-${option.category}`}
-                          type="button"
-                          onClick={() => {
-                            setValue("ntsaPriority", option.priority, { shouldValidate: true });
-                            setValue("ntsaCategory", option.category as (typeof NTSA_CATEGORIES)[number], {
-                              shouldValidate: true,
-                            });
-                          }}
-                          className={`text-left rounded-lg border-2 p-3 transition-all ${
-                            isSelected
-                              ? "border-red-600 bg-red-50"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
-                        >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-semibold text-red-700">{option.priority}</span>
-                            <span className="text-sm font-medium text-gray-900">{option.category}</span>
-                          </div>
-                          <ul className="mt-2 text-xs text-gray-600 list-disc list-inside">
-                            {option.examples.map((example) => (
-                              <li key={example}>{example}</li>
-                            ))}
-                          </ul>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {errors && "ntsaCategory" in errors && errors.ntsaCategory && (
-                    <p className="text-xs text-red-600 mt-2">{errors.ntsaCategory.message as string}</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Details Textarea */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Additional Details
-              </label>
-              <textarea
-                {...register("details")}
-                rows={4}
-                placeholder="Describe what happened (optional but helpful)"
-                className="w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-base focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition"
-              />
-            </div>
-
-            {/* Submit & Back Buttons */}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleStep2Back}
-                disabled={isLoading}
-                className="flex-1 min-h-[48px] bg-gray-200 text-gray-900 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-gray-300 disabled:opacity-50 transition"
-              >
-                <ChevronLeft size={20} /> Back
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 min-h-[48px] bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                {isLoading ? "Submitting..." : "Submit Report"}
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="w-full min-h-[48px] bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        >
+          {isLoading ? "Submitting..." : "Submit Feedback"}
+        </button>
       </form>
     </div>
   );

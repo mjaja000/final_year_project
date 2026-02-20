@@ -7,11 +7,20 @@ import AdminResetLogs from '@/components/admin/AdminResetLogs';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+interface OccupancyVehicleOption {
+  vehicleId: number;
+  registrationNumber: string;
+  routeLabel: string;
+}
+
 export default function DriverManager() {
   const { toast } = useToast();
   const [drivers, setDrivers] = useState<any[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
+  const [occupancyVehicles, setOccupancyVehicles] = useState<OccupancyVehicleOption[]>([]);
+  const [assignmentDrafts, setAssignmentDrafts] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
+  const [loadingOccupancyVehicles, setLoadingOccupancyVehicles] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', driving_license: '', assigned_vehicle_id: '' });
 
   const [lastCreated, setLastCreated] = useState<{ username: string; password: string } | null>(null);
@@ -48,9 +57,76 @@ export default function DriverManager() {
     }
   };
 
+  const fetchOccupancyVehicles = async () => {
+    setLoadingOccupancyVehicles(true);
+    try {
+      const res = await fetch(API_BASE + '/api/occupancy/all', { headers: { ...getAuthHeaders() } });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Failed to load occupancy vehicles', description: data.message || 'Error', variant: 'destructive' });
+        return;
+      }
+
+      const raw = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.occupancies)
+          ? data.occupancies
+          : [];
+
+      const seen = new Map<number, OccupancyVehicleOption>();
+      for (const entry of raw) {
+        const vehicleId = Number(entry.vehicle_id ?? entry.vehicleId ?? entry.id ?? 0);
+        if (!Number.isFinite(vehicleId) || vehicleId <= 0 || seen.has(vehicleId)) continue;
+
+        const registrationNumber = String(
+          entry.registration_number ?? entry.vehicle_number ?? entry.vehicleNumber ?? `Vehicle ${vehicleId}`
+        );
+        const routeName = String(entry.route_name ?? '').trim();
+        const start = String(entry.start_location ?? entry.startLocation ?? '').trim();
+        const end = String(entry.end_location ?? entry.endLocation ?? '').trim();
+        const routeLabel = routeName || [start, end].filter(Boolean).join(' → ') || `Route ${entry.route_id ?? entry.routeId ?? 'N/A'}`;
+
+        seen.set(vehicleId, { vehicleId, registrationNumber, routeLabel });
+      }
+
+      setOccupancyVehicles(Array.from(seen.values()));
+    } catch (err: any) {
+      toast({ title: 'Failed to load occupancy vehicles', description: err.message || 'Error', variant: 'destructive' });
+    } finally {
+      setLoadingOccupancyVehicles(false);
+    }
+  };
+
+  const saveDriverAssignment = async (userId: number, assignedVehicleValue: string) => {
+    try {
+      setLoading(true);
+      const payload = {
+        assigned_vehicle_id: assignedVehicleValue ? Number(assignedVehicleValue) : null,
+      };
+
+      const res = await fetch(API_BASE + '/api/drivers/' + userId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        toast({ title: 'Driver assignment updated' });
+        setAssignmentDrafts((prev) => ({ ...prev, [userId]: assignedVehicleValue }));
+        fetchDrivers();
+      } else {
+        toast({ title: 'Assignment update failed', description: data.message || data.error || 'Error', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Assignment update failed', description: err.message || 'Error', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => { 
     fetchDrivers();
-    fetchVehicles();
     try {
       const raw = localStorage.getItem('lastCreatedDriver');
       if (raw) setLastCreated(JSON.parse(raw));
@@ -120,9 +196,21 @@ export default function DriverManager() {
           ))}
         </select>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Available vehicles come from Occupancy entries{loadingOccupancyVehicles ? ' (loading...)' : ''}.
+      </p>
       <div className="flex gap-2">
         <Button onClick={handleCreate} disabled={loading} className="bg-green-600">Create Driver</Button>
-        <Button variant="outline" onClick={fetchDrivers} disabled={loading}>Refresh</Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            fetchDrivers();
+            fetchOccupancyVehicles();
+          }}
+          disabled={loading || loadingOccupancyVehicles}
+        >
+          Refresh
+        </Button>
       </div>
 
       <div className="mt-4">
@@ -246,6 +334,34 @@ export default function DriverManager() {
                   }
                 }}>Delete</Button>
 
+              </div>
+
+              <div className="mt-4 border-t pt-3">
+                <p className="text-sm font-medium mb-2">Assign vehicle from occupancy</p>
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <select
+                    className="w-full sm:max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={assignmentDrafts[d.user_id] ?? (d.assigned_vehicle_id ? String(d.assigned_vehicle_id) : '')}
+                    onChange={(e) => setAssignmentDrafts((prev) => ({ ...prev, [d.user_id]: e.target.value }))}
+                  >
+                    <option value="">Unassign vehicle</option>
+                    {occupancyVehicles.map((v) => (
+                      <option key={v.vehicleId} value={String(v.vehicleId)}>
+                        {v.registrationNumber} — {v.routeLabel}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    variant="outline"
+                    onClick={() => saveDriverAssignment(
+                      Number(d.user_id || d.userId),
+                      assignmentDrafts[d.user_id] ?? (d.assigned_vehicle_id ? String(d.assigned_vehicle_id) : '')
+                    )}
+                    disabled={loading}
+                  >
+                    Save Assignment
+                  </Button>
+                </div>
               </div>
             </div>
           ))}

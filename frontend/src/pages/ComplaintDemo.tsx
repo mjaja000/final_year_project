@@ -1,6 +1,9 @@
 import React from "react";
 import ReportContainer from "../components/ReportContainer";
 import { ReportData } from "@/lib/reportSchema";
+import Header from "@/components/Header";
+import { Helmet } from "react-helmet-async";
+import { MessageSquare } from "lucide-react";
 import api from "@/lib/api";
 
 export default function ComplaintDemo() {
@@ -13,15 +16,25 @@ export default function ComplaintDemo() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="mb-8 px-4">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Report a Matatu
-          </h1>
-          <p className="text-gray-600">
-            Share feedback or report an incident with your matatu experience.
-          </p>
+    <>
+      <Helmet>
+        <title>Feedback — MatatuConnect</title>
+        <meta name="description" content="Share your matatu experience and help improve service quality" />
+      </Helmet>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
+        <Header />
+        
+        {/* Hero Section */}
+        <div className="bg-gradient-to-r from-green-600 to-emerald-500 text-white py-12 sm:py-16">
+          <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-white/20 backdrop-blur-sm rounded-2xl mb-4">
+              <MessageSquare className="h-8 w-8 sm:h-10 sm:w-10" />
+            </div>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">Share Your Feedback</h1>
+            <p className="text-base sm:text-lg opacity-95 max-w-xl mx-auto">
+              Help us improve matatu services by sharing your experience
+            </p>
+          </div>
         </div>
 
         <div className="bg-white shadow-lg rounded-xl overflow-hidden">
@@ -81,6 +94,6 @@ export default function ComplaintDemo() {
           </details>
         </div>
       </div>
-    </div>
+    </>
   );
 }
