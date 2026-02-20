@@ -1,4 +1,5 @@
 const ReportService = require('../services/reportService');
+const VehicleModel = require('../models/vehicleModel');
 
 /**
  * ReportController - Handles HTTP requests and responses for report operations.
@@ -7,16 +8,30 @@ const ReportService = require('../services/reportService');
 class ReportController {
   /**
    * Create a new report (POST /api/reports)
-   * Body: { matatuId, reportType, category?, rating?, comment?, userId? }
+   * Body: { matatuId OR plateNumber, reportType OR type, category?, rating?, comment?, userId? }
    */
   static async createReport(req, res, next) {
     try {
-      const { matatuId, reportType, category, rating, comment, userId } = req.body;
+      let { matatuId, plateNumber, reportType, type, category, rating, comment, userId, ntsaPriority, ntsaCategory } = req.body;
+
+      // If plateNumber provided instead of matatuId, look up the vehicle
+      if (!matatuId && plateNumber) {
+        const vehicle = await VehicleModel.getVehicleByRegistration(plateNumber);
+        if (!vehicle) {
+          return res.status(404).json({
+            message: `Vehicle with registration ${plateNumber} not found`,
+          });
+        }
+        matatuId = vehicle.id;
+      }
+
+      // Support both reportType and type field names
+      reportType = reportType || type;
 
       // Basic validation
       if (!matatuId || !reportType) {
         return res.status(400).json({
-          message: 'Missing required fields: matatuId, reportType',
+          message: 'Missing required fields: matatuId (or plateNumber), reportType (or type)',
         });
       }
 
@@ -28,6 +43,8 @@ class ReportController {
         rating,
         comment,
         userId: userId || req.userId || null, // Use auth token user ID if available
+        ntsaPriority,
+        ntsaCategory,
       });
 
       res.status(201).json({

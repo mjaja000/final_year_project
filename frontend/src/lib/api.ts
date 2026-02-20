@@ -116,6 +116,15 @@ export const api = {
     }),
   },
 
+  // Reports (Complaint Demo)
+  reports: {
+    submit: (data: any) => apiFetch<any>('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    getAll: () => apiFetch<any[]>('/api/reports'),
+  },
+
   // Admin APIs
   admin: {
     // Get dashboard overview
@@ -152,6 +161,7 @@ export const api = {
       const query = qs.toString() ? `?${qs.toString()}` : '';
       return apiFetch<any>(`/api/admin/reports${query}`);
     },
+    getAllReports: () => apiFetch<any>('/api/admin/reports'),
   },
 
   // Users (authentication)

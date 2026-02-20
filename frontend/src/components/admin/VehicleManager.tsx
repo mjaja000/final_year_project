@@ -4,8 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Truck } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface Vehicle {
   id: number;
@@ -22,6 +23,7 @@ interface Vehicle {
 }
 
 export default function VehicleManager() {
+  console.log('🚗 VehicleManager component is rendering');
   const { toast } = useToast();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(false);
@@ -48,10 +50,15 @@ export default function VehicleManager() {
       });
       const data = await res.json();
       if (res.ok) {
-        setVehicles(Array.isArray(data.vehicles) ? data.vehicles : data);
+        setVehicles(Array.isArray(data.vehicles) ? data.vehicles : Array.isArray(data) ? data : []);
+        console.log('Vehicles loaded:', data.vehicles?.length || data?.length || 0);
+      } else {
+        console.error('Failed to fetch vehicles:', data);
+        toast({ title: 'Failed to load vehicles', description: data.message || 'Error', variant: 'destructive' });
       }
     } catch (err) {
       console.error('Error fetching vehicles:', err);
+      toast({ title: 'Error loading vehicles', description: 'Please check console for details', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -136,23 +143,41 @@ export default function VehicleManager() {
   };
 
   return (
-    <div className="border border-border rounded-xl p-4 sm:p-5 bg-card">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <p className="text-sm text-muted-foreground">Manage vehicles that drivers can be assigned to</p>
-          <h3 className="text-lg font-semibold">Vehicle Management</h3>
-        </div>
-        <Button variant="outline" size="sm" onClick={fetchVehicles} disabled={loading}>
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </Button>
+    <div className="w-full space-y-6">
+      {/* Prominent header to confirm rendering */}
+      <div className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white p-6 rounded-xl shadow-lg">
+        <h2 className="text-2xl font-bold mb-2">🚗 Vehicle Management System</h2>
+        <p className="text-white/90">Add and manage vehicles in your fleet</p>
       </div>
+
+      {/* Debug indicator */}
+      <div className="p-4 bg-green-50 border-2 border-green-500 rounded-lg">
+        <p className="text-green-900 font-semibold">✅ Component is ACTIVE - Currently showing {vehicles.length} vehicles</p>
+        <p className="text-green-700 text-sm mt-1">API Base: {API_BASE}</p>
+      </div>
+      
+      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900">Manage Vehicles</h3>
+            <p className="text-sm text-gray-600 mt-1">Add vehicles that drivers can be assigned to</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={fetchVehicles} disabled={loading}>
+            {loading ? 'Refreshing...' : '🔄 Refresh'}
+          </Button>
+        </div>
 
       <div className="space-y-6">
         {/* Create Vehicle Form */}
-        <form onSubmit={handleCreate} className="space-y-4">
-          <div>
-            <p className="text-sm text-muted-foreground">Add a new vehicle</p>
-            <h4 className="text-base font-semibold">Add Vehicle</h4>
+        <form onSubmit={handleCreate} className="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-cyan-200 rounded-xl p-6 space-y-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-cyan-500 text-white p-3 rounded-lg">
+              <Truck className="h-6 w-6" />
+            </div>
+            <div>
+              <h4 className="text-xl font-bold text-gray-900">Add New Vehicle</h4>
+              <p className="text-sm text-gray-600">Fill in the vehicle details below</p>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -234,26 +259,34 @@ export default function VehicleManager() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating...' : 'Create Vehicle'}
+          <Button 
+            type="submit" 
+            className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold py-6 text-lg shadow-lg hover:shadow-xl transition-all" 
+            disabled={loading}
+          >
+            {loading ? '⏳ Creating Vehicle...' : '➕ Add Vehicle to Fleet'}
           </Button>
         </form>
 
-        <div className="border-t" />
+        <div className="my-6 border-t-2 border-gray-200" />
 
         {/* Vehicles List */}
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm text-muted-foreground">Manage existing vehicles</p>
-            <h4 className="text-base font-semibold">Vehicles ({vehicles.length})</h4>
+        <div className="space-y-4">
+          <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-lg border border-gray-200">
+            <h4 className="text-lg font-bold text-gray-900">📋 Current Vehicles ({vehicles.length})</h4>
+            <p className="text-sm text-gray-600 mt-1">View and manage your fleet</p>
           </div>
 
           {vehicles.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No vehicles created yet. Add one above to get started.</p>
+            <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+              <Truck className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+              <p className="text-lg font-semibold text-gray-700">No vehicles yet</p>
+              <p className="text-sm text-gray-500 mt-2">Add your first vehicle using the form above</p>
+            </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {vehicles.map((vehicle) => (
-                <div key={vehicle.id} className="p-3 border rounded-lg bg-white/50 dark:bg-white/5 flex items-center justify-between hover:bg-white/80 dark:hover:bg-white/10 transition">
+                <div key={vehicle.id} className="p-4 border-2 border-gray-200 rounded-lg bg-white hover:border-cyan-400 hover:shadow-md transition-all flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm">{vehicle.registration_number}</div>
                     <div className="text-xs text-muted-foreground">

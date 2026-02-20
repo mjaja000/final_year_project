@@ -10,6 +10,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 export default function DriverManager() {
   const { toast } = useToast();
   const [drivers, setDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', driving_license: '', assigned_vehicle_id: '' });
 
@@ -37,8 +38,19 @@ export default function DriverManager() {
     }
   };
 
+  const fetchVehicles = async () => {
+    try {
+      const res = await fetch(API_BASE + '/api/vehicles');
+      const data = await res.json();
+      if (res.ok) setVehicles(data.vehicles || []);
+    } catch (err: any) {
+      console.error('Failed to load vehicles:', err);
+    }
+  };
+
   useEffect(() => { 
     fetchDrivers();
+    fetchVehicles();
     try {
       const raw = localStorage.getItem('lastCreatedDriver');
       if (raw) setLastCreated(JSON.parse(raw));
@@ -95,7 +107,18 @@ export default function DriverManager() {
         <Input placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <Input placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         <Input placeholder="Driving License" value={form.driving_license} onChange={(e) => setForm({ ...form, driving_license: e.target.value })} />
-        <Input placeholder="Assigned Vehicle ID (optional)" value={form.assigned_vehicle_id} onChange={(e) => setForm({ ...form, assigned_vehicle_id: e.target.value })} />
+        <select 
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          value={form.assigned_vehicle_id} 
+          onChange={(e) => setForm({ ...form, assigned_vehicle_id: e.target.value })}
+        >
+          <option value="">No vehicle (optional)</option>
+          {vehicles.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.registration_number} - {v.route_name || 'No route'}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="flex gap-2">
         <Button onClick={handleCreate} disabled={loading} className="bg-green-600">Create Driver</Button>

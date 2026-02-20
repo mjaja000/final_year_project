@@ -1,14 +1,15 @@
 import React from "react";
 import ReportContainer from "../components/ReportContainer";
 import { ReportData } from "@/lib/reportSchema";
+import api from "@/lib/api";
 
 export default function ComplaintDemo() {
   const plates = ["KAA-123A", "KBB-456B", "KCC-789C", "KDD-101D", "KEE-202E"];
 
   const handleSubmit = async (data: ReportData) => {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    console.log("Demo report submitted:", data);
+    // Submit to the backend API
+    await api.reports.submit(data);
+    console.log("Report submitted to database:", data);
   };
 
   return (

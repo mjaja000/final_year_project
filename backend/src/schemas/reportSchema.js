@@ -14,8 +14,8 @@ const INCIDENT_CATEGORIES = [
 // Discriminated union schema for reports
 const generalReportSchema = z.object({
   reportType: z.literal('GENERAL'),
-  userId: z.string().uuid().optional().nullable(),
-  matatuId: z.string().uuid('Invalid matatu ID format'),
+  userId: z.union([z.string().uuid(), z.number()]).optional().nullable(),
+  matatuId: z.union([z.string().uuid(), z.number()]),
   type: z.literal('GENERAL'),
   rating: z.number().int().min(1, 'Rating must be between 1 and 5').max(5),
   category: z.undefined().optional(),
@@ -24,14 +24,16 @@ const generalReportSchema = z.object({
 
 const incidentReportSchema = z.object({
   reportType: z.literal('INCIDENT'),
-  userId: z.string().uuid().optional().nullable(),
-  matatuId: z.string().uuid('Invalid matatu ID format'),
+  userId: z.union([z.string().uuid(), z.number()]).optional().nullable(),
+  matatuId: z.union([z.string().uuid(), z.number()]),
   type: z.literal('INCIDENT'),
   category: z.enum(INCIDENT_CATEGORIES, {
     errorMap: () => ({ message: `Category must be one of: ${INCIDENT_CATEGORIES.join(', ')}` }),
   }),
   rating: z.number().optional(),
   comment: z.string().optional(),
+  ntsaPriority: z.string().optional(),
+  ntsaCategory: z.string().optional(),
 });
 
 // Discriminated union

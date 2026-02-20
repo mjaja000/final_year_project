@@ -277,8 +277,11 @@ class ReportRepository {
     `;
 
     try {
+      console.log('[getAllReports] Executing query with limit:', limit, 'offset:', offset);
       const result = await pool.query(query, [limit, offset]);
+      console.log('[getAllReports] Query returned', result.rows.length, 'rows');
       const countResult = await pool.query('SELECT COUNT(*) as total FROM reports');
+      console.log('[getAllReports] Total reports:', countResult.rows[0].total);
       return {
         reports: result.rows,
         total: parseInt(countResult.rows[0].total, 10),
