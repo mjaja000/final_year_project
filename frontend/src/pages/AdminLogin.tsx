@@ -44,9 +44,11 @@ const AdminLogin = () => {
     setIsLoading(true);
 
     try {
-      // Attempt demo login to get a JWT
-      const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api/auth/demo_login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const isDemo = email.trim() === DEMO_EMAIL && password === DEMO_PASSWORD;
+      const endpoint = isDemo ? '/api/auth/demo_login' : '/api/auth/login';
+      const res = await fetch((import.meta.env.VITE_API_URL || '') + endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
@@ -54,6 +56,8 @@ const AdminLogin = () => {
         localStorage.setItem('token', data.token);
         localStorage.setItem('userRole', data.user?.role || 'admin');
         localStorage.setItem('adminLoginTime', new Date().toISOString());
+        localStorage.setItem('adminEmail', email.trim());
+        localStorage.setItem('adminAuth', 'true');
         toast({ title: 'Welcome back!', description: 'Admin portal access granted.' });
         navigate('/admin/dashboard');
       } else {

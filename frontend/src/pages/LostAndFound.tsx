@@ -6,24 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { PackageSearch, Phone, Car, Loader2, CheckCircle2, ArrowLeft, MessageCircle } from 'lucide-react';
+import { PackageSearch, Phone, Car, Loader2, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-
-const sendWhatsAppMessage = (phoneNumber: string, itemDescription: string) => {
-  // Format phone number for WhatsApp (remove leading 0 and add country code)
-  let whatsappNumber = phoneNumber.replace(/^0/, '254').replace(/\D/g, '');
-  if (!whatsappNumber.startsWith('254')) {
-    whatsappNumber = '254' + whatsappNumber;
-  }
-
-  const message = encodeURIComponent(
-    `Hello! 👋\n\nThank you for reporting your lost item with MatatuConnect.\n\n📦 *Item:* ${itemDescription}\n\nOur team will actively search for your item and contact you if found. We've logged your report in our system.\n\nStay safe and we hope to help you recover your belongings! ✨`
-  );
-
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
-  window.open(whatsappUrl, '_blank');
-};
 
 export default function LostAndFound() {
   const navigate = useNavigate();
@@ -59,12 +44,7 @@ export default function LostAndFound() {
       if (response.success) {
         setSuccessData(response.data);
         setIsSuccess(true);
-        toast.success('Report submitted successfully!');
-        
-        // Automatically open WhatsApp after a short delay
-        setTimeout(() => {
-          sendWhatsAppMessage(formData.phoneNumber, formData.itemDescription);
-        }, 1000);
+        toast.success('Report submitted successfully! WhatsApp confirmation is being sent...');
 
         setFormData({
           itemDescription: '',
@@ -79,12 +59,6 @@ export default function LostAndFound() {
       toast.error('Network error. Please check your connection and try again.');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleSendWhatsApp = () => {
-    if (successData) {
-      sendWhatsAppMessage(formData.phoneNumber || successData.phone_number, successData.item_description);
     }
   };
 
@@ -109,7 +83,7 @@ export default function LostAndFound() {
                   <CheckCircle2 className="h-20 w-20 text-green-600 mb-6 animate-bounce" />
                   <h2 className="text-3xl font-bold text-gray-900 mb-3">Report Submitted Successfully! ✓</h2>
                   <p className="text-lg text-gray-600 mb-8 max-w-md">
-                    Your lost item report (ID: #{successData?.id}) has been registered in our system. We're actively searching for your item.
+                    Your lost item report (ID: #{successData?.id}) has been registered in our system. We're actively searching for your item and sending WhatsApp confirmation.
                   </p>
 
                   <div className="bg-white rounded-lg p-6 w-full mb-8 border-l-4 border-green-600">
@@ -138,22 +112,19 @@ export default function LostAndFound() {
 
                   <div className="space-y-4 w-full">
                     <Button
-                      onClick={handleSendWhatsApp}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-5 text-base font-semibold shadow-lg"
-                      size="lg"
-                    >
-                      <MessageCircle className="h-5 w-5 mr-2" />
-                      Get WhatsApp Confirmation
-                    </Button>
-
-                    <Button
                       onClick={() => navigate('/')}
-                      variant="outline"
-                      className="w-full px-6 py-5 text-base"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-5 text-base"
                       size="lg"
                     >
+                      <ArrowLeft className="h-5 w-5 mr-2" />
                       Return to Home
                     </Button>
+
+                    <div className="bg-green-100 border border-green-300 rounded-lg p-4">
+                      <p className="text-sm text-green-800">
+                        <strong>✓ WhatsApp Confirmation:</strong> A detailed confirmation has been sent to your phone. Check your WhatsApp messages.
+                      </p>
+                    </div>
                   </div>
 
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-8 w-full">

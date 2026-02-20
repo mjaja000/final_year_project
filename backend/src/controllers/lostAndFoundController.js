@@ -1,4 +1,5 @@
 const LostAndFoundModel = require('../models/lostAndFoundModel');
+const WhatsappService = require('../services/whatsappService');
 
 class LostAndFoundController {
   // Create a new lost and found report
@@ -31,6 +32,19 @@ class LostAndFoundController {
         phoneNumber,
         vehiclePlate: vehiclePlate || null
       });
+
+      // Send WhatsApp confirmation to customer
+      try {
+        await WhatsappService.sendLostAndFoundConfirmation(phoneNumber, {
+          reportId: report.id,
+          itemDescription: report.item_description,
+          vehiclePlate: report.vehicle_plate,
+        });
+        console.log('✓ Lost and found confirmation WhatsApp sent to', phoneNumber);
+      } catch (whatsappError) {
+        console.error('⚠️ Failed to send Lost and Found WhatsApp confirmation:', whatsappError.message);
+        // Don't fail the API response - report is already created
+      }
 
       res.status(201).json({
         success: true,
