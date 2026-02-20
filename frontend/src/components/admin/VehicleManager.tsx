@@ -167,7 +167,7 @@ export default function VehicleManager() {
           </Button>
         </div>
 
-      <div className="space-y-6">
+        <div className="space-y-6">
         {/* Create Vehicle Form */}
         <form onSubmit={handleCreate} className="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-cyan-200 rounded-xl p-6 space-y-5">
           <div className="flex items-center gap-3 mb-4">
@@ -311,6 +311,7 @@ export default function VehicleManager() {
               ))}
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>
