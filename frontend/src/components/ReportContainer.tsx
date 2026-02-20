@@ -22,6 +22,66 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
   const [reportType, setReportType] = useState<ReportType>("GENERAL");
   const [isLoading, setIsLoading] = useState(false);
   const [plateQuery, setPlateQuery] = useState("");
+  const ntsaOptions = [
+    {
+      priority: "CRITICAL",
+      category: "Vehicle Safety Violations",
+      examples: [
+        "Missing three-point seatbelts",
+        "Poorly mounted seats",
+        "Missing anti-roll bars",
+        "No conformity plate",
+        "Unroadworthy vehicles operating with RSL Direct violations",
+      ],
+    },
+    {
+      priority: "CRITICAL",
+      category: "Sexual Harassment & Assault",
+      examples: [
+        "Inappropriate physical touching",
+        "Stripping or undressing incidents",
+        "Sexual comments with gestures",
+        "Crew blocking women from exiting",
+      ],
+    },
+    {
+      priority: "HIGH",
+      category: "Dangerous Driving & Operations",
+      examples: [
+        "Speeding and reckless overtaking",
+        "Overloading beyond capacity",
+        "Unauthorized route deviations",
+        "Forcing passengers to alight early",
+      ],
+    },
+    {
+      priority: "MEDIUM",
+      category: "Commercial Exploitation",
+      examples: [
+        "Mid-journey fare hikes",
+        "Overcharging without refund",
+        "Fare manipulation by touts",
+      ],
+    },
+    {
+      priority: "MEDIUM",
+      category: "Verbal Abuse & Harassment",
+      examples: [
+        "Abusive language from crew",
+        "Obscene music forced on passengers",
+        "Intimidation when complaining",
+      ],
+    },
+    {
+      priority: "LOW",
+      category: "Service Quality Issues",
+      examples: [
+        "Dirty or unhygienic vehicles",
+        "Makeshift seats",
+        "Poor customer service",
+      ],
+    },
+  ];
 
   const {
     register,
@@ -194,12 +254,18 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
 
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              {reportType === "GENERAL" ? "Share Your Feedback" : "Report Incident"}
+              {reportType === "GENERAL"
+                ? "Share Your Feedback"
+                : reportType === "REPORT_TO_NTSA"
+                  ? "Report to NTSA"
+                  : "Report Incident"}
             </h2>
             <p className="text-sm text-gray-600 mb-4">
               {reportType === "GENERAL"
                 ? "Rate your experience with this matatu service."
-                : "Provide details about the incident you experienced."}
+                : reportType === "REPORT_TO_NTSA"
+                  ? "Provide details for an NTSA-reportable incident."
+                  : "Provide details about the incident you experienced."}
             </p>
 
             {/* Plate Number Display */}
@@ -265,20 +331,37 @@ export default function ReportContainer({ plateOptions = [], onSubmit, className
               <div>
                 <p className="text-sm font-semibold text-gray-900 mb-2">Complaint Category</p>
                 <div className="grid grid-cols-1 gap-2">
-                  {NTSA_CATEGORIES.map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => setValue("ntsaCategory", category, { shouldValidate: true })}
-                      className={`text-left rounded-lg border-2 p-3 transition-all ${
-                        watchedNtsaCategory === category
-                          ? "border-red-600 bg-red-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      <span className="text-sm font-medium text-gray-900">{category}</span>
-                    </button>
-                  ))}
+                  {ntsaOptions.map((option) => {
+                    const isSelected =
+                      watchedNtsaCategory === option.category && watchedNtsaPriority === option.priority;
+                    return (
+                      <button
+                        key={`${option.priority}-${option.category}`}
+                        type="button"
+                        onClick={() => {
+                          setValue("ntsaPriority", option.priority, { shouldValidate: true });
+                          setValue("ntsaCategory", option.category as (typeof NTSA_CATEGORIES)[number], {
+                            shouldValidate: true,
+                          });
+                        }}
+                        className={`text-left rounded-lg border-2 p-3 transition-all ${
+                          isSelected
+                            ? "border-red-600 bg-red-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold text-red-700">{option.priority}</span>
+                          <span className="text-sm font-medium text-gray-900">{option.category}</span>
+                        </div>
+                        <ul className="mt-2 text-xs text-gray-600 list-disc list-inside">
+                          {option.examples.map((example) => (
+                            <li key={example}>{example}</li>
+                          ))}
+                        </ul>
+                      </button>
+                    );
+                  })}
                 </div>
                 {errors && "ntsaCategory" in errors && errors.ntsaCategory && (
                   <p className="text-xs text-red-600 mt-2">{errors.ntsaCategory.message as string}</p>

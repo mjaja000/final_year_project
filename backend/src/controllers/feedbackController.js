@@ -187,14 +187,11 @@ class FeedbackController {
       console.error('[FEEDBACK API] Code:', error.code);
       console.log('[FEEDBACK API] Duration:', Date.now() - startTime, 'ms');
 
-      res.json({
-        message: 'User feedback fetched',
-        total: feedback.length,
-        feedback,
+      res.status(500).json({
+        success: false,
+        message: 'Failed to submit feedback',
+        error: error.message,
       });
-    } catch (error) {
-      console.error('Get user feedback error:', error);
-      res.status(500).json({ message: 'Failed to fetch feedback', error: error.message });
     }
   }
 
