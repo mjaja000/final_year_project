@@ -7,6 +7,7 @@ const OccupancyModel = require('../models/occupancyModel');
 const ActivityLogModel = require('../models/activityLogModel');
 const DatabaseStatsModel = require('../models/databaseStatsModel');
 const MessageModel = require('../models/messageModel');
+const ReportService = require('../services/reportService');
 const twilio = require('twilio');
 const pool = require('../config/database');
 
@@ -549,6 +550,26 @@ class AdminController {
     } catch (error) {
       console.error('Log activity error:', error);
       res.status(500).json({ message: 'Failed to log activity', error: error.message });
+    }
+  }
+
+  // Get all reports from complaint-demo for admin dashboard
+  static async getAllReports(req, res) {
+    try {
+      const { limit = 50, offset = 0 } = req.query;
+      
+      const result = await ReportService.getAllReports({
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Get all reports error:', error);
+      res.status(error.statusCode || 500).json({
+        message: error.message || 'Failed to fetch reports',
+        error: error.message,
+      });
     }
   }
 }

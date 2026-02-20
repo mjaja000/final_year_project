@@ -251,6 +251,26 @@ class ReportService {
       };
     }
   }
+
+  /**
+   * Get all reports for admin listing.
+   * @param {Object} options - Pagination options
+   * @returns {Promise<Object>} Reports wrapped in success response
+   */
+  static async getAllReports(options = {}) {
+    try {
+      const result = await ReportRepository.getAllReports(options);
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      throw {
+        statusCode: 500,
+        message: `Failed to retrieve reports: ${error.message}`,
+      };
+    }
+  }
 }
 
 module.exports = ReportService;

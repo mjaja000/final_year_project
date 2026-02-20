@@ -1,6 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+<<<<<<< HEAD
+import { LogOut, MessageSquare, CreditCard, ThumbsUp, ThumbsDown, Trello, Gauge, TrendingUp, Users, DollarSign, AlertCircle, Flag, AlertTriangle } from 'lucide-react';
+=======
 import { LogOut, MessageSquare, CreditCard, ThumbsUp, ThumbsDown, Trello, Gauge, TrendingUp, Users, DollarSign, AlertCircle, Truck, Printer } from 'lucide-react';
+>>>>>>> c9b3e1873c37e7de68f6ac514f669748c2dbb386
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/Header';
@@ -18,11 +22,13 @@ import io from 'socket.io-client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import OccupancyDisplay from '@/components/OccupancyDisplay';
 import api from '@/lib/api';
+import ComplaintService from '@/lib/complaint.service';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [feedbackSearch, setFeedbackSearch] = useState('');
+  const [complaintSearch, setComplaintSearch] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
 
   interface FeedbackEntry {
@@ -65,7 +71,11 @@ const AdminDashboard = () => {
     queryKey: ['admin', 'whatsapp', 'chats'],
     queryFn: async () => {
       const res = await fetch(API_BASE + '/api/whatsapp/chats');
-      return res.json();
+      if (!res.ok) {
+        throw new Error(`Failed to fetch WhatsApp chats: ${res.status}`);
+      }
+      const data = await res.json();
+      return data || { contacts: [] };
     },
     refetchInterval: 15000,
   });
@@ -321,7 +331,7 @@ const AdminDashboard = () => {
   };
 
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
-  const [activeTab, setActiveTab] = useState('feedback');
+  const [activeTab, setActiveTab] = useState('complaints');
 
   const sendWhatsAppTest = async () => {
     try {
@@ -354,7 +364,17 @@ const AdminDashboard = () => {
   const queryClient = useQueryClient();
   const feedbackQuery = useQuery({
     queryKey: ['feedback'],
-    queryFn: api.feedback.getAll,
+    queryFn: async () => {
+      console.log('[AdminDashboard] Fetching feedback from backend...');
+      try {
+        const complaints = await ComplaintService.getAllComplaints();
+        console.log('[AdminDashboard] Feedback fetched:', complaints.length, 'items');
+        return complaints;
+      } catch (error: any) {
+        console.error('[AdminDashboard] Feedback fetch error:', error);
+        return [];
+      }
+    },
     refetchInterval: 15000,
   });
   useEffect(() => {
@@ -395,26 +415,45 @@ const AdminDashboard = () => {
         ? (feedbackQuery.data as any).feedback
         : [];
 
-    return raw.map((entry: any) => ({
-      id: String(entry.id ?? entry.feedback_id ?? entry.feedbackId ?? Math.random()),
-      vehicleNumber: entry.registration_number || entry.vehicle_number || entry.vehicleNumber || 'Unknown',
-      route: entry.route_name || `Route ${entry.route_id ?? ''}`,
-      type: String(entry.feedback_type || '').toLowerCase() === 'complaint' ? 'complaint' : 'compliment',
-      message: entry.comment || entry.message || '',
-      timestamp: entry.created_at ? new Date(entry.created_at) : new Date(),
-      status: ((entry.status || 'pending').toLowerCase() as FeedbackEntry['status']),
-    }));
+    console.log('[AdminDashboard] Transforming feedback entries:', raw.length, 'items');
+    
+    return raw.map((entry: any) => {
+      const feedbackEntry: FeedbackEntry = {
+        id: String(entry.id ?? entry.feedback_id ?? Math.random()),
+        vehicleNumber: entry.registration_number || entry.vehicle_number || entry.vehicleNumber || `Vehicle ${entry.vehicle_id}` || 'Unknown',
+        route: entry.route_name || entry.route || `Route ${entry.route_id ?? ''}` || 'Unknown',
+        type: (entry.feedback_type || '').toLowerCase().includes('complaint') ? 'complaint' : 'compliment',
+        message: entry.comment || entry.message || '',
+        timestamp: entry.created_at ? new Date(entry.created_at) : new Date(),
+        status: ((entry.status || 'pending').toLowerCase() as FeedbackEntry['status']),
+      };
+      return feedbackEntry;
+    });
   }, [feedbackQuery.data]);
 
-  // Filter feedback
+  // Filter feedback and complaints separately
+  const filteredComplaints = useMemo(() => {
+    const search = complaintSearch.toLowerCase();
+    return feedbackEntries
+      .filter((f) => f.type === 'complaint')
+      .filter(
+        (f) =>
+          f.vehicleNumber.toLowerCase().includes(search) ||
+          f.route.toLowerCase().includes(search) ||
+          f.message.toLowerCase().includes(search)
+      );
+  }, [feedbackEntries, complaintSearch]);
+
   const filteredFeedback = useMemo(() => {
     const search = feedbackSearch.toLowerCase();
-    return feedbackEntries.filter(
-      (f) =>
-        f.vehicleNumber.toLowerCase().includes(search) ||
-        f.route.toLowerCase().includes(search) ||
-        f.message.toLowerCase().includes(search)
-    );
+    return feedbackEntries
+      .filter((f) => f.type === 'compliment')
+      .filter(
+        (f) =>
+          f.vehicleNumber.toLowerCase().includes(search) ||
+          f.route.toLowerCase().includes(search) ||
+          f.message.toLowerCase().includes(search)
+      );
   }, [feedbackEntries, feedbackSearch]);
 
   // Filter payments
@@ -641,7 +680,7 @@ const AdminDashboard = () => {
 
             <button
               type="button"
-              onClick={() => setActiveTab('feedback')}
+              onClick={() => setActiveTab('complaints')}
               className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
             >
               <div className="flex items-center justify-between mb-3">
@@ -650,9 +689,9 @@ const AdminDashboard = () => {
                 </div>
                 <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded-full">Urgent</span>
               </div>
-              <p className="text-sm opacity-90 mb-1">Pending Review</p>
+              <p className="text-sm opacity-90 mb-1">Complaints Pending</p>
               <p className="text-3xl sm:text-4xl font-bold">
-                {feedbackEntries.filter((f) => f.status === 'pending').length}
+                {feedbackEntries.filter((f) => f.type === 'complaint' && f.status === 'pending').length}
               </p>
             </button>
 
@@ -712,7 +751,12 @@ const AdminDashboard = () => {
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 p-4">
-                <TabsList className="w-full grid grid-cols-2 sm:grid-cols-7 h-auto bg-white rounded-xl shadow-sm p-1">
+                <TabsList className="w-full grid grid-cols-2 sm:grid-cols-8 h-auto bg-white rounded-xl shadow-sm p-1">
+                  <TabsTrigger value="complaints" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white">
+                    <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Complaints</span>
+                    <span className="sm:hidden">Report</span>
+                  </TabsTrigger>
                   <TabsTrigger value="feedback" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white">
                     <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">Feedback</span>
@@ -761,9 +805,31 @@ const AdminDashboard = () => {
               </div>
 
               <div className="p-4 sm:p-6">
+                <TabsContent value="complaints" className="animate-fade-in m-0">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <p className="text-sm text-muted-foreground">User complaints and reports</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => feedbackQuery.refetch()}
+                      disabled={feedbackQuery.isFetching}
+                    >
+                      {feedbackQuery.isFetching ? 'Refreshing...' : 'Refresh'}
+                    </Button>
+                  </div>
+                  <DataTable
+                    data={filteredComplaints}
+                    columns={feedbackColumns}
+                    searchPlaceholder="Search complaints by vehicle, route, or message..."
+                    searchValue={complaintSearch}
+                    onSearchChange={setComplaintSearch}
+                    emptyMessage="No complaints found"
+                  />
+                </TabsContent>
+
                 <TabsContent value="feedback" className="animate-fade-in m-0">
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <p className="text-sm text-muted-foreground">Latest feedback from users</p>
+                    <p className="text-sm text-muted-foreground">Positive feedback and compliments</p>
                     <Button
                       variant="outline"
                       size="sm"
@@ -776,7 +842,7 @@ const AdminDashboard = () => {
                   <DataTable
                     data={filteredFeedback}
                     columns={feedbackColumns}
-                    searchPlaceholder="Search by vehicle, route, or message..."
+                    searchPlaceholder="Search feedback by vehicle, route, or message..."
                     searchValue={feedbackSearch}
                     onSearchChange={setFeedbackSearch}
                     emptyMessage="No feedback entries found"
