@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { MapPin, Navigation } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const socket = API_BASE ? io(API_BASE) : io(); // fall back to same host
@@ -10,6 +11,9 @@ export default function DriverDashboard() {
   const [driver, setDriver] = useState<any>(null);
   const [status, setStatus] = useState('offline');
   const { toast } = useToast();
+  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const locationWatchId = useRef<number | null>(null);
 
   const [trip, setTrip] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -208,18 +212,155 @@ export default function DriverDashboard() {
 
   const toggleStatus = async () => {
     if (!driver) return;
+    
     const newStatus = status === 'online' ? 'offline' : 'online';
-    setStatus(newStatus);
-    // emit socket update
-    socket.emit('driver:updateStatus', { userId: driver.id, status: newStatus, vehicleId: driver.vehicleId || null });
-    toast({ title: `Status: ${newStatus}`, description: 'Status updated' });
-    // Update server-side record (optional)
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(API_BASE + '/api/drivers/assign', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ userId: driver.id }) });
-      // ignore response for now
-    } catch (err) {
-      // ignore
+    
+    // If going online, request location permission
+    if (newStatus === 'online') {
+      if (!navigator.geolocation) {
+        toast({ 
+          title: 'Location not supported', 
+          description: 'Your browser does not support location services',
+          variant: 'destructive' 
+        });
+        return;
+      }
+
+      // Request location permission
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          });
+        });
+
+        const location = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+        
+        setCurrentLocation(location);
+        setLocationEnabled(true);
+
+        // Start watching position for continuous updates
+        const watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            const newLoc = {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude
+            };
+            setCurrentLocation(newLoc);
+            
+            // Send location update to server
+            socket.emit('driver:updateLocation', {
+              userId: driver.id,
+              vehicleId: driver.assigned_vehicle_id || driver.vehicleId,
+              latitude: newLoc.latitude,
+              longitude: newLoc.longitude,
+              accuracy: pos.coords.accuracy
+            });
+          },
+          (error) => {
+            console.error('Location watch error:', error);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+          }
+        );
+        
+        locationWatchId.current = watchId;
+
+        setStatus(newStatus);
+        
+        // Emit status with location
+        socket.emit('driver:updateStatus', { 
+          userId: driver.id, 
+          status: newStatus, 
+          vehicleId: driver.assigned_vehicle_id || driver.vehicleId,
+          latitude: location.latitude,
+          longitude: location.longitude
+        });
+
+        toast({ 
+          title: `Status: ${newStatus}`, 
+          description: 'Location tracking enabled',
+          icon: <Navigation className="h-4 w-4" />
+        });
+
+        // Update server
+        try {
+          const token = localStorage.getItem('token');
+          await fetch(API_BASE + '/api/drivers/location', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json', 
+              Authorization: `Bearer ${token}` 
+            },
+            body: JSON.stringify({
+              latitude: location.latitude,
+              longitude: location.longitude,
+              status: newStatus
+            })
+          });
+        } catch (err) {
+          console.error('Failed to update location on server:', err);
+        }
+
+      } catch (error: any) {
+        let errorMsg = 'Unable to access location';
+        
+        if (error.code === 1) {
+          errorMsg = 'Location permission denied. Please enable location access to go online.';
+        } else if (error.code === 2) {
+          errorMsg = 'Location unavailable. Please check your device settings.';
+        } else if (error.code === 3) {
+          errorMsg = 'Location request timed out. Please try again.';
+        }
+
+        toast({ 
+          title: 'Cannot go online', 
+          description: errorMsg,
+          variant: 'destructive' 
+        });
+        return;
+      }
+    } else {
+      // Going offline - stop location tracking
+      if (locationWatchId.current !== null) {
+        navigator.geolocation.clearWatch(locationWatchId.current);
+        locationWatchId.current = null;
+      }
+      
+      setLocationEnabled(false);
+      setCurrentLocation(null);
+      setStatus(newStatus);
+      
+      socket.emit('driver:updateStatus', { 
+        userId: driver.id, 
+        status: newStatus, 
+        vehicleId: driver.assigned_vehicle_id || driver.vehicleId 
+      });
+      
+      toast({ title: `Status: ${newStatus}`, description: 'Location tracking disabled' });
+
+      // Update server
+      try {
+        const token = localStorage.getItem('token');
+        await fetch(API_BASE + '/api/drivers/location', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+      } catch (err) {
+        console.error('Failed to update status on server:', err);
+      }
     }
   };
 
@@ -317,11 +458,21 @@ export default function DriverDashboard() {
               <div>
                 <div className="text-lg font-semibold">{driver.name} ({driver.username})</div>
                 <div className="text-sm text-muted-foreground">{driver.email} • {driver.phone}</div>
+                {locationEnabled && currentLocation && (
+                  <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                    <MapPin className="h-3 w-3" />
+                    <span>Location active: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}</span>
+                  </div>
+                )}
               </div>
-              <div>
-                <Button onClick={toggleStatus} className={status === 'online' ? 'bg-green-600' : 'bg-gray-500'}>
+              <div className="flex flex-col gap-2">
+                <Button onClick={toggleStatus} className={status === 'online' ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-500 hover:bg-gray-600'}>
+                  <Navigation className="h-4 w-4 mr-2" />
                   {status === 'online' ? 'Go Offline' : 'Go Online'}
                 </Button>
+                {status === 'online' && !locationEnabled && (
+                  <div className="text-xs text-amber-600 text-center">Location access needed</div>
+                )}
               </div>
             </div>
 

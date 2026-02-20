@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import WhatsAppConnect from "@/components/WhatsAppConnect";
+import LiveVehicleMap from "@/components/Map/LiveVehicleMap";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -331,6 +332,23 @@ export default function Index() {
                 View All Routes →
               </Link>
             </div>
+          </section>
+
+          {/* Live Vehicle Tracking Map Section */}
+          <section className="animate-fade-in" aria-labelledby="live-map-heading">
+            <div className="mb-6 sm:mb-8">
+              <div className="flex items-center gap-2 mb-2">
+                <MapPin className="h-5 w-5 text-blue-600" aria-hidden="true" />
+                <h2 id="live-map-heading" className="text-2xl sm:text-3xl font-bold text-gray-900">
+                  Track Vehicles in Real-Time
+                </h2>
+              </div>
+              <p className="text-sm sm:text-base text-gray-600">
+                See where our vehicles are right now. Enable location to find the nearest one to you.
+              </p>
+            </div>
+
+            <LiveVehicleMap height="600px" showLocationToggle={true} />
           </section>
 
           {/* Lost and Found Section - Quick Access Button */}

@@ -19,6 +19,7 @@ const initializeTables = async () => {
     const MessageModel = require('./src/models/messageModel');
     const LostAndFoundModel = require('./src/models/lostAndFoundModel');
     const { createReportsTable } = require('./src/migrations/createReportsTable');
+    const { createVehicleLocationsTable } = require('./src/migrations/createVehicleLocationsTable');
 
     // Create tables in dependency order
     await UserModel.createTable();
@@ -34,6 +35,7 @@ const initializeTables = async () => {
     await ActivityLogModel.createTable();
     await createReportsTable();
     await LostAndFoundModel.createTable();
+    await createVehicleLocationsTable();
 
     console.log('✓ All database tables initialized successfully');
   } catch (error) {
@@ -84,11 +86,44 @@ const server = app.listen(PORT, async () => {
       });
 
       socket.on('driver:updateStatus', (payload) => {
-        // payload should include { userId, status, vehicleId }
+        // payload should include { userId, status, vehicleId, latitude, longitude }
         // broadcast to admin/dashboard and occupancy rooms
         console.log('Socket driver:updateStatus', payload);
         io.to('admin').emit('driver.statusUpdated', payload);
         io.to(`route_${payload.routeId || 'all'}`).emit('driver.statusUpdated', payload);
+        
+        // Broadcast location update for map
+        if (payload.latitude && payload.longitude) {
+          io.emit('vehicle:locationUpdate', {
+            id: payload.vehicleId,
+            vehicleId: payload.vehicleId,
+            latitude: payload.latitude,
+            longitude: payload.longitude,
+            is_online: payload.status === 'online',
+            isOnline: payload.status === 'online',
+            driver_id: payload.userId,
+            last_update: new Date().toISOString()
+          });
+        }
+      });
+
+      // Real-time location updates from drivers
+      socket.on('driver:updateLocation', (payload) => {
+        // payload: { userId, vehicleId, latitude, longitude, accuracy }
+        console.log('Socket driver:updateLocation', payload);
+        
+        // Broadcast to all clients (for live map)
+        io.emit('vehicle:locationUpdate', {
+          id: payload.vehicleId,
+          vehicleId: payload.vehicleId,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          accuracy: payload.accuracy,
+          is_online: true,
+          isOnline: true,
+          driver_id: payload.userId,
+          last_update: new Date().toISOString()
+        });
       });
 
       // Chat: driver or admin can join their user room: 'user_<id>'
