@@ -17,6 +17,7 @@ import Payment from "./pages/Payment";
 import DriverLogin from "./pages/DriverLogin";
 import DriverDashboard from "./pages/DriverDashboard";
 import Drivers from "./pages/Drivers";
+import LiveMapPage from "./pages/LiveMapPage";
 import NotFound from "./pages/NotFound";
 import ComplaintDemo from "./pages/ComplaintDemo";
 import Footer from "@/components/Footer";
@@ -77,6 +78,7 @@ const App = () => (
               <Route path="/drivers" element={<Drivers />} />
 
               <Route path="/driver/dashboard" element={<DriverDashboard />} />
+              <Route path="/live-map" element={<LiveMapPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

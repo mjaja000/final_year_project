@@ -32,7 +32,7 @@ const LiveVehicleMap = ({
   autoRequestLocation = false 
 }: LiveVehicleMapProps) => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [userWantsLocation, setUserWantsLocation] = useState(autoRequestLocation);
+  const [userWantsLocation, setUserWantsLocation] = useState(false); // Never auto-request
   const [nearestVehicle, setNearestVehicle] = useState<{ vehicle: Vehicle; distance: number } | null>(null);
   const { toast } = useToast();
 
@@ -44,7 +44,7 @@ const LiveVehicleMap = ({
     requestLocation
   } = useGeolocation({
     enableHighAccuracy: true,
-    watch: true, // Continuous tracking
+    watch: userWantsLocation, // Only watch when user enables it
     timeout: 10000
   });
 

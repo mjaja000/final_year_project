@@ -337,18 +337,31 @@ export default function Index() {
           {/* Live Vehicle Tracking Map Section */}
           <section className="animate-fade-in" aria-labelledby="live-map-heading">
             <div className="mb-6 sm:mb-8">
-              <div className="flex items-center gap-2 mb-2">
-                <MapPin className="h-5 w-5 text-blue-600" aria-hidden="true" />
-                <h2 id="live-map-heading" className="text-2xl sm:text-3xl font-bold text-gray-900">
-                  Track Vehicles in Real-Time
-                </h2>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-blue-600" aria-hidden="true" />
+                  <h2 id="live-map-heading" className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    Track Vehicles Live
+                  </h2>
+                </div>
+                <Link 
+                  to="/live-map" 
+                  className="text-blue-600 hover:text-blue-700 font-semibold text-sm flex items-center gap-1"
+                >
+                  View Full Map →
+                </Link>
               </div>
-              <p className="text-sm sm:text-base text-gray-600">
-                See where our vehicles are right now. Enable location to find the nearest one to you.
+              <p className="text-sm sm:text-base text-gray-600 mb-3">
+                See all active vehicles on the map. Click "Find Nearest Vehicle" to enable location and find the closest one to you.
               </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-800">
+                  💡 <strong>Tip:</strong> Enable location sharing to see vehicles near you and get distance information
+                </p>
+              </div>
             </div>
 
-            <LiveVehicleMap height="600px" showLocationToggle={true} />
+            <LiveVehicleMap height="400px" showLocationToggle={true} />
           </section>
 
           {/* Lost and Found Section - Quick Access Button */}
