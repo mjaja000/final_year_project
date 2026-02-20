@@ -45,7 +45,8 @@ const LiveVehicleMap = ({
   } = useGeolocation({
     enableHighAccuracy: true,
     watch: userWantsLocation, // Only watch when user enables it
-    timeout: 10000
+    timeout: 10000,
+    autoRequest: false // Never auto-request location on mount
   });
 
   // Fetch initial vehicles from backend

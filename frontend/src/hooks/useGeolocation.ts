@@ -13,6 +13,7 @@ interface GeolocationOptions {
   timeout?: number;
   maximumAge?: number;
   watch?: boolean; // If true, continuously watch position
+  autoRequest?: boolean; // If true, automatically request location on mount
 }
 
 export const useGeolocation = (options: GeolocationOptions = {}) => {
@@ -20,7 +21,8 @@ export const useGeolocation = (options: GeolocationOptions = {}) => {
     enableHighAccuracy = true,
     timeout = 10000,
     maximumAge = 0,
-    watch = false
+    watch = false,
+    autoRequest = false
   } = options;
 
   const [state, setState] = useState<GeolocationState>({
@@ -113,14 +115,17 @@ export const useGeolocation = (options: GeolocationOptions = {}) => {
   }, [watchId]);
 
   useEffect(() => {
-    requestLocation();
+    // Only automatically request location if autoRequest is true
+    if (autoRequest) {
+      requestLocation();
+    }
 
     return () => {
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [requestLocation, watchId]);
+  }, [autoRequest, requestLocation, watchId]);
 
   return {
     ...state,
