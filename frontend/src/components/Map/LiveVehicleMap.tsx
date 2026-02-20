@@ -41,7 +41,8 @@ const LiveVehicleMap = ({
     longitude,
     error: locationError,
     loading: locationLoading,
-    requestLocation
+    requestLocation,
+    requestLocationOnce
   } = useGeolocation({
     enableHighAccuracy: true,
     watch: userWantsLocation, // Only watch when user enables it
@@ -137,7 +138,8 @@ const LiveVehicleMap = ({
   const handleToggleLocation = () => {
     if (!userWantsLocation) {
       setUserWantsLocation(true);
-      requestLocation();
+      // Use requestLocationOnce instead to avoid watch dependency issue
+      requestLocationOnce();
     } else {
       setUserWantsLocation(false);
     }
@@ -190,8 +192,11 @@ const LiveVehicleMap = ({
       {/* Location request help text */}
       {!userWantsLocation && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
-          <p className="text-amber-900">
-            💡 <strong>How to find the nearest vehicle:</strong> Click "Find Nearest Vehicle" to enable location sharing. Your location will appear as a blue dot on the map.
+          <p className="text-amber-900 mb-2">
+            💡 <strong>Find nearby vehicles:</strong>
+          </p>
+          <p className="text-amber-800">
+            Click the <strong>"Find Nearest Vehicle"</strong> button below to share your location. You'll see your position as a blue dot on the map, and the nearest available driver highlighted with a yellow circle.
           </p>
         </div>
       )}
@@ -229,26 +234,38 @@ const LiveVehicleMap = ({
 
       {/* Driver locations legend */}
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-        <h3 className="font-semibold text-sm mb-2">Live Driver Locations</h3>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500 border border-green-700"></div>
-            <span>Driver Online</span>
+        <h3 className="font-semibold text-sm mb-3">Map Legend - What You'll See</h3>
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 rounded-full bg-green-500 border-2 border-green-700 flex-shrink-0"></div>
+            <div>
+              <span className="font-medium">Green Dots = Online Drivers</span>
+              <p className="text-gray-600 text-xs">Drivers currently online and ready to accept trips</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500 border border-red-700"></div>
-            <span>Driver Offline</span>
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 rounded-full bg-red-500 border-2 border-red-700 flex-shrink-0"></div>
+            <div>
+              <span className="font-medium">Red Dots = Offline Drivers</span>
+              <p className="text-gray-600 text-xs">Drivers who are currently not available</p>
+            </div>
           </div>
           {userWantsLocation && latitude && longitude && (
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500 border border-blue-700"></div>
-              <span>Your Location</span>
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-blue-700 flex-shrink-0"></div>
+              <div>
+                <span className="font-medium">Blue Dot = Your Location</span>
+                <p className="text-gray-600 text-xs">Your current position based on shared location</p>
+              </div>
             </div>
           )}
           {nearestVehicle && (
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full border-2 border-yellow-500"></div>
-              <span>Nearest Vehicle</span>
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-4 rounded-full border-4 border-yellow-400 bg-transparent flex-shrink-0"></div>
+              <div>
+                <span className="font-medium">Yellow Circle = Nearest Vehicle</span>
+                <p className="text-gray-600 text-xs">The closest online driver to your location</p>
+              </div>
             </div>
           )}
         </div>

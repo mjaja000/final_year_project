@@ -107,6 +107,35 @@ export const useGeolocation = (options: GeolocationOptions = {}) => {
     }
   }, [enableHighAccuracy, timeout, maximumAge, watch, onSuccess, onError]);
 
+  // Separate function for explicit location request (e.g., from button click)
+  const requestLocationOnce = useCallback(() => {
+    if (!navigator.geolocation) {
+      setState({
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        error: 'Geolocation is not supported by your browser',
+        loading: false
+      });
+      return;
+    }
+
+    setState(prev => ({ ...prev, loading: true, error: null }));
+
+    const geoOptions: PositionOptions = {
+      enableHighAccuracy,
+      timeout,
+      maximumAge
+    };
+
+    // Always get position once when explicitly requested
+    navigator.geolocation.getCurrentPosition(
+      onSuccess,
+      onError,
+      geoOptions
+    );
+  }, [enableHighAccuracy, timeout, maximumAge, onSuccess, onError]);
+
   const stopWatching = useCallback(() => {
     if (watchId !== null) {
       navigator.geolocation.clearWatch(watchId);
@@ -130,6 +159,7 @@ export const useGeolocation = (options: GeolocationOptions = {}) => {
   return {
     ...state,
     requestLocation,
+    requestLocationOnce,
     stopWatching,
     isSupported: 'geolocation' in navigator
   };
