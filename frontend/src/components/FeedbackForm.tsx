@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
+import ComplaintService from '@/lib/complaint.service';
 
 interface FeedbackFormProps {
   route?: { id?: string | number } | null;
@@ -23,6 +24,7 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
   const [reportType, setReportType] = useState<ReportType>('FEEDBACK');
   const [message, setMessage] = useState('');
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(route?.id ? String(route.id) : null);
+  const [incidentCategory, setIncidentCategory] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [whatsappStatus, setWhatsappStatus] = useState<'idle' | 'sent' | 'failed'>('idle');
@@ -227,6 +229,7 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
         onSuccess();
       }, 2000);
     } catch (err: any) {
+      console.error('[FeedbackForm] Submission error:', err);
       toast({
         title: 'Failed to submit feedback',
         description: err.message || 'Please try again.',
@@ -261,6 +264,17 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 animate-fade-in">
+      {/* Debug Info - Only show in development */}
+      {import.meta.env.DEV && (
+        <div className="text-xs bg-muted p-2 rounded border border-dashed mb-4">
+          <div>Routes: {routesQuery.isLoading ? 'Loading...' : routes.length} loaded</div>
+          <div>Vehicles: {vehiclesQuery.isLoading ? 'Loading...' : vehicles.length} loaded</div>
+          <div>Can Submit: {canSubmit ? '✓ Yes' : '✗ No'}</div>
+          {routesQuery.isError && <div className="text-red-600">❌ Routes error: {(routesQuery.error as any)?.message}</div>}
+          {vehiclesQuery.isError && <div className="text-red-600">❌ Vehicles error: {(vehiclesQuery.error as any)?.message}</div>}
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs sm:text-sm text-muted-foreground border-b border-border pb-3">
         <span className="font-medium text-foreground">{selectedRoute?.route_name || 'Select Route'}</span>
         <span className="hidden sm:inline">•</span>
@@ -329,7 +343,10 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <button
             type="button"
-            onClick={() => setFeedbackType('compliment')}
+            onClick={() => {
+              setFeedbackType('compliment');
+              setIncidentCategory(null);
+            }}
             className={cn(
               "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 p-3 sm:p-4 rounded-lg border-2 transition-all duration-200 text-xs sm:text-sm",
               feedbackType === 'compliment'
@@ -588,6 +605,41 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
 
       {/* Actions */}
       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
+        {import.meta.env.DEV && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              console.log('[TEST] Testing feedback API...');
+              try {
+                const testPayload = {
+                  routeId: 1,
+                  vehicleId: 1,
+                  feedbackType: 'Complaint' as const,
+                  comment: 'Test feedback from form debug button',
+                };
+                console.log('[TEST] Payload:', testPayload);
+                const result = await ComplaintService.submitComplaint(testPayload);
+                console.log('[TEST] API Success:', result);
+                toast({
+                  title: 'API Test Success!',
+                  description: 'Feedback API is working properly',
+                });
+              } catch (err: any) {
+                console.error('[TEST] API Error:', err);
+                toast({
+                  title: 'API Test Failed',
+                  description: err.message,
+                  variant: 'destructive',
+                });
+              }
+            }}
+            className="text-xs"
+          >
+            🧪 Test API
+          </Button>
+        )}
         <Button
           type="button"
           variant="outline"
