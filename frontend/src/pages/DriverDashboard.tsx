@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Navigation } from 'lucide-react';
+import { AlertCircle, CheckCircle, Circle, CreditCard, Mail, MapPin, Navigation, Phone, Truck, Users } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const socket = API_BASE ? io(API_BASE) : io(); // fall back to same host
@@ -216,55 +216,67 @@ export default function DriverDashboard() {
     requestLocationAutomatic();
   }, [driver]);
 
+  const getPosition = (options: PositionOptions) =>
+    new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, options);
+    });
+
+  const resolvePosition = async () => {
+    const baseOptions = { enableHighAccuracy: false, timeout: 30000, maximumAge: 1000 };
+    try {
+      return await getPosition(baseOptions);
+    } catch (error: any) {
+      if (error?.code === 2 || error?.code === 3) {
+        const retryOptions = { enableHighAccuracy: true, timeout: 60000, maximumAge: 0 };
+        return await getPosition(retryOptions);
+      }
+      throw error;
+    }
+  };
+
+  const emitLocationUpdate = (pos: GeolocationPosition) => {
+    if (!driver) return;
+    const newLoc = {
+      latitude: pos.coords.latitude,
+      longitude: pos.coords.longitude
+    };
+    setCurrentLocation(newLoc);
+    socket.emit('driver:updateLocation', {
+      userId: driver.id,
+      vehicleId: driver.assigned_vehicle_id || driver.vehicleId,
+      latitude: newLoc.latitude,
+      longitude: newLoc.longitude,
+      accuracy: pos.coords.accuracy
+    });
+  };
+
+  const startLocationWatch = () => {
+    if (!navigator.geolocation || !driver) return;
+    if (locationWatchId.current !== null) {
+      navigator.geolocation.clearWatch(locationWatchId.current);
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => emitLocationUpdate(pos),
+      (error) => {
+        console.error('Location watch error:', error);
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 60000,
+        maximumAge: 5000
+      }
+    );
+    locationWatchId.current = watchId;
+  };
+
   const requestLocationAutomatic = async () => {
     if (!navigator.geolocation || !driver) return;
 
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: false,
-          timeout: 30000,
-          maximumAge: 1000
-        });
-      });
-
-      const location = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude
-      };
-      
-      setCurrentLocation(location);
+      const position = await resolvePosition();
       setLocationEnabled(true);
-
-      // Start watching position for continuous updates
-      const watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          const newLoc = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude
-          };
-          setCurrentLocation(newLoc);
-          
-          // Send location update to server
-          socket.emit('driver:updateLocation', {
-            userId: driver.id,
-            vehicleId: driver.assigned_vehicle_id || driver.vehicleId,
-            latitude: newLoc.latitude,
-            longitude: newLoc.longitude,
-            accuracy: pos.coords.accuracy
-          });
-        },
-        (error) => {
-          console.error('Location watch error:', error);
-        },
-        {
-          enableHighAccuracy: false,
-          timeout: 60000,
-          maximumAge: 5000
-        }
-      );
-      
-      locationWatchId.current = watchId;
+      emitLocationUpdate(position);
+      startLocationWatch();
     } catch (error: any) {
       console.error('Auto-location request failed:', error);
       // Silent fail for auto-request
@@ -282,68 +294,28 @@ export default function DriverDashboard() {
       }
       setLocationEnabled(false);
       setCurrentLocation(null);
-      toast({ 
+      toast({
         title: 'Location tracking disabled',
         description: 'Your location is no longer being shared'
       });
     } else {
       // Turn on location
       if (!navigator.geolocation) {
-        toast({ 
-          title: 'Location not supported', 
+        toast({
+          title: 'Location not supported',
           description: 'Your browser does not support location services',
-          variant: 'destructive' 
+          variant: 'destructive'
         });
         return;
       }
 
       try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: false,
-            timeout: 30000,
-            maximumAge: 1000
-          });
-        });
-
-        const location = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        };
-        
-        setCurrentLocation(location);
+        const position = await resolvePosition();
         setLocationEnabled(true);
+        emitLocationUpdate(position);
+        startLocationWatch();
 
-        // Start watching position for continuous updates
-        const watchId = navigator.geolocation.watchPosition(
-          (pos) => {
-            const newLoc = {
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude
-            };
-            setCurrentLocation(newLoc);
-            
-            socket.emit('driver:updateLocation', {
-              userId: driver.id,
-              vehicleId: driver.assigned_vehicle_id || driver.vehicleId,
-              latitude: newLoc.latitude,
-              longitude: newLoc.longitude,
-              accuracy: pos.coords.accuracy
-            });
-          },
-          (error) => {
-            console.error('Location watch error:', error);
-          },
-          {
-            enableHighAccuracy: false,
-            timeout: 60000,
-            maximumAge: 5000
-          }
-        );
-        
-        locationWatchId.current = watchId;
-        
-        toast({ 
+        toast({
           title: 'Location tracking enabled',
           description: 'Your location is now being shared',
           icon: <MapPin className="h-4 w-4" />
@@ -351,22 +323,22 @@ export default function DriverDashboard() {
       } catch (error: any) {
         let errorMsg = 'Unable to access location';
         let helpText = '';
-        
+
         if (error.code === 1) {
           errorMsg = 'Location permission denied';
           helpText = 'Please enable location permission for this browser:\n1. Click the lock icon in the address bar\n2. Find "Location"\n3. Change it from "Block" to "Allow"';
         } else if (error.code === 2) {
           errorMsg = 'Location service unavailable';
-          helpText = 'Please ensure:\n1. Your device location services are enabled\n2. You have a clear view of the sky (for GPS)\n3. Your internet connection is working';
+          helpText = 'Please ensure:\n1. Location services are enabled on your device\n2. Wi-Fi or GPS is turned on\n3. Try a different browser if this persists';
         } else if (error.code === 3) {
           errorMsg = 'Location request timed out';
           helpText = 'The location request took too long. Please:\n1. Check your network connection\n2. Enable location services on your device\n3. Try again in a moment';
         }
 
-        toast({ 
-          title: 'Location access failed', 
+        toast({
+          title: 'Location access failed',
           description: errorMsg + (helpText ? '\n\n' + helpText : ''),
-          variant: 'destructive' 
+          variant: 'destructive'
         });
       }
     }
@@ -495,11 +467,15 @@ export default function DriverDashboard() {
 
 
   return (
-    <div className="min-h-screen p-6">
-      <h1 className="text-2xl font-bold mb-4">Driver Dashboard</h1>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-3 sm:p-4 md:p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-3xl md:text-4xl font-bold text-slate-900">Driver Dashboard</h1>
+        <p className="text-slate-600 text-sm md:text-base mt-1">Manage your ride requests and location</p>
+      </div>
 
       {/* Location Permission Helper Banner */}
-      <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4 mb-6">
+      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-l-4 border-blue-500 rounded-lg p-4 mb-6 shadow-sm">
         <div className="flex items-start gap-3">
           <MapPin className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
           <div>
@@ -514,169 +490,217 @@ export default function DriverDashboard() {
       </div>
 
       {driver ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="col-span-2 bg-white p-4 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-lg font-semibold">{driver.name} ({driver.username})</div>
-                <div className="text-sm text-muted-foreground">{driver.email} • {driver.phone}</div>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6">
+        <div className="xl:col-span-2">
+          {/* Driver Info Card */}
+          <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow p-5 md:p-6 mb-4 md:mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div className="flex-1">
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-slate-900">{driver.name}</h2>
+                  <p className="text-slate-600 text-sm md:text-base">@{driver.username}</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-3 text-xs md:text-sm text-slate-600">
+                  <span className="flex items-center gap-1"><Phone className="h-4 w-4" /> {driver.phone}</span>
+                  <span className="flex items-center gap-1"><Mail className="h-4 w-4" /> {driver.email}</span>
+                </div>
                 {locationEnabled && currentLocation && (
-                  <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
-                    <MapPin className="h-3 w-3" />
-                    <span>Location active: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}</span>
+                  <div className="flex items-center gap-2 text-xs md:text-sm text-green-700 bg-green-50 rounded-lg p-2 mt-3">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Location active: {currentLocation.latitude.toFixed(4)}°, {currentLocation.longitude.toFixed(4)}°</span>
                   </div>
                 )}
               </div>
-              <div className="flex flex-col gap-2">
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={toggleStatus} 
-                    className={status === 'online' ? 'flex-1 bg-green-600 hover:bg-green-700' : 'flex-1 bg-gray-500 hover:bg-gray-600'}
-                  >
-                    <Navigation className="h-4 w-4 mr-2" />
-                    {status === 'online' ? 'Go Offline' : 'Go Online'}
-                  </Button>
-                  <Button 
-                    onClick={toggleLocationTracking}
-                    className={locationEnabled ? 'flex-1 bg-blue-600 hover:bg-blue-700' : 'flex-1 bg-slate-400 hover:bg-slate-500'}
-                  >
-                    <MapPin className="h-4 w-4 mr-2" />
-                    {locationEnabled ? 'Stop Sharing' : 'Share Location'}
-                  </Button>
-                </div>
-                {!locationEnabled && (
-                  <div className="text-xs text-amber-600 text-center bg-amber-50 rounded p-2">
-                    ⚠️ Location sharing disabled
-                  </div>
-                )}
-                {locationEnabled && status === 'online' && (
-                  <div className="text-xs text-green-600 text-center bg-green-50 rounded p-2">
-                    ✓ Online and sharing location
-                  </div>
-                )}
+
+              {/* Status Buttons - Stack on mobile, row on desktop */}
+              <div className="w-full sm:w-auto flex flex-col sm:flex-col gap-2">
+                <Button 
+                  onClick={toggleStatus} 
+                  className={`flex-1 sm:flex-initial text-sm md:text-base ${
+                    status === 'online' 
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white' 
+                      : 'bg-gray-400 hover:bg-gray-500 text-white'
+                  }`}
+                >
+                  <Navigation className="h-4 w-4 mr-2" />
+                  {status === 'online' ? 'Go Offline' : 'Go Online'}
+                </Button>
+                <Button 
+                  onClick={toggleLocationTracking}
+                  className={`flex-1 sm:flex-initial text-sm md:text-base ${
+                    locationEnabled 
+                      ? 'bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white' 
+                      : 'bg-slate-400 hover:bg-slate-500 text-white'
+                  }`}
+                >
+                  <MapPin className="h-4 w-4 mr-2" />
+                  {locationEnabled ? 'Stop Sharing' : 'Share Location'}
+                </Button>
               </div>
             </div>
 
-            <div className="mt-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Assigned Vehicle</h3>
+            {/* Status Badges */}
+            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200">
+              {locationEnabled && status === 'online' ? (
+                <div className="flex items-center gap-1 bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
+                  <CheckCircle className="h-3 w-3" /> Online & Sharing Location
+                </div>
+              ) : locationEnabled ? (
+                <div className="flex items-center gap-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium">
+                  <MapPin className="h-3 w-3" /> Location Shared
+                </div>
+              ) : status === 'online' ? (
+                <div className="flex items-center gap-1 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-medium">
+                  <AlertCircle className="h-3 w-3" /> Online (No Location)
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-xs font-medium">
+                  <Circle className="h-3 w-3" /> Offline
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Vehicle & Trip Cards - 2 column grid on tablet+, 1 column on mobile */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
+            {/* Assigned Vehicle Card */}
+            <div className="bg-white rounded-xl shadow-md p-5 md:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
+                  <Truck className="h-5 w-5 text-blue-600" />
+                  Assigned Vehicle
+                </h3>
                 <Button 
                   variant="outline" 
                   size="sm" 
                   onClick={refreshDriverData}
                   className="text-xs"
                 >
-                  🔄 Refresh
+                  🔄
                 </Button>
               </div>
-              {console.log('Driver object in render:', {
-                id: driver.id,
-                name: driver.name,
-                assigned_vehicle_id: driver.assigned_vehicle_id,
-                vehicle_reg: driver.vehicle_reg
-              })}
               {driver.assigned_vehicle_id ? (
-                <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                  ✓ {driver.vehicle_reg || `Vehicle ID: ${driver.assigned_vehicle_id}`}
-                </p>
+                <div className="space-y-2">
+                  <div className="text-2xl font-bold text-green-700">{driver.vehicle_reg || `Vehicle ID: ${driver.assigned_vehicle_id}`}</div>
+                  <p className="text-xs md:text-sm text-green-600 flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4" /> Vehicle assigned
+                  </p>
+                </div>
               ) : (
-                <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-                  ⚠ No vehicle assigned. Contact admin to assign a vehicle.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-sm md:text-base text-gray-600 font-medium">No vehicle assigned</p>
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" /> Contact admin to assign a vehicle
+                  </p>
+                </div>
               )}
             </div>
 
-            <div className="mt-6">
-              <h3 className="font-semibold">Active Trip</h3>
+            {/* Active Trip Card */}
+            <div className="bg-white rounded-xl shadow-md p-5 md:p-6">
+              <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2">
+                <Navigation className="h-5 w-5 text-orange-600" />
+                Active Trip
+              </h3>
               {trip ? (
-                <div className="mt-2">
-                  <p><strong>Route:</strong> {trip.route_name || trip.route || 'N/A'}</p>
-                  <p><strong>Vehicle:</strong> {trip.vehicle_reg || trip.vehicle_id}</p>
-                  <p><strong>Status:</strong> {trip.status || 'unknown'}</p>
-                  <p><strong>Capacity:</strong> {trip.capacity || 'N/A'}</p>
-                  <p><strong>Occupancy:</strong> {trip.current_occupancy || 0}</p>
+                <div className="space-y-3">
+                  <div className="bg-orange-50 rounded-lg p-3">
+                    <p className="text-xs text-orange-700 font-medium">ROUTE</p>
+                    <p className="text-lg font-bold text-orange-900">{trip.route_name || trip.route || 'N/A'}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-slate-600 font-medium">STATUS</p>
+                      <p className="font-semibold text-slate-900">{trip.status || 'unknown'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-600 font-medium">VEHICLE</p>
+                      <p className="font-semibold text-slate-900">{trip.vehicle_reg || trip.vehicle_id}</p>
+                    </div>
+                  </div>
 
-                  <div className="flex items-center gap-2 mt-3">
-                    <Button onClick={() => adjustOccupancy('decrement')} variant="outline">-</Button>
-                    <Button onClick={() => adjustOccupancy('increment')} variant="outline">+</Button>
+                  {/* Occupancy Control */}
+                  <div className="bg-slate-50 rounded-lg p-3">
+                    <p className="text-xs text-slate-600 font-medium mb-2">OCCUPANCY</p>
                     <div className="flex items-center gap-2">
-                      <input id="setOccupancy" className="border px-2 py-1 rounded" placeholder="set" type="number" />
-                      <Button onClick={() => {
-                        const el: any = document.getElementById('setOccupancy');
-                        const v = Number(el?.value || 0);
-                        adjustOccupancy('set', v);
-                      }}>Set</Button>
+                      <span className="text-2xl font-bold text-slate-900">{trip.current_occupancy || 0}</span>
+                      <span className="text-slate-600">/ {trip.capacity || 'N/A'}</span>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <Button onClick={() => adjustOccupancy('decrement')} variant="outline" size="sm" className="text-xs flex-1">-</Button>
+                      <Button onClick={() => adjustOccupancy('increment')} variant="outline" size="sm" className="text-xs flex-1">+</Button>
+                      <div className="flex gap-1 flex-1">
+                        <input id="setOccupancy" className="border rounded px-2 py-1 text-xs w-12" placeholder="0" type="number" />
+                        <Button onClick={() => {
+                          const el: any = document.getElementById('setOccupancy');
+                          const v = Number(el?.value || 0);
+                          adjustOccupancy('set', v);
+                        }} variant="outline" size="sm" className="text-xs">Set</Button>
+                      </div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No active trip assigned.</p>
+                <p className="text-sm text-slate-600">No active trip assigned</p>
               )}
             </div>
+          </div>
 
-            <div className="mt-6">
-              <h3 className="font-semibold">Bookings</h3>
+          {/* Bookings & Tickets Section - Stack on tablet, 2 cols on desktop */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+            {/* Bookings Card */}
+            <div className="bg-white rounded-xl shadow-md p-5 md:p-6">
+              <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2">
+                <Users className="h-5 w-5 text-indigo-600" />
+                Bookings
+              </h3>
               {bookings.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No bookings for the active trip.</p>
+                <p className="text-sm text-slate-600">No bookings for the active trip</p>
               ) : (
-                <div className="mt-2 space-y-3">
+                <div className="space-y-3 max-h-96 overflow-y-auto">
                   {bookings.map(b => (
-                    <div key={b.id} className="p-3 border rounded">
-                      <div className="flex justify-between">
-                        <div>
-                          <div className="font-semibold">{b.passenger_name || b.user_name || 'Passenger'}</div>
-                          <div className="text-sm text-muted-foreground">{b.phone || b.user_phone}</div>
+                    <div key={b.id} className="p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1">
+                          <div className="font-semibold text-slate-900 text-sm md:text-base">{b.passenger_name || b.user_name || 'Passenger'}</div>
+                          <div className="text-xs text-slate-600">{b.phone || b.user_phone}</div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm">{b.origin_stop} → {b.destination_stop}</div>
-                          <div className="text-xs text-muted-foreground">{b.status || b.booking_status}</div>
-                        </div>
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-medium">{b.status || b.booking_status}</span>
                       </div>
+                      <div className="text-xs text-slate-600 mt-2">{b.origin_stop} → {b.destination_stop}</div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="mt-6">
-              <h3 className="font-semibold">Vehicle Tickets ({tickets.length})</h3>
-              <p className="text-xs text-muted-foreground mb-2">Completed payments for {driver.vehicle_reg || 'your vehicle'}</p>
+            {/* Tickets Card */}
+            <div className="bg-white rounded-xl shadow-md p-5 md:p-6">
+              <h3 className="font-bold text-lg text-slate-900 mb-1 flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-green-600" />
+                Vehicle Tickets
+              </h3>
+              <p className="text-xs text-slate-600 mb-4">Completed payments for {driver.vehicle_reg || 'your vehicle'}</p>
               {tickets.length === 0 ? (
-                <div className="text-sm text-muted-foreground space-y-1">
-                  <p>No tickets yet.</p>
+                <div className="text-sm text-slate-600 space-y-1">
+                  <p>No tickets yet</p>
                   {!driver.assigned_vehicle_id && (
-                    <p className="text-amber-600 dark:text-amber-400">⚠ You don't have an assigned vehicle. Contact admin.</p>
-                  )}
-                  {driver.assigned_vehicle_id && (
-                    <p className="text-xs">Tickets will appear here when customers pay in vehicle {driver.vehicle_reg}</p>
+                    <p className="text-amber-600 text-xs">⚠ No vehicle assigned. Contact admin.</p>
                   )}
                 </div>
               ) : (
-                <div className="mt-2 space-y-2 max-h-64 overflow-auto">
+                <div className="space-y-2 max-h-96 overflow-y-auto">
                   {tickets.slice(0, 20).map(t => (
-                    <div key={t.id} className="p-3 border rounded bg-white/50">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="text-sm font-semibold">KES {t.amount}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {t.route_name || `Route ${t.route_id}`}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {t.phone_number}
-                          </div>
+                    <div key={t.id} className="p-3 border border-slate-200 rounded-lg hover:bg-green-50 transition">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1">
+                          <div className="text-sm font-bold text-green-700">KES {t.amount}</div>
+                          <div className="text-xs text-slate-600">{t.route_name || `Route ${t.route_id}`}</div>
+                          <div className="text-xs text-slate-600 font-mono">{t.phone_number}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-xs font-mono text-success">
-                            {t.transaction_id || t.checkout_request_id?.slice(-8)}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(t.created_at).toLocaleDateString('en-KE', { 
-                              day: '2-digit', 
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </div>
+                          <div className="text-xs font-mono text-green-700 font-semibold">{t.transaction_id || t.checkout_request_id?.slice(-8)}</div>
+                          <div className="text-xs text-slate-600">{new Date(t.created_at).toLocaleDateString('en-KE', { day: '2-digit', month: 'short' })}</div>
                         </div>
                       </div>
                     </div>
@@ -685,27 +709,31 @@ export default function DriverDashboard() {
               )}
             </div>
           </div>
+        </div>
 
-          <div className="bg-white/80 backdrop-blur p-4 rounded-xl border shadow-sm">
-            <div className="flex items-center justify-between">
+        {/* Admin Chat Card - Full width on mobile, sidebar on desktop */}
+        <div className="xl:col-span-1">
+          <div className="bg-gradient-to-br from-emerald-50 to-cyan-50 rounded-xl shadow-md overflow-hidden border border-emerald-200">
+            {/* Chat Header */}
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4">
               <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-semibold">
+                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center font-semibold">
                   {adminUser?.name ? adminUser.name.charAt(0).toUpperCase() : 'A'}
                 </div>
-                <div>
+                <div className="flex-1">
                   <div className="text-sm font-semibold">Admin Support</div>
-                  <div className="text-xs text-muted-foreground">Online help desk</div>
+                  <div className="text-xs text-emerald-100">Online</div>
                 </div>
               </div>
-              <div className="text-xs text-muted-foreground">Online</div>
             </div>
 
-            <div className="h-64 overflow-auto border rounded-lg mt-3 bg-[radial-gradient(circle_at_1px_1px,rgba(16,185,129,0.12)_1px,transparent_0)] bg-[length:16px_16px] p-4 flex flex-col gap-2">
+            {/* Messages Area */}
+            <div className="h-64 overflow-auto bg-white p-3 md:p-4 space-y-2">
               {messageRows.map((row, idx) => {
                 if (row.type === 'day') {
                   return (
-                    <div key={`day-${row.day}-${idx}`} className="self-center text-[11px] text-muted-foreground bg-white/80 border rounded-full px-3 py-1">
-                      {row.day}
+                    <div key={`day-${row.day}-${idx}`} className="text-center">
+                      <span className="text-[11px] text-slate-500 bg-slate-100 rounded-full px-3 py-1 inline-block">{row.day}</span>
                     </div>
                   );
                 }
@@ -713,43 +741,59 @@ export default function DriverDashboard() {
                 return (
                   <div
                     key={m.id}
-                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm ${m.sender_id === driver.id ? 'self-end bg-emerald-200' : 'self-start bg-white border border-emerald-100'}`}
+                    className={`flex ${m.sender_id === driver.id ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div>{m.message}</div>
-                    <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                      <span>{new Date(m.created_at).toLocaleString()}</span>
-                      {m.sender_id === driver.id && (
-                        <span>{m.is_read ? 'Read' : 'Sent'}</span>
-                      )}
+                    <div
+                      className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                        m.sender_id === driver.id 
+                          ? 'bg-emerald-500 text-white' 
+                          : 'bg-slate-200 text-slate-900'
+                      }`}
+                    >
+                      <div className="break-words">{m.message}</div>
+                      <div className={`mt-1 text-[10px] ${m.sender_id === driver.id ? 'text-emerald-100' : 'text-slate-600'}`}>
+                        {new Date(m.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
+                        {m.sender_id === driver.id && (
+                          <span className="ml-2">{m.is_read ? '✓✓' : '✓'}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
               })}
               {adminTyping && (
-                <div className="self-start rounded-2xl bg-white px-3 py-2 text-sm text-muted-foreground animate-pulse border border-emerald-100">
-                  Typing...
+                <div className="flex justify-start">
+                  <div className="bg-slate-200 text-slate-700 rounded-lg px-3 py-2 text-sm animate-pulse">
+                    Typing...
+                  </div>
                 </div>
               )}
               <div ref={bottomRef} />
             </div>
 
-            <div className="mt-3 flex gap-2 items-center">
-              <input
-                className="flex-1 border rounded-full px-4 py-2"
-                value={messageText}
-                onChange={e => handleInputChange(e.target.value)}
-                onBlur={handleInputBlur}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder="Message admin..."
-              />
-              <Button onClick={sendMessage} className="rounded-full px-5">Send</Button>
+            {/* Message Input */}
+            <div className="bg-white border-t border-emerald-200 p-3">
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={messageText}
+                  onChange={e => handleInputChange(e.target.value)}
+                  onBlur={handleInputBlur}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  placeholder="Message admin..."
+                />
+                <Button onClick={sendMessage} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 rounded-lg text-sm">
+                  Send
+                </Button>
+              </div>
             </div>
           </div>
+        </div>
         </div>
       ) : (
         <p>Loading driver profile...</p>

@@ -50,6 +50,8 @@ const LiveVehicleMap = ({
     autoRequest: false // Never auto-request location on mount
   });
 
+  const isRequestingLocation = userWantsLocation ? locationLoading : false;
+
   // Fetch initial vehicles from backend
   useEffect(() => {
     const fetchVehicles = async () => {
@@ -204,12 +206,12 @@ const LiveVehicleMap = ({
             ) : (
               <Button 
                 onClick={handleToggleLocation}
-                disabled={locationLoading}
+                disabled={isRequestingLocation}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4"
                 title="Click to share your location and find nearby vehicles"
               >
                 <Navigation className="h-5 w-5 mr-2" />
-                {locationLoading ? 'Requesting location...' : 'Find Nearest Vehicle'}
+                {isRequestingLocation ? 'Requesting location...' : 'Find Nearest Vehicle'}
               </Button>
             )}
           </div>

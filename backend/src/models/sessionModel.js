@@ -13,9 +13,11 @@ class SessionModel {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           is_active BOOLEAN DEFAULT TRUE,
-          expires_at TIMESTAMP,
-          UNIQUE(user_id, is_active)
+          expires_at TIMESTAMP
         );
+
+        ALTER TABLE user_sessions
+        DROP CONSTRAINT IF EXISTS user_sessions_user_id_is_active_key;
         
         CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
         CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
@@ -30,15 +32,24 @@ class SessionModel {
   }
 
   // Save a new session
-  static async saveSession(userId, token, deviceInfo, ipAddress, expiresAt) {
+  // For drivers: invalidates old sessions (single-device login)
+  // For admins: allows multiple concurrent sessions
+  static async saveSession(userId, token, deviceInfo, ipAddress, expiresAt, userRole = 'user') {
     try {
-      // First, invalidate any existing active sessions for this user
-      await pool.query(
-        'UPDATE user_sessions SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE',
-        [userId]
-      );
+      // For drivers only, invalidate any existing active sessions
+      if (userRole === 'driver') {
+        // Clear old inactive sessions to avoid legacy unique constraint collisions
+        await pool.query(
+          'DELETE FROM user_sessions WHERE user_id = $1 AND is_active = FALSE',
+          [userId]
+        );
+        await pool.query(
+          'UPDATE user_sessions SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE',
+          [userId]
+        );
+      }
 
-      // Then create new session
+      // Create new session
       const query = `
         INSERT INTO user_sessions (user_id, token, device_info, ip_address, expires_at, is_active)
         VALUES ($1, $2, $3, $4, $5, TRUE)

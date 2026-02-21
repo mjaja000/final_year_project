@@ -47,16 +47,16 @@ export const useGeolocation = (options: GeolocationOptions = {}) => {
 
   const onError = useCallback((error: GeolocationPositionError) => {
     let errorMessage = 'Unable to retrieve location';
-    
+
     switch (error.code) {
       case error.PERMISSION_DENIED:
         errorMessage = 'Location permission denied. Please enable location access.';
         break;
       case error.POSITION_UNAVAILABLE:
-        errorMessage = 'Location information unavailable.';
+        errorMessage = 'Location information unavailable. Enable device location services and Wi-Fi/GPS, then try again.';
         break;
       case error.TIMEOUT:
-        errorMessage = 'Location request timed out.';
+        errorMessage = 'Location request timed out. Please try again.';
         break;
     }
 
@@ -76,6 +76,18 @@ export const useGeolocation = (options: GeolocationOptions = {}) => {
         longitude: null,
         accuracy: null,
         error: 'Geolocation is not supported by your browser',
+        loading: false
+      });
+      return;
+    }
+
+    // Check if we're in a secure context (required for geolocation on non-localhost)
+    if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      setState({
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        error: 'Location requires HTTPS. Access via localhost or use HTTPS connection.',
         loading: false
       });
       return;
@@ -108,7 +120,7 @@ export const useGeolocation = (options: GeolocationOptions = {}) => {
   }, [enableHighAccuracy, timeout, maximumAge, watch, onSuccess, onError]);
 
   // Separate function for explicit location request (e.g., from button click)
-  const requestLocationOnce = useCallback(() => {
+  const requestLocationOnce = useCallback(async () => {
     if (!navigator.geolocation) {
       setState({
         latitude: null,
@@ -120,20 +132,52 @@ export const useGeolocation = (options: GeolocationOptions = {}) => {
       return;
     }
 
+    // Check if we're in a secure context (required for geolocation on non-localhost)
+    if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      setState({
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        error: 'Location requires HTTPS. Access via localhost or use HTTPS connection.',
+        loading: false
+      });
+      return;
+    }
+
     setState(prev => ({ ...prev, loading: true, error: null }));
 
-    const geoOptions: PositionOptions = {
+    const getPosition = (options: PositionOptions) =>
+      new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, options);
+      });
+
+    const baseOptions: PositionOptions = {
       enableHighAccuracy,
       timeout,
       maximumAge
     };
 
-    // Always get position once when explicitly requested
-    navigator.geolocation.getCurrentPosition(
-      onSuccess,
-      onError,
-      geoOptions
-    );
+    try {
+      const position = await getPosition(baseOptions);
+      onSuccess(position);
+    } catch (error: any) {
+      if (error?.code === 2 || error?.code === 3) {
+        try {
+          const retryOptions: PositionOptions = {
+            enableHighAccuracy: true,
+            timeout: Math.max(timeout, 30000),
+            maximumAge: 0
+          };
+          const position = await getPosition(retryOptions);
+          onSuccess(position);
+          return;
+        } catch (retryError: any) {
+          onError(retryError);
+          return;
+        }
+      }
+      onError(error);
+    }
   }, [enableHighAccuracy, timeout, maximumAge, onSuccess, onError]);
 
   const stopWatching = useCallback(() => {

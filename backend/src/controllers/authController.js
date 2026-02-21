@@ -59,7 +59,7 @@ class AuthController {
 
       // Determine JWT expiration (7 days)
       const expiresIn = process.env.JWT_EXPIRE || '7d';
-      const expiresInMS = this.parseExpireTime(expiresIn);
+      const expiresInMS = AuthController.parseExpireTime(expiresIn);
       const expiresAt = new Date(Date.now() + expiresInMS);
 
       // Generate token
@@ -73,12 +73,12 @@ class AuthController {
       const deviceInfo = req.headers['user-agent'] || 'Unknown Device';
       const ipAddress = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
 
-      // Save session (this will invalidate any previous sessions for this user)
-      await SessionModel.saveSession(user.id, token, deviceInfo, ipAddress, expiresAt);
+      // Save session (for drivers: invalidates old sessions; for admins: allows multiple sessions)
+      await SessionModel.saveSession(user.id, token, deviceInfo, ipAddress, expiresAt, user.role);
 
-      // Check if was logged in from another device
+      // Check if was logged in from another device (only relevant for drivers)
       const oldSessions = await SessionModel.getUserSessions(user.id);
-      const isNewDevice = oldSessions.filter(s => s.is_active).length === 1; // Only current session is active
+      const isNewDevice = user.role === 'driver' && oldSessions.filter(s => s.is_active).length === 1; // Only current session is active
 
       res.json({
         message: 'Login successful',
