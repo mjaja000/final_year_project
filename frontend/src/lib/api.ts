@@ -163,6 +163,20 @@ export const api = {
   admin: {
     // Get dashboard overview
     getDashboard: () => apiFetch<any>('/api/admin/dashboard'),
+
+    // Get feedback/complaints for admin dashboard
+    getFeedback: (params?: { limit?: number; offset?: number; routeId?: string; vehicleId?: string; feedbackType?: string; startDate?: string; endDate?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.offset) qs.set('offset', String(params.offset));
+      if (params?.routeId) qs.set('routeId', params.routeId);
+      if (params?.vehicleId) qs.set('vehicleId', params.vehicleId);
+      if (params?.feedbackType) qs.set('feedbackType', params.feedbackType);
+      if (params?.startDate) qs.set('startDate', params.startDate);
+      if (params?.endDate) qs.set('endDate', params.endDate);
+      const query = qs.toString() ? `?${qs.toString()}` : '';
+      return apiFetch<any>(`/api/admin/feedback${query}`);
+    },
     
     // Get all payments
     getPayments: (params?: { limit?: number; offset?: number; routeId?: string; status?: string; startDate?: string; endDate?: string }) => {

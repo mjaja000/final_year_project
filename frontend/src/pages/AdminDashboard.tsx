@@ -18,7 +18,6 @@ import io from 'socket.io-client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import OccupancyDisplay from '@/components/OccupancyDisplay';
 import api from '@/lib/api';
-import ComplaintService from '@/lib/complaint.service';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -359,16 +358,63 @@ const AdminDashboard = () => {
   // Socket: subscribe to server events for admin
   const queryClient = useQueryClient();
   const feedbackQuery = useQuery({
-    queryKey: ['feedback'],
+    queryKey: ['admin', 'feedback', 'reports'],
     queryFn: async () => {
-      console.log('[AdminDashboard] Fetching feedback from backend...');
+      console.log('[AdminDashboard] Fetching feedback and reports from backend...');
       try {
-        const complaints = await ComplaintService.getAllComplaints();
-        console.log('[AdminDashboard] Feedback fetched:', complaints.length, 'items');
-        return complaints;
+        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+        const [feedbackResult, reportsResult] = await Promise.allSettled([
+          fetch(`${apiBase}/api/admin/feedback?limit=1000`).then((res) => {
+            if (!res.ok) throw new Error(`Admin feedback failed: ${res.status}`);
+            return res.json();
+          }),
+          fetch(`${apiBase}/api/admin/reports?limit=1000`).then((res) => {
+            if (!res.ok) throw new Error(`Admin reports failed: ${res.status}`);
+            return res.json();
+          }),
+        ]);
+
+        const feedback =
+          feedbackResult.status === 'fulfilled' && Array.isArray(feedbackResult.value?.feedback)
+            ? feedbackResult.value.feedback
+            : [];
+
+        const reports =
+          reportsResult.status === 'fulfilled' && Array.isArray(reportsResult.value?.reports)
+            ? reportsResult.value.reports
+            : [];
+
+        if (feedback.length === 0 && feedbackResult.status === 'rejected') {
+          try {
+            const fallbackRes = await fetch(`${apiBase}/api/feedback`);
+            if (fallbackRes.ok) {
+              const fallbackData = await fallbackRes.json();
+              const fallbackFeedback = Array.isArray(fallbackData?.feedback)
+                ? fallbackData.feedback
+                : Array.isArray(fallbackData)
+                  ? fallbackData
+                  : [];
+              console.log('[AdminDashboard] Fallback feedback fetched:', fallbackFeedback.length, 'items');
+              return { feedback: fallbackFeedback, reports };
+            }
+          } catch (fallbackError) {
+            console.error('[AdminDashboard] Fallback /api/feedback failed:', fallbackError);
+          }
+        }
+
+        if (feedbackResult.status === 'rejected') {
+          console.error('[AdminDashboard] Failed to fetch admin feedback:', feedbackResult.reason);
+        }
+        if (reportsResult.status === 'rejected') {
+          console.error('[AdminDashboard] Failed to fetch admin reports:', reportsResult.reason);
+        }
+
+        console.log('[AdminDashboard] Feedback fetched:', feedback.length, 'items; Reports fetched:', reports.length, 'items');
+        return { feedback, reports };
       } catch (error: any) {
-        console.error('[AdminDashboard] Feedback fetch error:', error);
-        return [];
+        console.error('[AdminDashboard] Feedback/report fetch error:', error);
+        return { feedback: [], reports: [] };
       }
     },
     refetchInterval: 15000,
@@ -405,26 +451,42 @@ const AdminDashboard = () => {
   }, [queryClient, toast]);
 
   const feedbackEntries = useMemo<FeedbackEntry[]>(() => {
-    const raw = Array.isArray(feedbackQuery.data)
-      ? feedbackQuery.data
-      : Array.isArray((feedbackQuery.data as any)?.feedback)
-        ? (feedbackQuery.data as any).feedback
-        : [];
+    const feedbackRaw = Array.isArray((feedbackQuery.data as any)?.feedback)
+      ? (feedbackQuery.data as any).feedback
+      : [];
 
-    console.log('[AdminDashboard] Transforming feedback entries:', raw.length, 'items');
-    
-    return raw.map((entry: any) => {
-      const feedbackEntry: FeedbackEntry = {
-        id: String(entry.id ?? entry.feedback_id ?? Math.random()),
-        vehicleNumber: entry.registration_number || entry.vehicle_number || entry.vehicleNumber || `Vehicle ${entry.vehicle_id}` || 'Unknown',
+    const reportsRaw = Array.isArray((feedbackQuery.data as any)?.reports)
+      ? (feedbackQuery.data as any).reports
+      : [];
+
+    console.log('[AdminDashboard] Transforming feedback entries:', feedbackRaw.length, 'feedback and', reportsRaw.length, 'reports');
+
+    const feedbackItems: FeedbackEntry[] = feedbackRaw.map((entry: any) => ({
+      id: `fb-${String(entry.id ?? entry.feedback_id ?? Math.random())}`,
+      vehicleNumber: entry.registration_number || entry.vehicle_number || entry.vehicleNumber || `Vehicle ${entry.vehicle_id}` || 'Unknown',
+      route: entry.route_name || entry.route || `Route ${entry.route_id ?? ''}` || 'Unknown',
+      type: (entry.feedback_type || '').toLowerCase().includes('complaint') ? 'complaint' : 'compliment',
+      message: entry.comment || entry.message || '',
+      timestamp: entry.created_at ? new Date(entry.created_at) : new Date(),
+      status: ((entry.status || 'pending').toLowerCase() as FeedbackEntry['status']),
+    }));
+
+    const reportItems: FeedbackEntry[] = reportsRaw.map((entry: any) => {
+      const reportType = String(entry.type || '').toUpperCase();
+      const mappedType: FeedbackEntry['type'] = reportType === 'GENERAL' ? 'compliment' : 'complaint';
+
+      return {
+        id: `rp-${String(entry.id ?? Math.random())}`,
+        vehicleNumber: entry.registration_number || entry.vehicle_number || entry.vehicleNumber || `Vehicle ${entry.matatu_id}` || 'Unknown',
         route: entry.route_name || entry.route || `Route ${entry.route_id ?? ''}` || 'Unknown',
-        type: (entry.feedback_type || '').toLowerCase().includes('complaint') ? 'complaint' : 'compliment',
-        message: entry.comment || entry.message || '',
+        type: mappedType,
+        message: entry.comment || entry.message || entry.category || '',
         timestamp: entry.created_at ? new Date(entry.created_at) : new Date(),
-        status: ((entry.status || 'pending').toLowerCase() as FeedbackEntry['status']),
+        status: 'pending',
       };
-      return feedbackEntry;
     });
+
+    return [...feedbackItems, ...reportItems].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }, [feedbackQuery.data]);
 
   // Filter feedback and complaints separately
