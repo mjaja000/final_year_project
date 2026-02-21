@@ -11,6 +11,16 @@ class FeedbackModel {
         vehicle_id INTEGER NOT NULL,
         feedback_type VARCHAR(50) NOT NULL,
         comment TEXT NOT NULL,
+        report_type VARCHAR(50),
+        ntsa_priority VARCHAR(20),
+        ntsa_category VARCHAR(100),
+        ntsa_forwarded BOOLEAN DEFAULT FALSE,
+        sacco_name VARCHAR(150),
+        incident_date DATE,
+        incident_time TIME,
+        crew_details TEXT,
+        evidence TEXT,
+        vehicle_number VARCHAR(50),
         status VARCHAR(50) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -23,6 +33,40 @@ class FeedbackModel {
       BEGIN
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='status') THEN
           ALTER TABLE feedback ADD COLUMN status VARCHAR(50) DEFAULT 'pending';
+        END IF;
+      END
+      $$;
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='report_type') THEN
+          ALTER TABLE feedback ADD COLUMN report_type VARCHAR(50);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='ntsa_priority') THEN
+          ALTER TABLE feedback ADD COLUMN ntsa_priority VARCHAR(20);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='ntsa_category') THEN
+          ALTER TABLE feedback ADD COLUMN ntsa_category VARCHAR(100);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='ntsa_forwarded') THEN
+          ALTER TABLE feedback ADD COLUMN ntsa_forwarded BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='sacco_name') THEN
+          ALTER TABLE feedback ADD COLUMN sacco_name VARCHAR(150);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='incident_date') THEN
+          ALTER TABLE feedback ADD COLUMN incident_date DATE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='incident_time') THEN
+          ALTER TABLE feedback ADD COLUMN incident_time TIME;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='crew_details') THEN
+          ALTER TABLE feedback ADD COLUMN crew_details TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='evidence') THEN
+          ALTER TABLE feedback ADD COLUMN evidence TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedback' AND column_name='vehicle_number') THEN
+          ALTER TABLE feedback ADD COLUMN vehicle_number VARCHAR(50);
         END IF;
       END
       $$;
@@ -46,14 +90,59 @@ class FeedbackModel {
   }
 
   // Submit feedback (FR1: route, vehicle, feedback type, comment)
-  static async submitFeedback(userId, routeId, vehicleId, feedbackType, comment) {
+  static async submitFeedback(
+    userId,
+    routeId,
+    vehicleId,
+    feedbackType,
+    comment,
+    reportType,
+    ntsaPriority,
+    ntsaCategory,
+    saccoName,
+    incidentDate,
+    incidentTime,
+    crewDetails,
+    evidence,
+    vehicleNumber
+  ) {
     const query = `
-      INSERT INTO feedback (user_id, route_id, vehicle_id, feedback_type, comment)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO feedback (
+        user_id,
+        route_id,
+        vehicle_id,
+        feedback_type,
+        comment,
+        report_type,
+        ntsa_priority,
+        ntsa_category,
+        sacco_name,
+        incident_date,
+        incident_time,
+        crew_details,
+        evidence,
+        vehicle_number
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *;
     `;
     try {
-      const result = await pool.query(query, [userId, routeId, vehicleId, feedbackType, comment]);
+      const result = await pool.query(query, [
+        userId,
+        routeId,
+        vehicleId,
+        feedbackType,
+        comment,
+        reportType,
+        ntsaPriority,
+        ntsaCategory,
+        saccoName,
+        incidentDate,
+        incidentTime,
+        crewDetails,
+        evidence,
+        vehicleNumber,
+      ]);
       return result.rows[0];
     } catch (error) {
       throw error;
@@ -198,6 +287,21 @@ class FeedbackModel {
     `;
     try {
       const result = await pool.query(query, [status, id]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async updateNTSAForwarded(id, forwarded) {
+    const query = `
+      UPDATE feedback
+      SET ntsa_forwarded = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *;
+    `;
+    try {
+      const result = await pool.query(query, [forwarded, id]);
       return result.rows[0];
     } catch (error) {
       throw error;

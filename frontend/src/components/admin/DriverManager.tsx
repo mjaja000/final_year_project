@@ -16,6 +16,7 @@ interface OccupancyVehicleOption {
 export default function DriverManager() {
   const { toast } = useToast();
   const [drivers, setDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
   const [occupancyVehicles, setOccupancyVehicles] = useState<OccupancyVehicleOption[]>([]);
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
@@ -43,6 +44,16 @@ export default function DriverManager() {
       toast({ title: 'Failed to load drivers', description: err.message || 'Error', variant: 'destructive' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVehicles = async () => {
+    try {
+      const res = await fetch(API_BASE + '/api/vehicles');
+      const data = await res.json();
+      if (res.ok) setVehicles(data.vehicles || []);
+    } catch (err: any) {
+      console.error('Failed to load vehicles:', err);
     }
   };
 
@@ -116,7 +127,6 @@ export default function DriverManager() {
 
   useEffect(() => { 
     fetchDrivers();
-    fetchOccupancyVehicles();
     try {
       const raw = localStorage.getItem('lastCreatedDriver');
       if (raw) setLastCreated(JSON.parse(raw));
@@ -173,15 +183,15 @@ export default function DriverManager() {
         <Input placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <Input placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         <Input placeholder="Driving License" value={form.driving_license} onChange={(e) => setForm({ ...form, driving_license: e.target.value })} />
-        <select
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          value={form.assigned_vehicle_id}
+        <select 
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          value={form.assigned_vehicle_id} 
           onChange={(e) => setForm({ ...form, assigned_vehicle_id: e.target.value })}
         >
-          <option value="">Assign vehicle from occupancy (optional)</option>
-          {occupancyVehicles.map((v) => (
-            <option key={v.vehicleId} value={String(v.vehicleId)}>
-              {v.registrationNumber} — {v.routeLabel}
+          <option value="">No vehicle (optional)</option>
+          {vehicles.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.registration_number} - {v.route_name || 'No route'}
             </option>
           ))}
         </select>

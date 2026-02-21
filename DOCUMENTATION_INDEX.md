@@ -51,6 +51,11 @@ Third-party service integrations and setup guides.
 
 | Document | Description | Audience |
 |----------|-------------|----------|
+| **[NTSA_FEEDBACK_INTEGRATION.md](NTSA_FEEDBACK_INTEGRATION.md)** ⭐ NEW | NTSA complaint reporting system | Everyone |
+| **[NTSA_SETUP_TESTING.md](NTSA_SETUP_TESTING.md)** ⭐ NEW | NTSA setup and testing guide | DevOps, QA |
+| **[NTSA_ARCHITECTURE_DECISIONS.md](NTSA_ARCHITECTURE_DECISIONS.md)** ⭐ NEW | NTSA design decisions and rationale | Tech Leads, Architects |
+| **[NTSA_DEPLOYMENT_GUIDE.md](NTSA_DEPLOYMENT_GUIDE.md)** ⭐ NEW | NTSA deployment and rollback | DevOps |
+| **[NTSA_QUICK_REFERENCE.md](NTSA_QUICK_REFERENCE.md)** ⭐ NEW | NTSA quick reference card | All teams |
 | **[TWILIO_WHATSAPP_SETUP.md](TWILIO_WHATSAPP_SETUP.md)** | WhatsApp integration guide | DevOps, Developers |
 | **[WHATSAPP_OVERVIEW.md](WHATSAPP_OVERVIEW.md)** | WhatsApp feature overview | Product Managers |
 | **[WHATSAPP_IMPLEMENTATION_COMPLETE.md](WHATSAPP_IMPLEMENTATION_COMPLETE.md)** | WhatsApp implementation details | Developers |
@@ -151,47 +156,62 @@ Essential information at a glance.
 
 ### For Developers
 1. Start: [QUICK_START.md](QUICK_START.md)
-2. Architecture: [BACKEND_ARCHITECTURE.md](BACKEND_ARCHITECTURE.md)
-3. API: [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
-4. Testing: [README_TESTING.md](README_TESTING.md)
-5. Complete Guide: [COMPLETE_DOCUMENTATION.md](COMPLETE_DOCUMENTATION.md)
+2. NTSA Integration: [NTSA_FEEDBACK_INTEGRATION.md](NTSA_FEEDBACK_INTEGRATION.md) ⭐ NEW
+3. Architecture: [BACKEND_ARCHITECTURE.md](BACKEND_ARCHITECTURE.md)
+4. API: [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
+5. Testing: [README_TESTING.md](README_TESTING.md)
+6. Complete Guide: [COMPLETE_DOCUMENTATION.md](COMPLETE_DOCUMENTATION.md)
 
 ### For DevOps/Deployment
 1. Setup: [SETUP_GUIDE.md](SETUP_GUIDE.md)
-2. WhatsApp: [TWILIO_WHATSAPP_SETUP.md](TWILIO_WHATSAPP_SETUP.md)
-3. Webhooks: [WEBHOOK_SETUP.md](WEBHOOK_SETUP.md)
-4. Database: [DATABASE_ERD.md](DATABASE_ERD.md)
+2. NTSA Deployment: [NTSA_DEPLOYMENT_GUIDE.md](NTSA_DEPLOYMENT_GUIDE.md) ⭐ NEW
+3. NTSA Testing: [NTSA_SETUP_TESTING.md](NTSA_SETUP_TESTING.md) ⭐ NEW
+4. WhatsApp: [TWILIO_WHATSAPP_SETUP.md](TWILIO_WHATSAPP_SETUP.md)
+5. Webhooks: [WEBHOOK_SETUP.md](WEBHOOK_SETUP.md)
+6. Database: [DATABASE_ERD.md](DATABASE_ERD.md)
 
 ### For Product Managers
-1. Overview: [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)
-2. Requirements: [ACTUAL_REQUIREMENTS.md](ACTUAL_REQUIREMENTS.md)
-3. Progress: [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md)
-4. Completion: [COMPLETION_REPORT.md](COMPLETION_REPORT.md)
+1. NTSA Overview: [NTSA_FEEDBACK_INTEGRATION.md](NTSA_FEEDBACK_INTEGRATION.md) ⭐ NEW
+2. Project Overview: [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)
+3. Requirements: [ACTUAL_REQUIREMENTS.md](ACTUAL_REQUIREMENTS.md)
+4. Progress: [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md)
+5. Completion: [COMPLETION_REPORT.md](COMPLETION_REPORT.md)
 
 ### For QA/Testers
-1. Testing Guide: [README_TESTING.md](README_TESTING.md)
-2. Requirements Check: [REQUIREMENTS_VERIFICATION_REPORT.md](REQUIREMENTS_VERIFICATION_REPORT.md)
-3. API Reference: [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
+1. NTSA Testing: [NTSA_SETUP_TESTING.md](NTSA_SETUP_TESTING.md) ⭐ NEW
+2. Testing Guide: [README_TESTING.md](README_TESTING.md)
+3. Requirements Check: [REQUIREMENTS_VERIFICATION_REPORT.md](REQUIREMENTS_VERIFICATION_REPORT.md)
+4. API Reference: [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
 
 ### For Administrators
-1. Dashboard Guide: [MANAGEMENT_DASHBOARD_GUIDE.md](MANAGEMENT_DASHBOARD_GUIDE.md)
-2. Quick Start: [QUICK_START.md](QUICK_START.md)
-3. Feature Overview: [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)
+1. NTSA Quick Ref: [NTSA_QUICK_REFERENCE.md](NTSA_QUICK_REFERENCE.md) ⭐ NEW
+2. Dashboard Guide: [MANAGEMENT_DASHBOARD_GUIDE.md](MANAGEMENT_DASHBOARD_GUIDE.md)
+3. Quick Start: [QUICK_START.md](QUICK_START.md)
+4. Feature Overview: [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)
 
 ### For New Contributors
 1. **Start Here**: [START_HERE.md](START_HERE.md)
 2. Project Structure: [PROJECT_STRUCTURE_UPDATED.md](PROJECT_STRUCTURE_UPDATED.md)
 3. Setup: [QUICK_START.md](QUICK_START.md)
-4. Architecture: [BACKEND_ARCHITECTURE.md](BACKEND_ARCHITECTURE.md)
+4. NTSA Feature: [NTSA_FEEDBACK_INTEGRATION.md](NTSA_FEEDBACK_INTEGRATION.md) ⭐ NEW
+5. Architecture: [BACKEND_ARCHITECTURE.md](BACKEND_ARCHITECTURE.md)
 
 ### For Presenters/Demos
 1. Demo Script: [QUICK_DEMO_SCRIPT.md](QUICK_DEMO_SCRIPT.md)
 2. Demo Guide: [DEMO_GUIDE.md](DEMO_GUIDE.md)
-3. Feature Overview: [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)
+3. NTSA Overview: [NTSA_QUICK_REFERENCE.md](NTSA_QUICK_REFERENCE.md) ⭐ NEW
+4. Feature Overview: [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)
 
 ---
 
 ## 📦 Documentation by Topic
+
+### NTSA Integration (NEW) ⭐
+- [NTSA_FEEDBACK_INTEGRATION.md](NTSA_FEEDBACK_INTEGRATION.md) - Feature overview
+- [NTSA_SETUP_TESTING.md](NTSA_SETUP_TESTING.md) - Setup and testing
+- [NTSA_ARCHITECTURE_DECISIONS.md](NTSA_ARCHITECTURE_DECISIONS.md) - Design decisions
+- [NTSA_DEPLOYMENT_GUIDE.md](NTSA_DEPLOYMENT_GUIDE.md) - Deployment procedures
+- [NTSA_QUICK_REFERENCE.md](NTSA_QUICK_REFERENCE.md) - Quick reference
 
 ### Setup & Installation
 - [QUICK_START.md](QUICK_START.md)
@@ -227,10 +247,17 @@ Essential information at a glance.
 If you can only read 5 documents, choose these:
 
 1. **[QUICK_START.md](QUICK_START.md)** - Get started immediately
-2. **[COMPLETE_DOCUMENTATION.md](COMPLETE_DOCUMENTATION.md)** - Everything in one place
+2. **[NTSA_FEEDBACK_INTEGRATION.md](NTSA_FEEDBACK_INTEGRATION.md)** - NTSA integration (NEW) ⭐
 3. **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)** - API reference
 4. **[BACKEND_ARCHITECTURE.md](BACKEND_ARCHITECTURE.md)** - System design
-5. **[TWILIO_WHATSAPP_SETUP.md](TWILIO_WHATSAPP_SETUP.md)** - WhatsApp integration
+5. **[NTSA_QUICK_REFERENCE.md](NTSA_QUICK_REFERENCE.md)** - NTSA quick ref (NEW) ⭐
+
+**Alternative Top 5** (for non-developers):
+1. **[QUICK_START.md](QUICK_START.md)** - Get running
+2. **[NTSA_QUICK_REFERENCE.md](NTSA_QUICK_REFERENCE.md)** - NTSA quick ref ⭐
+3. **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** - Overview
+4. **[MANAGEMENT_DASHBOARD_GUIDE.md](MANAGEMENT_DASHBOARD_GUIDE.md)** - Admin guide
+5. **[TWILIO_WHATSAPP_SETUP.md](TWILIO_WHATSAPP_SETUP.md)** - WhatsApp setup
 
 ---
 
@@ -244,6 +271,11 @@ If you can only read 5 documents, choose these:
 
 ## 🔄 Recently Updated
 
+- **NTSA_QUICK_REFERENCE.md** - NTSA quick reference card created (Feb 19, 2024) ⭐ NEW
+- **NTSA_DEPLOYMENT_GUIDE.md** - NTSA deployment procedures (Feb 19, 2024) ⭐ NEW
+- **NTSA_ARCHITECTURE_DECISIONS.md** - NTSA architecture & design decisions (Feb 19, 2024) ⭐ NEW
+- **NTSA_SETUP_TESTING.md** - NTSA setup and comprehensive testing guide (Feb 19, 2024) ⭐ NEW
+- **NTSA_FEEDBACK_INTEGRATION.md** - NTSA feedback integration documentation (Feb 19, 2024) ⭐ NEW
 - **COMPLETE_DOCUMENTATION.md** - Comprehensive documentation created (Feb 15, 2026)
 - **TELEGRAM_REMOVAL_SUMMARY.md** - Telegram features removed (Feb 15, 2026)
 - **QUICK_START.md** - Quick start guide created (Feb 15, 2026)

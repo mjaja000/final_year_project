@@ -16,6 +16,9 @@ router.get('/feedback', AdminController.getAllFeedback);
 router.get('/feedback/stats', AdminController.getFeedbackStats);
 router.put('/feedback/:feedbackId/status', AdminController.updateFeedbackStatus);
 
+// Reports from complaint-demo (separate table)
+router.get('/reports', AdminController.getAllReports);
+
 // FR5: Payment Management with filtering (by date, route, status)
 router.get('/payments', AdminController.getAllPayments);
 router.get('/payments/stats', AdminController.getPaymentStats);

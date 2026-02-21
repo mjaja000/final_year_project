@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head><title>Vehicle API Test</title></head>
+<body>
+<h1>Vehicle API Test</h1>
+<button onclick="testAPI()">Test Vehicle API</button>
+<pre id="output"></pre>
+<script>
+async function testAPI() {
+  const output = document.getElementById('output');
+  try {
+    const res = await fetch('http://localhost:5000/api/vehicles');
+    const data = await res.json();
+    output.textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    output.textContent = 'Error: ' + err.message;
+  }
+}
+</script>
+</body>
+</html>

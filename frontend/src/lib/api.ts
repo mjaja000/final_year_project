@@ -1,13 +1,40 @@
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+console.log('[API Config] Base URL:', API_BASE_URL);
 
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'An error occurred' }));
-    throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    try {
+      const error = await response.json();
+      console.error('[API] Error response:', error);
+      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    } catch (e) {
+      console.error('[API] Failed to parse error response:', e);
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
   }
-  return response.json();
+  
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    console.error('[API] Invalid content type:', contentType);
+    throw new Error('Invalid response: expected JSON');
+  }
+  
+  const text = await response.text();
+  if (!text) {
+    console.error('[API] Empty response received');
+    throw new Error('Empty response from server');
+  }
+  
+  try {
+    const data = JSON.parse(text);
+    console.log('[API] Parsed response successfully');
+    return data;
+  } catch (e) {
+    console.error('[API] Failed to parse JSON:', e);
+    throw new Error('Invalid JSON response from server');
+  }
 }
 
 // Generic fetch wrapper
@@ -17,8 +44,10 @@ async function apiFetch<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
   const config: RequestInit = {
@@ -30,6 +59,13 @@ async function apiFetch<T>(
   };
 
   const response = await fetch(url, config);
+  console.log('[API] Response:', {
+    url,
+    status: response.status,
+    statusText: response.statusText,
+    contentType: response.headers.get('content-type')
+  });
+  
   return handleResponse<T>(response);
 }
 
@@ -107,6 +143,20 @@ export const api = {
     }),
     getAll: () => apiFetch<any[]>('/api/feedback'),
     getById: (id: number) => apiFetch<any>(`/api/feedback/${id}`),
+    getNTSAStats: () => apiFetch<any>('/api/feedback/admin/ntsa-stats'),
+    forwardToNTSA: (feedbackId: number, data?: any) => apiFetch<any>(`/api/feedback/admin/ntsa-forward/${feedbackId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  },
+
+  // Reports (Complaint Demo)
+  reports: {
+    submit: (data: any) => apiFetch<any>('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    getAll: () => apiFetch<any[]>('/api/reports'),
   },
 
   // Admin APIs
@@ -136,6 +186,16 @@ export const api = {
       const query = qs.toString() ? `?${qs.toString()}` : '';
       return apiFetch<any>(`/api/admin/revenue${query}`);
     },
+
+    // Get reports from complaint-demo
+    getReports: (params?: { limit?: number; offset?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.offset) qs.set('offset', String(params.offset));
+      const query = qs.toString() ? `?${qs.toString()}` : '';
+      return apiFetch<any>(`/api/admin/reports${query}`);
+    },
+    getAllReports: () => apiFetch<any>('/api/admin/reports'),
   },
 
   // Users (authentication)
