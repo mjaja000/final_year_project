@@ -91,7 +91,15 @@ export default function FeedbackManager({ showNTSAOnly = false }: FeedbackManage
     queryKey: ['admin-feedback', filterType, searchTerm],
     queryFn: async () => {
       const response = await api.feedback.getAll();
-      let filtered = (response.data || response) as any[];
+      
+      // Handle backend response format: { success, feedback: [...], ...}
+      let filtered = Array.isArray(response) 
+        ? response 
+        : Array.isArray(response?.feedback) 
+          ? response.feedback 
+          : Array.isArray(response?.data)
+            ? response.data
+            : [];
 
       if (filterType !== 'all') {
         filtered = filtered.filter(f =>
@@ -117,11 +125,30 @@ export default function FeedbackManager({ showNTSAOnly = false }: FeedbackManage
   });
 
   // Fetch NTSA stats
-  const { data: ntsaStats } = useQuery({
+  const { data: ntsaStats = { totalComplaints: 0, byCriticality: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 }, byCategory: {}, forwardedToNTSA: 0, handleLocally: 0 } } = useQuery({
     queryKey: ['ntsa-stats'],
     queryFn: async () => {
-      const response = await api.feedback.getNTSAStats?.();
-      return response?.stats as NTSAStats;
+      try {
+        const response = await api.feedback.getNTSAStats?.();
+        
+        // Handle multiple possible response formats
+        return response?.stats || response || { 
+          totalComplaints: 0, 
+          byCriticality: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 }, 
+          byCategory: {}, 
+          forwardedToNTSA: 0, 
+          handleLocally: 0 
+        };
+      } catch (error) {
+        console.error('[NTSA Stats] Error:', error);
+        return { 
+          totalComplaints: 0, 
+          byCriticality: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 }, 
+          byCategory: {}, 
+          forwardedToNTSA: 0, 
+          handleLocally: 0 
+        };
+      }
     },
     enabled: !showNTSAOnly,
   });
