@@ -51,6 +51,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/routes', routeRoutes);
+app.use('/api/locations', locationRoutes); // Location tracking for vehicles
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/admin', adminRoutes);
@@ -58,7 +59,6 @@ app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/drivers', driverRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/lost-and-found', lostAndFoundRoutes);
-app.use('/api/vehicles', locationRoutes); // Location tracking for vehicles
 app.use('/api/customers', customerRoutes); // Customer location tracking for map
 
 // Root route

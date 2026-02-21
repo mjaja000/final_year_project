@@ -54,7 +54,7 @@ const LiveVehicleMap = ({
   useEffect(() => {
     const fetchVehicles = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/vehicles/locations`);
+        const response = await fetch(`${API_BASE}/api/locations/locations`);
         if (response.ok) {
           const data = await response.json();
           setVehicles(data.vehicles || []);
