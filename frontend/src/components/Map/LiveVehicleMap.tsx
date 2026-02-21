@@ -250,24 +250,20 @@ const LiveVehicleMap = ({
               <p className="text-gray-600 text-xs">Drivers who are currently not available</p>
             </div>
           </div>
-          {userWantsLocation && latitude && longitude && (
-            <div className="flex items-center gap-3">
-              <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-blue-700 flex-shrink-0"></div>
-              <div>
-                <span className="font-medium">Blue Dot = Your Location</span>
-                <p className="text-gray-600 text-xs">Your current position based on shared location</p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-blue-700 flex-shrink-0"></div>
+            <div>
+              <span className="font-medium">Blue Dot = Your Location</span>
+              <p className="text-gray-600 text-xs">Your current position (appears after you enable location sharing)</p>
             </div>
-          )}
-          {nearestVehicle && (
-            <div className="flex items-center gap-3">
-              <div className="w-4 h-4 rounded-full border-4 border-yellow-400 bg-transparent flex-shrink-0"></div>
-              <div>
-                <span className="font-medium">Yellow Circle = Nearest Vehicle</span>
-                <p className="text-gray-600 text-xs">The closest online driver to your location</p>
-              </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 rounded-full border-4 border-yellow-400 bg-transparent flex-shrink-0"></div>
+            <div>
+              <span className="font-medium">Yellow Circle = Nearest Vehicle</span>
+              <p className="text-gray-600 text-xs">The closest online driver to your location (appears once you share location)</p>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
