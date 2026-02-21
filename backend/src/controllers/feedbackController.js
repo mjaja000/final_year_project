@@ -3,6 +3,7 @@ const SmsService = require('../services/smsService');
 const WhatsappService = require('../services/whatsappService');
 const NTSAService = require('../services/ntsaService');
 const UserModel = require('../models/userModel');
+const pool = require('../config/database');
 
 class FeedbackController {
   /**

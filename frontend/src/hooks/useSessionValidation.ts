@@ -10,52 +10,55 @@ export function useSessionValidation() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Intercept fetch to monitor for SESSION_INVALIDATED
+  // Intercept fetch to monitor for SESSION_INVALIDATED  
   useEffect(() => {
     const originalFetch = window.fetch;
     
     window.fetch = async (...args) => {
-      const response = await originalFetch(...args);
-      
-      // Check if response is 401 with SESSION_INVALIDATED reason
-      if (response.status === 401) {
-        try {
-          const data = await response.json();
+      try {
+        const response = await originalFetch(...args);
+        
+        // Check if response is 401 
+        if (response.status === 401) {
+          // Clone response so we can read it without consuming the original
+          const clonedResponse = response.clone();
           
-          if (data.reason === 'SESSION_INVALIDATED') {
-            // Clear auth tokens
-            localStorage.removeItem('token');
-            localStorage.removeItem('userRole');
+          try {
+            const data = await clonedResponse.json();
             
-            // Show notification
-            toast({
-              title: 'Session Ended',
-              description: 'You logged in from another device. Please log in again.',
-              variant: 'destructive',
-            });
-            
-            // Redirect to appropriate login page
-            const userRole = localStorage.getItem('userRole');
-            if (userRole === 'admin') {
-              navigate('/admin/login?reason=SESSION_INVALIDATED');
-            } else {
-              navigate('/driver/login?reason=SESSION_INVALIDATED');
+            if (data.reason === 'SESSION_INVALIDATED') {
+              // Get user role BEFORE clearing localStorage
+              const userRole = localStorage.getItem('userRole');
+              
+              // Clear auth tokens
+              localStorage.removeItem('token');
+              localStorage.removeItem('userRole');
+              
+              // Show notification
+              toast({
+                title: 'Session Ended',
+                description: 'You logged in from another device. Please log in again.',
+                variant: 'destructive',
+              });
+              
+              // Redirect to appropriate login page based on original role
+              if (userRole === 'admin') {
+                navigate('/admin/login?reason=SESSION_INVALIDATED');
+              } else {
+                navigate('/driver/login?reason=SESSION_INVALIDATED');
+              }
             }
+          } catch (parseError) {
+            // Silently ignore JSON parse errors - return original response
+            return response;
           }
-          
-          // Return new response since we consumed the body
-          return new Response(JSON.stringify(data), {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers,
-          });
-        } catch (e) {
-          // If JSON parsing fails, return original response
-          return response;
         }
+        
+        return response;
+      } catch (error) {
+        // If fetch itself fails, rethrow
+        throw error;
       }
-      
-      return response;
     };
 
     // Cleanup on unmount

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { Home, MessageSquare, CreditCard, Users, Layers, ShieldCheck } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -14,6 +15,9 @@ import {
 } from './sidebar';
 
 export default function SidebarNav({ children }: { children?: React.ReactNode }) {
+  const location = useLocation();
+  const isAdminDashboard = location.pathname === '/admin/dashboard';
+
   return (
     <SidebarProvider>
       <div className="flex min-h-[100svh]">
@@ -62,14 +66,16 @@ export default function SidebarNav({ children }: { children?: React.ReactNode })
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <NavLink to="/drivers" className="flex items-center gap-2 w-full">
-                    <Users className="size-4" />
-                    <span>Drivers</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {!isAdminDashboard && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink to="/drivers" className="flex items-center gap-2 w-full">
+                      <Users className="size-4" />
+                      <span>Drivers</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
 
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>

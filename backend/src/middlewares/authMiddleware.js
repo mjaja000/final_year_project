@@ -13,17 +13,22 @@ const authMiddleware = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Check if session is still active (prevents multi-device login)
-    const isTokenActive = await SessionModel.isTokenActive(token);
-    if (!isTokenActive) {
-      return res.status(401).json({ 
-        message: 'Session expired or logged in from another device. Please log in again.',
-        reason: 'SESSION_INVALIDATED'
-      });
+    // ONLY enforce single-device session check for drivers
+    // Admins can have multiple concurrent logins
+    if (decoded.role === 'driver') {
+      const isTokenActive = await SessionModel.isTokenActive(token);
+      if (!isTokenActive) {
+        return res.status(401).json({ 
+          message: 'Session expired or logged in from another device. Please log in again.',
+          reason: 'SESSION_INVALIDATED'
+        });
+      }
     }
 
-    // Update last activity
-    await SessionModel.updateLastActivity(token);
+    // Update last activity (for drivers tracking)
+    if (decoded.role === 'driver') {
+      await SessionModel.updateLastActivity(token);
+    }
 
     // Attach user info to request
     req.userId = decoded.id;
