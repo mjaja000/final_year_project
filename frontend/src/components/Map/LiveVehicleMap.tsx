@@ -234,35 +234,22 @@ const LiveVehicleMap = ({
 
       {/* Driver locations legend */}
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-        <h3 className="font-semibold text-sm mb-3">Map Legend - What You'll See</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 rounded-full bg-green-500 border-2 border-green-700 flex-shrink-0"></div>
-            <div>
-              <span className="font-medium">Green Dots = Online Drivers</span>
-              <p className="text-gray-600 text-xs">Drivers currently online and ready to accept trips</p>
-            </div>
+        <div className="flex flex-wrap gap-4 items-center justify-start text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-green-500 border border-green-700"></div>
+            <span className="font-medium">Online Drivers</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 rounded-full bg-red-500 border-2 border-red-700 flex-shrink-0"></div>
-            <div>
-              <span className="font-medium">Red Dots = Offline Drivers</span>
-              <p className="text-gray-600 text-xs">Drivers who are currently not available</p>
-            </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-red-500 border border-red-700"></div>
+            <span className="font-medium">Offline Drivers</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-blue-700 flex-shrink-0"></div>
-            <div>
-              <span className="font-medium">Blue Dot = Your Location</span>
-              <p className="text-gray-600 text-xs">Your current position (appears after you enable location sharing)</p>
-            </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-blue-500 border border-blue-700"></div>
+            <span className="font-medium">Your Location</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 rounded-full border-4 border-yellow-400 bg-transparent flex-shrink-0"></div>
-            <div>
-              <span className="font-medium">Yellow Circle = Nearest Vehicle</span>
-              <p className="text-gray-600 text-xs">The closest online driver to your location (appears once you share location)</p>
-            </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full border-2 border-yellow-400 bg-transparent"></div>
+            <span className="font-medium">Nearest Vehicle</span>
           </div>
         </div>
       </div>
