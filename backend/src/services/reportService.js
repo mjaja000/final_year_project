@@ -22,17 +22,21 @@ class ReportService {
   static async createReport(data) {
     try {
       // Validate using Zod schema
+      console.log('[ReportService.createReport] Validating data:', JSON.stringify(data, null, 2));
       const validatedData = validateReport(data);
+      console.log('[ReportService.createReport] Validation passed:', JSON.stringify(validatedData, null, 2));
 
       // Create report in database with transaction
-      const report = await ReportRepository.createReport({
+      const repoData = {
         userId: data.userId || null,
         matatuId: validatedData.matatuId,
         type: validatedData.type,
         category: validatedData.category || null,
         rating: validatedData.rating || null,
         comment: validatedData.comment || null,
-      });
+      };
+      console.log('[ReportService.createReport] Calling repository with:', JSON.stringify(repoData, null, 2));
+      const report = await ReportRepository.createReport(repoData);
 
       // If INCIDENT: Calculate priority and trigger notification if needed
       if (validatedData.type === 'INCIDENT') {

@@ -1,20 +1,35 @@
 import React from "react";
-import FeedbackForm from "@/components/FeedbackForm";
+import ReportContainer from "@/components/ReportContainer";
 import Header from "@/components/Header";
-import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { MessageSquare } from "lucide-react";
 import api from "@/lib/api";
+import type { ReportData } from "@/lib/reportSchema";
+import { useQuery } from "@tanstack/react-query";
 export default function ComplaintDemo() {
-  const navigate = useNavigate();
+  const vehiclesQuery = useQuery({
+    queryKey: ["vehicles"],
+    queryFn: api.vehicles.getAll,
+  });
 
-  const handleBack = () => {
-    navigate("/");
-  };
+  const plates = React.useMemo(() => {
+    const raw = Array.isArray(vehiclesQuery.data)
+      ? vehiclesQuery.data
+      : Array.isArray((vehiclesQuery.data as any)?.vehicles)
+        ? (vehiclesQuery.data as any).vehicles
+        : [];
+
+    return raw
+      .map((vehicle: any) => vehicle.registration_number ?? vehicle.registrationNumber)
+      .filter((plate: any): plate is string => typeof plate === "string" && plate.trim().length > 0);
+  }, [vehiclesQuery.data]);
 
   const handleSubmit = async (data: ReportData) => {
     // Submit to the backend API
-    await api.reports.submit(data);
+    await api.reports.submit({
+      ...data,
+      plateNumber: data.plateNumber.trim().toUpperCase(),
+    });
     console.log("Report submitted to database:", data);
   };
 

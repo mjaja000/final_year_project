@@ -87,7 +87,14 @@ class VehicleModel {
 
   // Get vehicle by registration
   static async getVehicleByRegistration(registrationNumber) {
-    const query = 'SELECT * FROM vehicles WHERE registration_number = $1;';
+    const query = `
+      SELECT *
+      FROM vehicles
+      WHERE
+        UPPER(registration_number) = UPPER($1)
+        OR UPPER(REPLACE(REPLACE(registration_number, '-', ''), ' ', '')) = UPPER(REPLACE(REPLACE($1, '-', ''), ' ', ''))
+      LIMIT 1;
+    `;
     try {
       const result = await pool.query(query, [registrationNumber]);
       return result.rows[0];
