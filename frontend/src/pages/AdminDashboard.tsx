@@ -465,28 +465,28 @@ const AdminDashboard = () => {
         <meta name="description" content="MatatuConnect administrator dashboard for managing feedback and payment logs." />
       </Helmet>
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         <Header />
 
         {/* Hero Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-gray-900 to-slate-800 text-white py-8 sm:py-12 shadow-2xl">
+        <div className="bg-gradient-to-r from-primary via-blue-600 to-cyan-600 text-white py-10 sm:py-14 shadow-2xl border-b-4 border-cyan-400">
           <div className="container px-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
               <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                    <TrendingUp className="h-6 w-6 sm:h-7 sm:w-7" />
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+                    <TrendingUp className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold">Admin Dashboard</h1>
-                    <p className="text-sm text-gray-400">Manage your transport system</p>
+                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Admin Dashboard</h1>
+                    <p className="text-sm text-blue-100 mt-1 font-medium">System Management & Analytics</p>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2"> 
+              <div className="flex items-center gap-2 w-full sm:w-auto"> 
                 <Button 
                   onClick={handleLogout} 
-                  className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white"
+                  className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 px-6 py-2 h-auto"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
@@ -498,35 +498,35 @@ const AdminDashboard = () => {
 
         <main className="container py-6 sm:py-8 px-4">
           {/* Stats - Enhanced Design */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-6 mb-6 sm:mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 mb-6 sm:mb-8">
             <button
               type="button"
               onClick={() => setActiveTab('feedback')}
-              className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+              className="bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 rounded-lg p-3 sm:p-4 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 hover:-translate-y-0.5 text-left border border-blue-400/30 backdrop-blur-sm group"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                  <MessageSquare className="h-6 w-6" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center group-hover:bg-white/30 transition-all">
+                  <MessageSquare className="h-5 w-5" />
                 </div>
-                <TrendingUp className="h-5 w-5 opacity-70" />
+                <TrendingUp className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-all" />
               </div>
-              <p className="text-sm opacity-90 mb-1">Total Feedback</p>
-              <p className="text-3xl sm:text-4xl font-bold">{feedbackEntries.length}</p>
+              <p className="text-xs opacity-90 mb-1 font-medium">Total Feedback</p>
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight">{feedbackEntries.length}</p>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('feedback')}
-              className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+              className="bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 rounded-lg p-3 sm:p-4 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 hover:-translate-y-0.5 text-left border border-orange-400/30 backdrop-blur-sm group"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                  <AlertCircle className="h-6 w-6" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center group-hover:bg-white/30 transition-all">
+                  <AlertCircle className="h-5 w-5" />
                 </div>
-                <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded-full">Urgent</span>
+                <span className="text-xs font-bold bg-white/30 backdrop-blur-md px-2 py-0.5 rounded-full">Urgent</span>
               </div>
-              <p className="text-sm opacity-90 mb-1">Pending Review</p>
-              <p className="text-3xl sm:text-4xl font-bold">
+              <p className="text-xs opacity-90 mb-1 font-medium">Pending Review</p>
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight">
                 {feedbackEntries.filter((f) => f.status === 'pending').length}
               </p>
             </button>
@@ -534,16 +534,16 @@ const AdminDashboard = () => {
             <button
               type="button"
               onClick={() => setActiveTab('payments')}
-              className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+              className="bg-gradient-to-br from-green-500 via-green-600 to-emerald-700 rounded-lg p-3 sm:p-4 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 hover:-translate-y-0.5 text-left border border-green-400/30 backdrop-blur-sm group"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                  <CreditCard className="h-6 w-6" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center group-hover:bg-white/30 transition-all">
+                  <CreditCard className="h-5 w-5" />
                 </div>
-                <Users className="h-5 w-5 opacity-70" />
+                <Users className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-all" />
               </div>
-              <p className="text-sm opacity-90 mb-1">Total Payments</p>
-              <p className="text-3xl sm:text-4xl font-bold">
+              <p className="text-xs opacity-90 mb-1 font-medium">Total Payments</p>
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight">
                 {dashboardData?.paymentStats?.total_payments || dbPayments.length}
               </p>
             </button>
@@ -551,120 +551,110 @@ const AdminDashboard = () => {
             <button
               type="button"
               onClick={() => setActiveTab('revenue')}
-              className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+              className="bg-gradient-to-br from-purple-500 via-purple-600 to-pink-600 rounded-lg p-3 sm:p-4 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 hover:-translate-y-0.5 text-left border border-purple-400/30 backdrop-blur-sm group"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                  <DollarSign className="h-6 w-6" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center group-hover:bg-white/30 transition-all">
+                  <DollarSign className="h-5 w-5" />
                 </div>
-                <TrendingUp className="h-5 w-5 opacity-70" />
+                <TrendingUp className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-all" />
               </div>
-              <p className="text-sm opacity-90 mb-1">Revenue</p>
-              <p className="text-2xl sm:text-3xl font-bold">
+              <p className="text-xs opacity-90 mb-1 font-medium">Revenue</p>
+              <p className="text-xl sm:text-2xl font-bold tracking-tight line-clamp-1">
                 KES {(dashboardData?.paymentStats?.total_revenue || dbPayments.reduce((sum, p) => sum + p.amount, 0)).toLocaleString()}
               </p>
             </button>
 
             <button
               type="button"
-              onClick={async () => {
-                setActiveTab('whatsapp');
-              }}
-              className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+              onClick={() => setActiveTab('whatsapp')}
+              className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 rounded-lg p-3 sm:p-4 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 hover:-translate-y-0.5 text-left border border-emerald-400/30 backdrop-blur-sm group"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                  <MessageSquare className="h-6 w-6" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center group-hover:bg-white/30 transition-all">
+                  <MessageSquare className="h-5 w-5" />
                 </div>
-                <TrendingUp className="h-5 w-5 opacity-70" />
+                <TrendingUp className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-all" />
               </div>
-              <p className="text-sm opacity-90 mb-1">WhatsApp Chats</p>
-              <p className="text-2xl sm:text-3xl font-bold">{whatsappUnreadCount}</p>
+              <p className="text-xs opacity-90 mb-1 font-medium">WhatsApp Chats</p>
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight">{whatsappUnreadCount}</p>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('ntsa')}
-              className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+              className="bg-gradient-to-br from-red-500 via-red-600 to-rose-600 rounded-lg p-3 sm:p-4 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 hover:-translate-y-0.5 text-left border border-red-400/30 backdrop-blur-sm group"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                  <Shield className="h-6 w-6" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center group-hover:bg-white/30 transition-all">
+                  <Shield className="h-5 w-5" />
                 </div>
-                <TrendingUp className="h-5 w-5 opacity-70" />
+                <TrendingUp className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-all" />
               </div>
-              <p className="text-sm opacity-90 mb-1">NTSA Reports</p>
-              <p className="text-3xl sm:text-4xl font-bold">Available</p>
+              <p className="text-xs opacity-90 mb-1 font-medium">NTSA Reports</p>
+              <p className="text-lg sm:text-xl font-bold tracking-tight">Available</p>
             </button>
 
             <button
               onClick={() => navigate('/admin/lost-and-found')}
-              className="group bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-2xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-105 text-left shadow-lg"
+              className="group bg-gradient-to-br from-orange-500 via-orange-600 to-amber-600 text-white rounded-lg p-3 sm:p-4 hover:shadow-2xl transition-all duration-200 hover:scale-105 hover:-translate-y-0.5 text-left shadow-xl border border-orange-400/30 backdrop-blur-sm"
             >
-              <PackageSearch className="h-8 w-8 mb-3 group-hover:scale-110 transition-transform" />
-              <p className="text-sm opacity-90 mb-1">Lost & Found</p>
-              <p className="text-2xl sm:text-3xl font-bold">View All</p>
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center group-hover:bg-white/30 transition-all">
+                  <PackageSearch className="h-5 w-5" />
+                </div>
+                <TrendingUp className="h-4 w-4 opacity-60 group-hover:opacity-100 transition-all" />
+              </div>
+              <p className="text-xs opacity-90 mb-1 font-medium">Lost & Found</p>
+              <p className="text-lg sm:text-xl font-bold tracking-tight">View All</p>
             </button>
           </div>
 
           {/* Tabs - Enhanced Design */}
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-2xl border border-gray-200 overflow-hidden backdrop-blur-sm">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <div className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 p-4">
-                <TabsList className="w-full flex flex-wrap gap-2 h-auto bg-white rounded-xl shadow-sm p-2">
-                  <TabsTrigger value="feedback" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white">
-                    <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Feedback</span>
-                    <span className="sm:hidden">Feed</span>
+              <div className="bg-gradient-to-r from-slate-50 via-blue-50 to-slate-50 border-b-2 border-gray-200 p-4 overflow-x-auto">
+                <TabsList className="inline-flex gap-2 h-auto bg-transparent p-0 min-w-max">
+                  <TabsTrigger value="feedback" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                    <MessageSquare className="h-4 w-4" />
+                    Feedback
                   </TabsTrigger>
-                  <TabsTrigger value="ntsa" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white">
-                    <Shield className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">NTSA</span>
-                    <span className="sm:hidden">NTS</span>
+                  <TabsTrigger value="ntsa" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-red-300 hover:bg-red-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                    <Shield className="h-4 w-4" />
+                    NTSA
                   </TabsTrigger>
-                  <TabsTrigger value="payments" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white">
-                    <CreditCard className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Payments</span>
-                    <span className="sm:hidden">Pay</span>
+                  <TabsTrigger value="payments" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-green-300 hover:bg-green-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                    <CreditCard className="h-4 w-4" />
+                    Payments
                   </TabsTrigger>
-                  <TabsTrigger value="drivers" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-violet-500 data-[state=active]:text-white">
-                    <Users className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Drivers</span>
-                    <span className="sm:hidden">Drv</span>
+                  <TabsTrigger value="drivers" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-violet-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                    <Users className="h-4 w-4" />
+                    Drivers
                   </TabsTrigger>
-
-                  <TabsTrigger value="vehicles" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-blue-500 data-[state=active]:text-white">
-                    <Truck className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Vehicle Management</span>
-                    <span className="sm:hidden">Veh</span>
+                  <TabsTrigger value="vehicles" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-cyan-300 hover:bg-cyan-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                    <Truck className="h-4 w-4" />
+                    Vehicles
                   </TabsTrigger>
-
-                  <TabsTrigger value="routes" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white">
-                    <Trello className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Routes</span>
-                    <span className="sm:hidden">Rts</span>
+                  <TabsTrigger value="routes" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-purple-300 hover:bg-purple-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                    <Trello className="h-4 w-4" />
+                    Routes
                   </TabsTrigger>
-
-                  <TabsTrigger value="occupancy" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white">
-                    <Gauge className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Occupancy</span>
-                    <span className="sm:hidden">Occ</span>
+                  <TabsTrigger value="occupancy" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-amber-300 hover:bg-amber-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                    <Gauge className="h-4 w-4" />
+                    Occupancy
                   </TabsTrigger>
-
-                  <TabsTrigger value="revenue" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-green-600 data-[state=active]:text-white">
-                    <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Revenue</span>
-                    <span className="sm:hidden">Rev</span>
+                  <TabsTrigger value="revenue" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-green-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                    <DollarSign className="h-4 w-4" />
+                    Revenue
                   </TabsTrigger>
-                  <TabsTrigger value="whatsapp" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-teal-600 data-[state=active]:text-white">
-                    <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">WhatsApp</span>
-                    <span className="sm:hidden">WA</span>
+                  <TabsTrigger value="whatsapp" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-teal-300 hover:bg-teal-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-teal-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                    <MessageSquare className="h-4 w-4" />
+                    WhatsApp
                   </TabsTrigger>
                 </TabsList>
               </div>
 
-              <div className="p-4 sm:p-6">
+              <div className="p-6 sm:p-8 bg-gradient-to-br from-white via-slate-50 to-blue-50">
                 <TabsContent value="feedback" className="animate-fade-in m-0">
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <p className="text-sm text-muted-foreground">Latest feedback from users</p>
