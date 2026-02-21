@@ -1,6 +1,21 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, MessageSquare, CreditCard, ThumbsUp, ThumbsDown, Trello, Gauge, TrendingUp, Users, DollarSign, AlertCircle, Flag, AlertTriangle, Truck, Printer } from 'lucide-react';
+import {
+  LogOut,
+  MessageSquare,
+  CreditCard,
+  ThumbsUp,
+  ThumbsDown,
+  Trello,
+  Gauge,
+  TrendingUp,
+  Users,
+  DollarSign,
+  AlertCircle,
+  PackageSearch,
+  Shield,
+  Truck,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/Header';
@@ -11,20 +26,20 @@ import { cn } from '@/lib/utils';
 import RouteManager from '@/components/admin/RouteManager';
 import OccupancyManager from '@/components/admin/OccupancyManager';
 import DriverManager from '@/components/admin/DriverManager';
+import VehicleManager from '@/components/admin/VehicleManager';
 import AdminRevenue from '@/components/admin/AdminRevenue';
 import AdminMessages from '@/components/admin/AdminMessages';
 import WhatsAppChats from '@/components/admin/WhatsAppChats';
+import FeedbackManager from '@/components/admin/FeedbackManager';
 import io from 'socket.io-client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import OccupancyDisplay from '@/components/OccupancyDisplay';
 import api from '@/lib/api';
-import ComplaintService from '@/lib/complaint.service';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [feedbackSearch, setFeedbackSearch] = useState('');
-  const [complaintSearch, setComplaintSearch] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
 
   interface FeedbackEntry {
@@ -35,7 +50,9 @@ const AdminDashboard = () => {
     message: string;
     timestamp: Date;
     status: 'pending' | 'reviewed' | 'resolved';
+    source?: string;
   }
+
   interface PaymentEntry {
     id: string;
     transactionId: string;
@@ -46,7 +63,7 @@ const AdminDashboard = () => {
     status: 'completed' | 'pending' | 'failed';
   }
 
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_BASE = import.meta.env.VITE_API_URL || '';
 
   // Fetch dashboard stats
   const { data: dashboardData } = useQuery({
@@ -62,16 +79,11 @@ const AdminDashboard = () => {
     refetchInterval: 30000,
   });
 
-
   const { data: whatsappData } = useQuery({
     queryKey: ['admin', 'whatsapp', 'chats'],
     queryFn: async () => {
       const res = await fetch(API_BASE + '/api/whatsapp/chats');
-      if (!res.ok) {
-        throw new Error(`Failed to fetch WhatsApp chats: ${res.status}`);
-      }
-      const data = await res.json();
-      return data || { contacts: [] };
+      return res.json();
     },
     refetchInterval: 15000,
   });
@@ -108,226 +120,13 @@ const AdminDashboard = () => {
     navigate('/admin/login');
   };
 
-  const printTicket = (payment: PaymentEntry) => {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (!printWindow) {
-      toast({ title: 'Print blocked', description: 'Please allow popups to print tickets', variant: 'destructive' });
-      return;
-    }
-
-    const escapeHtml = (value: string) =>
-      value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-
-    const safeTransactionId = escapeHtml(String(payment.transactionId || 'N/A'));
-    const safeVehicleNumber = escapeHtml(String(payment.vehicleNumber || 'N/A'));
-    const safeRoute = escapeHtml(String(payment.route || 'N/A'));
-    const safeStatus = escapeHtml(String(payment.status || 'unknown').toUpperCase());
-    const normalizedStatus = String(payment.status || '').toLowerCase();
-    const formattedPaymentDate = payment.timestamp.toLocaleString('en-KE', {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    const formattedAmount = Number(payment.amount || 0).toLocaleString('en-KE');
-    const printedAt = new Date().toLocaleString('en-KE');
-    const barcodeValue = safeTransactionId.replace(/[^A-Za-z0-9]/g, '').slice(-12) || '000000000000';
-
-    const ticketHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Payment Ticket - ${safeTransactionId}</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: 'Courier New', monospace;
-            padding: 16px;
-            background: #f8fafc;
-            color: #0f172a;
-            max-width: 420px;
-            margin: 0 auto;
-            line-height: 1.35;
-          }
-          .ticket {
-            border: 2px dashed #334155;
-            border-radius: 10px;
-            padding: 18px;
-            background: white;
-            box-shadow: 0 8px 30px rgba(2, 6, 23, 0.08);
-          }
-          .header {
-            text-align: center;
-            border-bottom: 2px solid #1e293b;
-            padding-bottom: 12px;
-            margin-bottom: 14px;
-          }
-          .logo {
-            font-size: 22px;
-            font-weight: bold;
-            color: #16a34a;
-            margin-bottom: 4px;
-          }
-          .subtitle {
-            font-size: 12px;
-            color: #64748b;
-          }
-          .section {
-            margin: 12px 0;
-            padding: 8px 0;
-            border-bottom: 1px dashed #cbd5e1;
-          }
-          .row {
-            display: grid;
-            grid-template-columns: 120px 1fr;
-            align-items: start;
-            gap: 6px;
-            margin: 7px 0;
-            font-size: 14px;
-          }
-          .label {
-            font-weight: bold;
-            color: #1e293b;
-          }
-          .value {
-            text-align: right;
-            color: #0f172a;
-            word-break: break-word;
-            overflow-wrap: anywhere;
-          }
-          .value--mono {
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            letter-spacing: 0.1px;
-          }
-          .amount {
-            font-size: 20px;
-            font-weight: bold;
-            color: #16a34a;
-          }
-          .status {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            text-transform: uppercase;
-          }
-          .status.completed { background: #dcfce7; color: #16a34a; }
-          .status.pending { background: #fef3c7; color: #d97706; }
-          .status.failed { background: #fee2e2; color: #dc2626; }
-          .status.default { background: #e2e8f0; color: #334155; }
-          .footer {
-            text-align: center;
-            margin-top: 14px;
-            padding-top: 12px;
-            border-top: 2px solid #1e293b;
-            font-size: 11px;
-            color: #64748b;
-          }
-          .barcode {
-            text-align: center;
-            font-size: 16px;
-            margin: 12px 0 4px;
-            letter-spacing: 4px;
-            font-weight: 700;
-            color: #0f172a;
-          }
-          .barcode-caption {
-            text-align: center;
-            font-size: 10px;
-            color: #64748b;
-          }
-          @media print {
-            body { padding: 0; background: white; }
-            .ticket { box-shadow: none; border-radius: 0; }
-            .no-print { display: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="ticket">
-          <div class="header">
-            <div class="logo">🚌 MatatuConnect</div>
-            <div class="subtitle">Payment Receipt</div>
-          </div>
-
-          <div class="section">
-            <div class="row">
-              <span class="label">Transaction ID:</span>
-              <span class="value value--mono">${safeTransactionId}</span>
-            </div>
-            <div class="row">
-              <span class="label">Date:</span>
-              <span class="value">${formattedPaymentDate}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="row">
-              <span class="label">Vehicle:</span>
-              <span class="value">${safeVehicleNumber}</span>
-            </div>
-            <div class="row">
-              <span class="label">Route:</span>
-              <span class="value">${safeRoute}</span>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="row">
-              <span class="label">Amount Paid:</span>
-              <span class="value amount">KES ${formattedAmount}</span>
-            </div>
-            <div class="row">
-              <span class="label">Status:</span>
-              <span class="value">
-                <span class="status ${normalizedStatus === 'completed' || normalizedStatus === 'pending' || normalizedStatus === 'failed' ? normalizedStatus : 'default'}">${safeStatus}</span>
-              </span>
-            </div>
-          </div>
-
-          <div class="barcode">${barcodeValue}</div>
-          <div class="barcode-caption">Ticket Reference</div>
-
-          <div class="footer">
-            <div style="margin-bottom: 5px;">Thank you for using MatatuConnect</div>
-            <div>Keep this receipt for your records</div>
-            <div style="margin-top: 10px; font-size: 10px;">
-              Printed: ${printedAt}
-            </div>
-          </div>
-        </div>
-
-        <div class="no-print" style="text-align: center; margin-top: 20px;">
-          <button onclick="window.print()" style="padding: 10px 20px; background: #16a34a; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">
-            🖨️ Print Ticket
-          </button>
-          <button onclick="window.close()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; margin-left: 10px;">
-            Close
-          </button>
-        </div>
-
-        <script>
-          // Auto-print on load (optional)
-          // window.onload = () => window.print();
-        </script>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(ticketHTML);
-    printWindow.document.close();
-  };
-
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
-  const [activeTab, setActiveTab] = useState('complaints');
+  const [activeTab, setActiveTab] = useState('feedback');
+
+  // Debug: Log active tab changes
+  useEffect(() => {
+    console.log('🔄 Active tab changed to:', activeTab);
+  }, [activeTab]);
 
   const sendWhatsAppTest = async () => {
     try {
@@ -360,23 +159,17 @@ const AdminDashboard = () => {
   const queryClient = useQueryClient();
   const feedbackQuery = useQuery({
     queryKey: ['feedback'],
-    queryFn: async () => {
-      console.log('[AdminDashboard] Fetching feedback from backend...');
-      try {
-        const complaints = await ComplaintService.getAllComplaints();
-        console.log('[AdminDashboard] Feedback fetched:', complaints.length, 'items');
-        return complaints;
-      } catch (error: any) {
-        console.error('[AdminDashboard] Feedback fetch error:', error);
-        return [];
-      }
-    },
+    queryFn: api.feedback.getAll,
+    refetchInterval: 15000,
+  });
+
+  const reportsQuery = useQuery({
+    queryKey: ['complaintReports'],
+    queryFn: api.admin.getAllReports,
     refetchInterval: 15000,
   });
   useEffect(() => {
-    const socket = io(API_BASE, {
-      transports: ['websocket', 'polling'],
-    });
+    const socket = io(API_BASE.replace(/http(s?):\/\//, ''));
 
     socket.on('connect', () => {
       socket.emit('join', 'admin');
@@ -405,51 +198,52 @@ const AdminDashboard = () => {
   }, [queryClient, toast]);
 
   const feedbackEntries = useMemo<FeedbackEntry[]>(() => {
-    const raw = Array.isArray(feedbackQuery.data)
+    // Get feedback from main API
+    const rawFeedback = Array.isArray(feedbackQuery.data)
       ? feedbackQuery.data
       : Array.isArray((feedbackQuery.data as any)?.feedback)
         ? (feedbackQuery.data as any).feedback
         : [];
 
-    console.log('[AdminDashboard] Transforming feedback entries:', raw.length, 'items');
-    
-    return raw.map((entry: any) => {
-      const feedbackEntry: FeedbackEntry = {
-        id: String(entry.id ?? entry.feedback_id ?? Math.random()),
-        vehicleNumber: entry.registration_number || entry.vehicle_number || entry.vehicleNumber || `Vehicle ${entry.vehicle_id}` || 'Unknown',
-        route: entry.route_name || entry.route || `Route ${entry.route_id ?? ''}` || 'Unknown',
-        type: (entry.feedback_type || '').toLowerCase().includes('complaint') ? 'complaint' : 'compliment',
-        message: entry.comment || entry.message || '',
-        timestamp: entry.created_at ? new Date(entry.created_at) : new Date(),
-        status: ((entry.status || 'pending').toLowerCase() as FeedbackEntry['status']),
-      };
-      return feedbackEntry;
-    });
-  }, [feedbackQuery.data]);
+    const feedbackMapped = rawFeedback.map((entry: any) => ({
+      id: String(entry.id ?? entry.feedback_id ?? entry.feedbackId ?? Math.random()),
+      vehicleNumber: entry.registration_number || entry.vehicle_number || entry.vehicleNumber || 'Unknown',
+      route: entry.route_name || `Route ${entry.route_id ?? ''}`,
+      type: String(entry.feedback_type || '').toLowerCase() === 'complaint' ? 'complaint' : 'compliment',
+      message: entry.comment || entry.message || '',
+      timestamp: entry.created_at ? new Date(entry.created_at) : new Date(),
+      status: ((entry.status || 'pending').toLowerCase() as FeedbackEntry['status']),
+      source: 'Feedback Form',
+    }));
 
-  // Filter feedback and complaints separately
-  const filteredComplaints = useMemo(() => {
-    const search = complaintSearch.toLowerCase();
-    return feedbackEntries
-      .filter((f) => f.type === 'complaint')
-      .filter(
-        (f) =>
-          f.vehicleNumber.toLowerCase().includes(search) ||
-          f.route.toLowerCase().includes(search) ||
-          f.message.toLowerCase().includes(search)
-      );
-  }, [feedbackEntries, complaintSearch]);
+    // Get reports from complaint-demo
+    const rawReports = Array.isArray((reportsQuery.data as any)?.reports)
+      ? (reportsQuery.data as any).reports
+      : [];
 
+    const reportsMapped = rawReports.map((entry: any) => ({
+      id: `report_${entry.id}`,
+      vehicleNumber: entry.registration_number || 'Unknown',
+      route: entry.route_name || 'Unknown',
+      type: String(entry.type || '').toLowerCase() === 'incident' ? 'complaint' : 'compliment',
+      message: `[${entry.type}${entry.category ? ` - ${entry.category}` : ''}] ${entry.comment || ''}`,
+      timestamp: entry.created_at ? new Date(entry.created_at) : new Date(),
+      status: 'pending' as FeedbackEntry['status'],
+      source: 'Complaint Demo',
+    }));
+
+    return [...feedbackMapped, ...reportsMapped].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }, [feedbackQuery.data, reportsQuery.data]);
+
+  // Filter feedback
   const filteredFeedback = useMemo(() => {
     const search = feedbackSearch.toLowerCase();
-    return feedbackEntries
-      .filter((f) => f.type === 'compliment')
-      .filter(
-        (f) =>
-          f.vehicleNumber.toLowerCase().includes(search) ||
-          f.route.toLowerCase().includes(search) ||
-          f.message.toLowerCase().includes(search)
-      );
+    return feedbackEntries.filter(
+      (f) =>
+        f.vehicleNumber.toLowerCase().includes(search) ||
+        f.route.toLowerCase().includes(search) ||
+        f.message.toLowerCase().includes(search)
+    );
   }, [feedbackEntries, feedbackSearch]);
 
   // Filter payments
@@ -537,6 +331,16 @@ const AdminDashboard = () => {
       ),
       className: 'w-24',
     },
+    {
+      key: 'source',
+      header: 'Source',
+      render: (item: FeedbackEntry) => (
+        <span className="text-xs text-muted-foreground">
+          {item.source || 'N/A'}
+        </span>
+      ),
+      className: 'w-28',
+    },
   ];
 
   const paymentColumns = [
@@ -600,22 +404,6 @@ const AdminDashboard = () => {
       ),
       className: 'w-24',
     },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (item: PaymentEntry) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => printTicket(item)}
-          className="flex items-center gap-1"
-        >
-          <Printer className="h-3 w-3" />
-          <span className="hidden sm:inline">Print</span>
-        </Button>
-      ),
-      className: 'w-24',
-    },
   ];
 
   return (
@@ -658,7 +446,7 @@ const AdminDashboard = () => {
 
         <main className="container py-6 sm:py-8 px-4">
           {/* Stats - Enhanced Design */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-6 mb-6 sm:mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-6 mb-6 sm:mb-8">
             <button
               type="button"
               onClick={() => setActiveTab('feedback')}
@@ -676,7 +464,7 @@ const AdminDashboard = () => {
 
             <button
               type="button"
-              onClick={() => setActiveTab('complaints')}
+              onClick={() => setActiveTab('feedback')}
               className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
             >
               <div className="flex items-center justify-between mb-3">
@@ -685,9 +473,9 @@ const AdminDashboard = () => {
                 </div>
                 <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded-full">Urgent</span>
               </div>
-              <p className="text-sm opacity-90 mb-1">Complaints Pending</p>
+              <p className="text-sm opacity-90 mb-1">Pending Review</p>
               <p className="text-3xl sm:text-4xl font-bold">
-                {feedbackEntries.filter((f) => f.type === 'complaint' && f.status === 'pending').length}
+                {feedbackEntries.filter((f) => f.status === 'pending').length}
               </p>
             </button>
 
@@ -741,22 +529,46 @@ const AdminDashboard = () => {
               <p className="text-sm opacity-90 mb-1">WhatsApp Chats</p>
               <p className="text-2xl sm:text-3xl font-bold">{whatsappUnreadCount}</p>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('ntsa')}
+              className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-4 sm:p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 text-left"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <Shield className="h-6 w-6" />
+                </div>
+                <TrendingUp className="h-5 w-5 opacity-70" />
+              </div>
+              <p className="text-sm opacity-90 mb-1">NTSA Reports</p>
+              <p className="text-3xl sm:text-4xl font-bold">Available</p>
+            </button>
+
+            <button
+              onClick={() => navigate('/admin/lost-and-found')}
+              className="group bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-2xl p-6 hover:shadow-2xl transition-all duration-300 hover:scale-105 text-left shadow-lg"
+            >
+              <PackageSearch className="h-8 w-8 mb-3 group-hover:scale-110 transition-transform" />
+              <p className="text-sm opacity-90 mb-1">Lost & Found</p>
+              <p className="text-2xl sm:text-3xl font-bold">View All</p>
+            </button>
           </div>
 
           {/* Tabs - Enhanced Design */}
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 p-4">
-                <TabsList className="w-full grid grid-cols-2 sm:grid-cols-8 h-auto bg-white rounded-xl shadow-sm p-1">
-                  <TabsTrigger value="complaints" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white">
-                    <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">Complaints</span>
-                    <span className="sm:hidden">Report</span>
-                  </TabsTrigger>
+                <TabsList className="w-full flex flex-wrap gap-2 h-auto bg-white rounded-xl shadow-sm p-2">
                   <TabsTrigger value="feedback" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white">
                     <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="hidden sm:inline">Feedback</span>
                     <span className="sm:hidden">Feed</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="ntsa" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white">
+                    <Shield className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">NTSA</span>
+                    <span className="sm:hidden">NTS</span>
                   </TabsTrigger>
                   <TabsTrigger value="payments" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white">
                     <CreditCard className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -769,6 +581,11 @@ const AdminDashboard = () => {
                     <span className="sm:hidden">Drv</span>
                   </TabsTrigger>
 
+                  <TabsTrigger value="vehicles" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-blue-500 data-[state=active]:text-white">
+                    <Truck className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Vehicle Management</span>
+                    <span className="sm:hidden">Veh</span>
+                  </TabsTrigger>
 
                   <TabsTrigger value="routes" className="gap-1 sm:gap-2 text-xs sm:text-sm py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white">
                     <Trello className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -796,31 +613,9 @@ const AdminDashboard = () => {
               </div>
 
               <div className="p-4 sm:p-6">
-                <TabsContent value="complaints" className="animate-fade-in m-0">
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <p className="text-sm text-muted-foreground">User complaints and reports</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => feedbackQuery.refetch()}
-                      disabled={feedbackQuery.isFetching}
-                    >
-                      {feedbackQuery.isFetching ? 'Refreshing...' : 'Refresh'}
-                    </Button>
-                  </div>
-                  <DataTable
-                    data={filteredComplaints}
-                    columns={feedbackColumns}
-                    searchPlaceholder="Search complaints by vehicle, route, or message..."
-                    searchValue={complaintSearch}
-                    onSearchChange={setComplaintSearch}
-                    emptyMessage="No complaints found"
-                  />
-                </TabsContent>
-
                 <TabsContent value="feedback" className="animate-fade-in m-0">
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <p className="text-sm text-muted-foreground">Positive feedback and compliments</p>
+                    <p className="text-sm text-muted-foreground">Latest feedback from users</p>
                     <Button
                       variant="outline"
                       size="sm"
@@ -833,11 +628,21 @@ const AdminDashboard = () => {
                   <DataTable
                     data={filteredFeedback}
                     columns={feedbackColumns}
-                    searchPlaceholder="Search feedback by vehicle, route, or message..."
+                    searchPlaceholder="Search by vehicle, route, or message..."
                     searchValue={feedbackSearch}
                     onSearchChange={setFeedbackSearch}
                     emptyMessage="No feedback entries found"
                   />
+                </TabsContent>
+
+                <TabsContent value="ntsa" className="animate-fade-in m-0">
+                  <div className="p-2">
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-red-600" />
+                      NTSA Complaint Management & Forwarding
+                    </h3>
+                    <FeedbackManager />
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="payments" className="animate-fade-in m-0">
@@ -863,6 +668,12 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="vehicles" className="animate-fade-in">
+                  <div className="p-2">
+                    <VehicleManager />
                   </div>
                 </TabsContent>
 
