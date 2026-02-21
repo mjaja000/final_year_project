@@ -20,6 +20,7 @@ const messageRoutes = require('./routes/messageRoutes');
 const lostAndFoundRoutes = require('./routes/lostAndFoundRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const customerRoutes = require('./routes/customerRoutes');
+const sessionRoutes = require('./routes/sessionRoutes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
 const { createReportsTable } = require('./migrations/createReportsTable');
 
@@ -60,6 +61,7 @@ app.use('/api/drivers', driverRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/lost-and-found', lostAndFoundRoutes);
 app.use('/api/customers', customerRoutes); // Customer location tracking for map
+app.use('/api/sessions', sessionRoutes); // Session management for single-device login
 
 // Root route
 app.get('/', (req, res) => {

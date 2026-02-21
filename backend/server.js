@@ -18,11 +18,13 @@ const initializeTables = async () => {
     const BookingModel = require('./src/models/bookingModel');
     const MessageModel = require('./src/models/messageModel');
     const LostAndFoundModel = require('./src/models/lostAndFoundModel');
+    const SessionModel = require('./src/models/sessionModel');
     const { createReportsTable } = require('./src/migrations/createReportsTable');
     const { createVehicleLocationsTable } = require('./src/migrations/createVehicleLocationsTable');
 
     // Create tables in dependency order
     await UserModel.createTable();
+    await SessionModel.createTable();
     await RouteModel.createTable();
     await VehicleModel.createTable();
     await DriverModel.createTable();

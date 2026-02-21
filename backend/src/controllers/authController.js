@@ -1,4 +1,5 @@
 const UserModel = require('../models/userModel');
+const SessionModel = require('../models/sessionModel');
 const jwt = require('jsonwebtoken');
 
 class AuthController {
@@ -56,12 +57,28 @@ class AuthController {
         return res.status(401).json({ message: 'Invalid email or password' });
       }
 
+      // Determine JWT expiration (7 days)
+      const expiresIn = process.env.JWT_EXPIRE || '7d';
+      const expiresInMS = this.parseExpireTime(expiresIn);
+      const expiresAt = new Date(Date.now() + expiresInMS);
+
       // Generate token
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role },
         process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRE || '7d' }
+        { expiresIn }
       );
+
+      // Get device info and IP address
+      const deviceInfo = req.headers['user-agent'] || 'Unknown Device';
+      const ipAddress = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+
+      // Save session (this will invalidate any previous sessions for this user)
+      await SessionModel.saveSession(user.id, token, deviceInfo, ipAddress, expiresAt);
+
+      // Check if was logged in from another device
+      const oldSessions = await SessionModel.getUserSessions(user.id);
+      const isNewDevice = oldSessions.filter(s => s.is_active).length === 1; // Only current session is active
 
       res.json({
         message: 'Login successful',
@@ -72,11 +89,22 @@ class AuthController {
           email: user.email,
           role: user.role,
         },
+        info: isNewDevice ? 'Previous session ended as you logged in from a new device' : null
       });
     } catch (error) {
       console.error('Login error:', error);
       res.status(500).json({ message: 'Login failed', error: error.message });
     }
+  }
+
+  // Helper to parse expiration time
+  static parseExpireTime(expiresIn) {
+    if (typeof expiresIn === 'number') return expiresIn * 1000; // seconds to ms
+    
+    const units = { d: 86400000, h: 3600000, m: 60000, s: 1000 };
+    const match = String(expiresIn).match(/^(\d+)([dhms])$/);
+    if (!match) return 7 * 86400000; // default 7 days
+    return parseInt(match[1]) * units[match[2]];
   }
 
   // Get profile
@@ -172,7 +200,13 @@ class AuthController {
   // Logout
   static async logout(req, res) {
     try {
-      // Token invalidation is typically handled client-side
+      const token = req.headers.authorization?.split(' ')[1];
+      
+      if (token) {
+        // Invalidate the session
+        await SessionModel.invalidateSession(token);
+      }
+      
       res.json({ message: 'Logged out successfully' });
     } catch (error) {
       res.status(500).json({ message: 'Logout failed', error: error.message });

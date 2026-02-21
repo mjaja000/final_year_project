@@ -1,9 +1,9 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import Header from "@/components/Header";
 import { useToast } from "@/components/ui/use-toast";
-import { Shield, LogIn, Eye, EyeOff } from "lucide-react";
+import { Shield, LogIn, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,8 +16,20 @@ const AdminLogin = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionInvalidated, setSessionInvalidated] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+
+  // Check if redirected due to session invalidation
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('reason') === 'SESSION_INVALIDATED') {
+      setSessionInvalidated(true);
+      localStorage.removeItem('token');
+      localStorage.removeItem('userRole');
+    }
+  }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +115,19 @@ const AdminLogin = () => {
           </div>
 
           <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 sm:p-8 border border-white/10 shadow-2xl">
+            {sessionInvalidated && (
+              <div className="mb-6 p-4 bg-amber-500/20 border border-amber-500/50 rounded-lg flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-amber-100 mb-1">Session Ended</h3>
+                  <p className="text-sm text-amber-200">
+                    You logged in from another device. Your previous session has been ended for security.
+                    <br />
+                    <strong>Only one device can be active at a time.</strong>
+                  </p>
+                </div>
+              </div>
+            )}
             <form
               onSubmit={handleSubmit}
               className="space-y-4 sm:space-y-5 animate-fade-in"
