@@ -420,18 +420,82 @@ async function loadOccupancyData() {
 
 async function loadFeedbackData() {
     try {
-        const response = await fetch(`${API_URL}/admin/feedback`);
-        const data = await response.json();
-        
+        const [feedbackResult, reportsResult] = await Promise.allSettled([
+            fetch(`${API_URL}/admin/feedback`),
+            fetch(`${API_URL}/admin/reports?limit=1000`)
+        ]);
+
+        let feedbackItems = [];
+        if (feedbackResult.status === 'fulfilled' && feedbackResult.value.ok) {
+            const feedbackData = await feedbackResult.value.json();
+            feedbackItems = (feedbackData.feedback || []).map(item => ({
+                id: `fb-${item.id}`,
+                userId: item.user_id || item.passenger_name || 'Anonymous',
+                type: item.feedback_type || 'Feedback',
+                comment: item.comment,
+                route: item.route_name || 'N/A',
+                vehicleRegistration: item.registration_number || 'N/A',
+                createdAt: item.created_at,
+                status: item.status || 'pending'
+            }));
+        } else {
+            try {
+                const fallbackFeedbackResponse = await fetch(`${API_URL}/feedback`);
+                if (fallbackFeedbackResponse.ok) {
+                    const fallbackData = await fallbackFeedbackResponse.json();
+                    const fallbackFeedback = Array.isArray(fallbackData.feedback)
+                        ? fallbackData.feedback
+                        : Array.isArray(fallbackData)
+                            ? fallbackData
+                            : [];
+                    feedbackItems = fallbackFeedback.map(item => ({
+                        id: `fb-${item.id}`,
+                        userId: item.user_id || item.passenger_name || 'Anonymous',
+                        type: item.feedback_type || 'Feedback',
+                        comment: item.comment,
+                        route: item.route_name || 'N/A',
+                        vehicleRegistration: item.registration_number || 'N/A',
+                        createdAt: item.created_at,
+                        status: item.status || 'pending'
+                    }));
+                }
+            } catch (fallbackError) {
+                console.error('Fallback /api/feedback fetch failed:', fallbackError);
+            }
+        }
+
+        let reportItems = [];
+        if (reportsResult.status === 'fulfilled' && reportsResult.value.ok) {
+            const reportsData = await reportsResult.value.json();
+            reportItems = (reportsData.reports || []).map(item => {
+                const reportType = String(item.type || '').toUpperCase();
+                const mappedType = reportType === 'GENERAL' ? 'Compliment' : 'Complaint';
+                return {
+                    id: `rp-${item.id}`,
+                    userId: item.user_id || 'Anonymous',
+                    type: mappedType,
+                    comment: item.comment || item.category || 'No details provided',
+                    route: item.route_name || 'N/A',
+                    vehicleRegistration: item.registration_number || 'N/A',
+                    createdAt: item.created_at,
+                    status: 'pending'
+                };
+            });
+        }
+
         // Transform feedback with all details including status
-        allFeedback = (data.feedback || []).map(item => ({
+        allFeedback = [...feedbackItems, ...reportItems].sort((a, b) => {
+            const aTime = new Date(a.createdAt || 0).getTime();
+            const bTime = new Date(b.createdAt || 0).getTime();
+            return bTime - aTime;
+        }).map(item => ({
             id: item.id,
-            userId: item.user_id || item.passenger_name || 'Anonymous',
-            type: item.feedback_type || 'Feedback',
+            userId: item.userId || 'Anonymous',
+            type: item.type || 'Feedback',
             comment: item.comment,
-            route: item.route_name || 'N/A',
-            vehicleRegistration: item.registration_number || 'N/A',
-            createdAt: item.created_at,
+            route: item.route || 'N/A',
+            vehicleRegistration: item.vehicleRegistration || 'N/A',
+            createdAt: item.createdAt,
             status: item.status || 'pending'
         }));
         
