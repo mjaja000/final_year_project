@@ -1,17 +1,21 @@
 import React from "react";
-import ReportContainer from "../components/ReportContainer";
-import { ReportData } from "@/lib/reportSchema";
+import FeedbackForm from "@/components/FeedbackForm";
 import Header from "@/components/Header";
+import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { MessageSquare } from "lucide-react";
 
 export default function ComplaintDemo() {
-  const plates = ["KAA-123A", "KBB-456B", "KCC-789C", "KDD-101D", "KEE-202E"];
+  const navigate = useNavigate();
 
-  const handleSubmit = async (data: ReportData) => {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    console.log("Demo report submitted:", data);
+  const handleBack = () => {
+    navigate("/");
+  };
+
+  const handleSuccess = () => {
+    setTimeout(() => {
+      navigate("/");
+    }, 2000);
   };
 
   return (
@@ -39,10 +43,9 @@ export default function ComplaintDemo() {
         <main className="max-w-3xl mx-auto py-8 px-4">
 
           <div className="bg-white shadow-2xl rounded-2xl overflow-hidden border border-gray-100">
-            <ReportContainer
-              plateOptions={plates}
-              onSubmit={handleSubmit}
-            />
+            <div className="p-6 sm:p-8">
+              <FeedbackForm onBack={handleBack} onSuccess={handleSuccess} />
+            </div>
           </div>
         </main>
       </div>

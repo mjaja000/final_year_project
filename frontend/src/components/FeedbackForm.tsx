@@ -23,7 +23,6 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(route?.id ? String(route.id) : null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [whatsappStatus, setWhatsappStatus] = useState<'idle' | 'sent' | 'failed'>('idle');
   const { toast } = useToast();
 
   const routesQuery = useQuery({
@@ -96,11 +95,6 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
       });
 
       setTimeout(() => {
-        setWhatsappStatus('sent');
-        toast({ title: 'WhatsApp', description: 'WhatsApp confirmation queued (if enabled).' });
-      }, 800);
-
-      setTimeout(() => {
         onSuccess();
       }, 2000);
     } catch (err: any) {
@@ -126,12 +120,6 @@ const FeedbackForm = ({ route, onBack, onSuccess }: FeedbackFormProps) => {
         <p className="text-muted-foreground mb-4">
           Your feedback has been submitted successfully.
         </p>
-        <p className="text-sm text-muted-foreground">
-          SMS confirmation will be sent to your registered number.
-        </p>
-        {whatsappStatus === 'sent' && (
-          <p className="text-sm text-muted-foreground mt-2">WhatsApp confirmation sent (simulation)</p>
-        )}
       </div>
     );
   }
