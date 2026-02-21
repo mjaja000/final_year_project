@@ -19,6 +19,7 @@ const driverRoutes = require('./routes/driverRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const lostAndFoundRoutes = require('./routes/lostAndFoundRoutes');
 const locationRoutes = require('./routes/locationRoutes');
+const customerRoutes = require('./routes/customerRoutes');
 const errorMiddleware = require('./middlewares/errorMiddleware');
 const { createReportsTable } = require('./migrations/createReportsTable');
 
@@ -58,6 +59,7 @@ app.use('/api/drivers', driverRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/lost-and-found', lostAndFoundRoutes);
 app.use('/api/vehicles', locationRoutes); // Location tracking for vehicles
+app.use('/api/customers', customerRoutes); // Customer location tracking for map
 
 // Root route
 app.get('/', (req, res) => {

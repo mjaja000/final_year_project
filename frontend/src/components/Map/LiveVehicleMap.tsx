@@ -114,6 +114,32 @@ const LiveVehicleMap = ({
     };
   }, []);
 
+  // Save customer location to database when location is obtained
+  useEffect(() => {
+    if (latitude && longitude && userWantsLocation) {
+      const saveLocation = async () => {
+        try {
+          const response = await fetch(`${API_BASE}/api/customers/location`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              latitude,
+              longitude,
+              timestamp: new Date().toISOString()
+            })
+          });
+          if (!response.ok) {
+            console.error('Failed to save customer location');
+          }
+        } catch (error) {
+          console.error('Error saving location:', error);
+        }
+      };
+      
+      saveLocation();
+    }
+  }, [latitude, longitude, userWantsLocation]);
+
   // Calculate nearest vehicle when user location or vehicles change
   useEffect(() => {
     if (latitude && longitude && vehicles.length > 0) {
@@ -179,9 +205,10 @@ const LiveVehicleMap = ({
               <Button 
                 onClick={handleToggleLocation}
                 disabled={locationLoading}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4"
+                title="Click to share your location and find nearby vehicles"
               >
-                <Navigation className="h-4 w-4 mr-2" />
+                <Navigation className="h-5 w-5 mr-2" />
                 {locationLoading ? 'Requesting location...' : 'Find Nearest Vehicle'}
               </Button>
             )}
