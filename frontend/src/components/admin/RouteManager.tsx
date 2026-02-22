@@ -175,39 +175,7 @@ const RouteManager = () => {
               />
             </div>
 
-            {/* Start Location Picker */}
-            <LocationPicker
-              label="Start Location"
-              locationName={form.start_location}
-              latitude={form.start_latitude}
-              longitude={form.start_longitude}
-              onLocationChange={(name, lat, lng) =>
-                setForm({
-                  ...form,
-                  start_location: name,
-                  start_latitude: lat,
-                  start_longitude: lng,
-                })
-              }
-            />
-
-            {/* End Location Picker */}
-            <LocationPicker
-              label="End Location"
-              locationName={form.end_location}
-              latitude={form.end_latitude}
-              longitude={form.end_longitude}
-              onLocationChange={(name, lat, lng) =>
-                setForm({
-                  ...form,
-                  end_location: name,
-                  end_latitude: lat,
-                  end_longitude: lng,
-                })
-              }
-            />
-
-            {/* Price and Distance */}
+            {/* Price and Distance - moved up before maps */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Price (KES)</Label>
@@ -231,6 +199,47 @@ const RouteManager = () => {
                 />
               </div>
             </div>
+
+            {/* Location Pickers - Side by Side on Desktop */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Start Location Picker */}
+              <div className="min-h-0">
+                <LocationPicker
+                  label="Start Location"
+                  locationName={form.start_location}
+                  latitude={form.start_latitude}
+                  longitude={form.start_longitude}
+                  mapHeight="h-48"
+                  onLocationChange={(name, lat, lng) =>
+                    setForm({
+                      ...form,
+                      start_location: name,
+                      start_latitude: lat,
+                      start_longitude: lng,
+                    })
+                  }
+                />
+              </div>
+
+              {/* End Location Picker */}
+              <div className="min-h-0">
+                <LocationPicker
+                  label="End Location"
+                  locationName={form.end_location}
+                  latitude={form.end_latitude}
+                  longitude={form.end_longitude}
+                  mapHeight="h-48"
+                  onLocationChange={(name, lat, lng) =>
+                    setForm({
+                      ...form,
+                      end_location: name,
+                      end_latitude: lat,
+                      end_longitude: lng,
+                    })
+                  }
+                />
+              </div>
+            </div>
           </div>
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
@@ -240,13 +249,13 @@ const RouteManager = () => {
                 <strong>1. Route Name:</strong> Give your route a name (e.g., "CBD to Westlands")
               </li>
               <li>
-                <strong>2. Start Location:</strong> Type a place name or click the map to pin
+                <strong>2. Price & Distance:</strong> Enter fare in KES and optional distance
               </li>
               <li>
-                <strong>3. End Location:</strong> Type a place name or click the map to pin
+                <strong>3. Start Location:</strong> Type a place name or click the map to pin
               </li>
               <li>
-                <strong>4. Add Fare & Distance:</strong> Enter fare in KES and optional distance in km
+                <strong>4. End Location:</strong> Type a place name or click the map to pin
               </li>
               <li>
                 <strong>5. Save:</strong> Click "Create Route" and see it on the occupancy map!

@@ -9,10 +9,9 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/utils/axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+
 import {
   Select,
   SelectContent,
@@ -86,8 +85,10 @@ const RouteVisualizationMap = () => {
   const { data: routes = [], isLoading: routesLoading } = useQuery({
     queryKey: ["routes"],
     queryFn: async () => {
-      const response = await api.get("/routes");
-      return response.data || [];
+      const baseURL = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${baseURL}/routes`);
+      if (!response.ok) throw new Error('Failed to fetch routes');
+      return response.json();
     },
     refetchInterval: 5000,
   });
@@ -126,7 +127,7 @@ const RouteVisualizationMap = () => {
   if (routesLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <LoadingSpinner />
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
