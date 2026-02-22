@@ -127,6 +127,7 @@ const RouteManager = () => {
       end_longitude: form.end_longitude,
     };
 
+    console.log('[RouteManager] Submitting payload:', payload);
     createRoute.mutate(payload);
   };
 

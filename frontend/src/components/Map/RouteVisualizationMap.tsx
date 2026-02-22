@@ -88,25 +88,29 @@ const RouteVisualizationMap = () => {
       const baseURL = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${baseURL}/routes`);
       if (!response.ok) throw new Error('Failed to fetch routes');
-      return response.json();
+      const data = await response.json();
+      // Handle both direct array and object with routes property
+      return Array.isArray(data) ? data : (data.routes || []);
     },
     refetchInterval: 5000,
   });
 
   const selectedRoute = useMemo(
-    () => routes.find((r: Route) => r.route_id === selectedRouteId),
+    () => Array.isArray(routes) ? routes.find((r: Route) => r.route_id === selectedRouteId) : undefined,
     [routes, selectedRouteId]
   );
 
   const validRoutes = useMemo(
-    () =>
-      routes.filter(
+    () => {
+      if (!Array.isArray(routes)) return [];
+      return routes.filter(
         (r: Route) =>
           r.start_latitude &&
           r.start_longitude &&
           r.end_latitude &&
           r.end_longitude
-      ),
+      );
+    },
     [routes]
   );
 
