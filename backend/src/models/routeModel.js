@@ -45,7 +45,24 @@ class RouteModel {
   }
 
   static async getAllRoutes() {
-    const query = 'SELECT * FROM routes WHERE status != \'inactive\' ORDER BY route_name;';
+    const query = `
+      SELECT
+        r.*,
+        COALESCE(vc.vehicle_count, 0) AS vehicle_count
+      FROM routes r
+      LEFT JOIN (
+        SELECT v.route_id, COUNT(*)::int AS vehicle_count
+        FROM vehicles v
+        LEFT JOIN vehicle_occupancy vo ON vo.vehicle_id = v.id
+        WHERE
+          v.status = 'active'
+          AND v.route_id IS NOT NULL
+          AND (vo.current_occupancy IS NULL OR vo.current_occupancy < v.capacity)
+        GROUP BY v.route_id
+      ) vc ON vc.route_id = r.id
+      WHERE r.status != 'inactive'
+      ORDER BY r.route_name;
+    `;
     try {
       const result = await pool.query(query);
       return result.rows;

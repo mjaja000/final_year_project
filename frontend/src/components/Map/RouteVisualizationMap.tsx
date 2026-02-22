@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -35,7 +35,7 @@ const greenIcon = new L.Icon({
     "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-green.png",
   shadowUrl:
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-  iconSize: [25, 41],
+  iconSize: [30, 48],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
@@ -46,7 +46,7 @@ const redIcon = new L.Icon({
     "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-red.png",
   shadowUrl:
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-  iconSize: [25, 41],
+  iconSize: [30, 48],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
@@ -81,8 +81,11 @@ function MapBounds({ bounds }: MapBoundsProps) {
 
 const RouteVisualizationMap = () => {
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
+  const [routePaths, setRoutePaths] = useState<Record<number, L.LatLngExpression[]>>({});
+  const routePathRequested = useRef<Set<number>>(new Set());
+  const [isRoutePathLoading, setIsRoutePathLoading] = useState(false);
 
-  const { data: routes = [], isLoading: routesLoading } = useQuery({
+  const { data: routesData = [], isLoading: routesLoading } = useQuery({
     queryKey: ["routes"],
     queryFn: async () => {
       const baseURL = import.meta.env.VITE_API_URL || '';
@@ -100,23 +103,78 @@ const RouteVisualizationMap = () => {
     refetchInterval: 5000,
   });
 
+  // Ensure routes is always an array
+  const routes = useMemo(() => {
+    if (Array.isArray(routesData)) return routesData;
+    if (routesData && typeof routesData === 'object' && 'routes' in routesData) {
+      return Array.isArray(routesData.routes) ? routesData.routes : [];
+    }
+    return [];
+  }, [routesData]);
+
   const selectedRoute = useMemo(
-    () => routes.find((r: Route) => r.id === selectedRouteId),
+    () => routes && Array.isArray(routes) ? routes.find((r: Route) => r.id === selectedRouteId) : null,
     [routes, selectedRouteId]
   );
 
   const validRoutes = useMemo(
     () =>
-      routes.filter(
+      Array.isArray(routes) ? routes.filter(
         (r: Route) =>
           r.id &&
           r.start_latitude &&
           r.start_longitude &&
           r.end_latitude &&
           r.end_longitude
-      ),
+      ) : [],
     [routes]
   );
+
+  useEffect(() => {
+    let isActive = true;
+
+    if (!selectedRoute) {
+      setIsRoutePathLoading(false);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    const fetchRoutePath = async (route: Route) => {
+      if (routePathRequested.current.has(route.id)) return;
+      routePathRequested.current.add(route.id);
+      setIsRoutePathLoading(true);
+
+      const start = `${route.start_longitude},${route.start_latitude}`;
+      const end = `${route.end_longitude},${route.end_latitude}`;
+      const url = `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`;
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return;
+        const data = await response.json();
+        const coords = data?.routes?.[0]?.geometry?.coordinates;
+        if (!Array.isArray(coords)) return;
+
+        const path = coords.map((point: [number, number]) => [point[1], point[0]] as [number, number]);
+        if (isActive) {
+          setRoutePaths((prev) => ({ ...prev, [route.id]: path }));
+        }
+      } catch (error) {
+        console.error("[RouteVisualizationMap] Failed to fetch route path", error);
+      } finally {
+        if (isActive) {
+          setIsRoutePathLoading(false);
+        }
+      }
+    };
+
+    fetchRoutePath(selectedRoute);
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedRoute]);
 
   const mapBounds = useMemo(() => {
     if (validRoutes.length === 0) return null;
@@ -129,6 +187,21 @@ const RouteVisualizationMap = () => {
 
     return bounds;
   }, [validRoutes]);
+
+  const selectedRouteBounds = useMemo(() => {
+    if (!selectedRoute) return null;
+
+    const bounds = L.latLngBounds([]);
+    bounds.extend([selectedRoute.start_latitude, selectedRoute.start_longitude]);
+    bounds.extend([selectedRoute.end_latitude, selectedRoute.end_longitude]);
+
+    return bounds;
+  }, [selectedRoute]);
+
+  const visibleRoutes = useMemo(
+    () => (selectedRoute ? [selectedRoute] : validRoutes),
+    [selectedRoute, validRoutes]
+  );
 
   const defaultCenter: [number, number] = [-1.2864, 36.8172];
 
@@ -200,6 +273,11 @@ const RouteVisualizationMap = () => {
 
         {/* Map */}
         <div className="md:col-span-3 border border-border rounded-lg overflow-hidden">
+          {isRoutePathLoading && selectedRoute && (
+            <div className="bg-blue-50 text-blue-900 text-xs px-3 py-2 border-b border-border">
+              Loading road path for {selectedRoute.route_name}...
+            </div>
+          )}
           <MapContainer
             center={defaultCenter}
             zoom={13}
@@ -211,11 +289,13 @@ const RouteVisualizationMap = () => {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-            {validRoutes.map((route: Route) => (
+            {visibleRoutes.map((route: Route) => (
               <div key={route.id}>
                 <Marker
                   position={[route.start_latitude, route.start_longitude]}
                   icon={greenIcon}
+                  riseOnHover={true}
+                  zIndexOffset={1000}
                 >
                   <Popup>
                     <div>
@@ -230,6 +310,8 @@ const RouteVisualizationMap = () => {
                 <Marker
                   position={[route.end_latitude, route.end_longitude]}
                   icon={redIcon}
+                  riseOnHover={true}
+                  zIndexOffset={1000}
                 >
                   <Popup>
                     <div>
@@ -242,19 +324,23 @@ const RouteVisualizationMap = () => {
                 </Marker>
 
                 <Polyline
-                  positions={[
-                    [route.start_latitude, route.start_longitude],
-                    [route.end_latitude, route.end_longitude],
-                  ]}
-                  color={selectedRouteId === route.id ? "#2563eb" : "#d1d5db"}
-                  weight={selectedRouteId === route.id ? 4 : 2}
-                  opacity={selectedRouteId === route.id ? 1 : 0.6}
-                  dashArray={selectedRouteId === route.id ? "0" : "5, 5"}
+                  positions={
+                    routePaths[route.id] || [
+                      [route.start_latitude, route.start_longitude],
+                      [route.end_latitude, route.end_longitude],
+                    ]
+                  }
+                  color={selectedRouteId === route.id ? "#1d4ed8" : "#3b82f6"}
+                  weight={selectedRouteId === route.id ? 5 : 3}
+                  opacity={selectedRouteId === route.id ? 1 : 0.85}
+                  dashArray="0"
+                  lineCap="round"
+                  lineJoin="round"
                 />
               </div>
             ))}
 
-            {mapBounds && <MapBounds bounds={mapBounds} />}
+            {selectedRouteBounds ? <MapBounds bounds={selectedRouteBounds} /> : (mapBounds && <MapBounds bounds={mapBounds} />)}
           </MapContainer>
         </div>
       </div>
@@ -272,7 +358,14 @@ const RouteVisualizationMap = () => {
             {validRoutes.map((route: Route) => (
               route.id ? (
                 <SelectItem key={route.id} value={route.id.toString()}>
-                  {route.route_name}
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{route.route_name}</span>
+                    {route.vehicle_count !== undefined && (
+                      <span className="text-xs text-muted-foreground">
+                        {route.vehicle_count} car{route.vehicle_count !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
                 </SelectItem>
               ) : null
             ))}
@@ -280,6 +373,11 @@ const RouteVisualizationMap = () => {
         </Select>
 
         <div className="border border-border rounded-lg overflow-hidden h-64">
+          {isRoutePathLoading && selectedRoute && (
+            <div className="bg-blue-50 text-blue-900 text-xs px-3 py-2 border-b border-border">
+              Loading road path for {selectedRoute.route_name}...
+            </div>
+          )}
           <MapContainer
             center={defaultCenter}
             zoom={13}
@@ -291,11 +389,13 @@ const RouteVisualizationMap = () => {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-            {validRoutes.map((route: Route) => (
+            {visibleRoutes.map((route: Route) => (
               <div key={route.id}>
                 <Marker
                   position={[route.start_latitude, route.start_longitude]}
                   icon={greenIcon}
+                  riseOnHover={true}
+                  zIndexOffset={1000}
                 >
                   <Popup>{route.start_location}</Popup>
                 </Marker>
@@ -303,24 +403,30 @@ const RouteVisualizationMap = () => {
                 <Marker
                   position={[route.end_latitude, route.end_longitude]}
                   icon={redIcon}
+                  riseOnHover={true}
+                  zIndexOffset={1000}
                 >
                   <Popup>{route.end_location}</Popup>
                 </Marker>
 
                 <Polyline
-                  positions={[
-                    [route.start_latitude, route.start_longitude],
-                    [route.end_latitude, route.end_longitude],
-                  ]}
-                  color={selectedRouteId === route.id ? "#2563eb" : "#d1d5db"}
-                  weight={selectedRouteId === route.id ? 4 : 2}
-                  opacity={selectedRouteId === route.id ? 1 : 0.6}
-                  dashArray={selectedRouteId === route.id ? "0" : "5, 5"}
+                  positions={
+                    routePaths[route.id] || [
+                      [route.start_latitude, route.start_longitude],
+                      [route.end_latitude, route.end_longitude],
+                    ]
+                  }
+                  color={selectedRouteId === route.id ? "#1d4ed8" : "#3b82f6"}
+                  weight={selectedRouteId === route.id ? 5 : 3}
+                  opacity={selectedRouteId === route.id ? 1 : 0.85}
+                  dashArray="0"
+                  lineCap="round"
+                  lineJoin="round"
                 />
               </div>
-            ))
+            ))}
 
-            {mapBounds && <MapBounds bounds={mapBounds} />}
+            {selectedRouteBounds ? <MapBounds bounds={selectedRouteBounds} /> : (mapBounds && <MapBounds bounds={mapBounds} />)}
           </MapContainer>
         </div>
       </div>
