@@ -1,7 +1,6 @@
 const pool = require('../config/database');
 
 class RouteModel {
-  // Create routes table
   static async createTable() {
     const query = `
       CREATE TABLE IF NOT EXISTS routes (
@@ -9,6 +8,10 @@ class RouteModel {
         route_name VARCHAR(100) NOT NULL,
         start_location VARCHAR(100) NOT NULL,
         end_location VARCHAR(100) NOT NULL,
+        start_latitude DECIMAL(10, 8),
+        start_longitude DECIMAL(11, 8),
+        end_latitude DECIMAL(10, 8),
+        end_longitude DECIMAL(11, 8),
         base_fare DECIMAL(10, 2) NOT NULL,
         description TEXT,
         status VARCHAR(20) DEFAULT 'active',
@@ -19,14 +22,30 @@ class RouteModel {
     try {
       await pool.query(query);
       console.log('Routes table created successfully');
+      
+      // Add missing columns if they don't exist (for existing databases)
+      const addColumnsQuery = `
+        ALTER TABLE routes
+        ADD COLUMN IF NOT EXISTS start_latitude DECIMAL(10, 8),
+        ADD COLUMN IF NOT EXISTS start_longitude DECIMAL(11, 8),
+        ADD COLUMN IF NOT EXISTS end_latitude DECIMAL(10, 8),
+        ADD COLUMN IF NOT EXISTS end_longitude DECIMAL(11, 8);
+      `;
+      try {
+        await pool.query(addColumnsQuery);
+        console.log('✓ Coordinate columns added to routes table');
+      } catch (altErr) {
+        if (!altErr.message.includes('already exists')) {
+          console.log('Columns may already exist');
+        }
+      }
     } catch (error) {
       console.error('Error creating routes table:', error);
     }
   }
 
-  // Get all routes
   static async getAllRoutes() {
-    const query = 'SELECT * FROM routes ORDER BY route_name;';
+    const query = 'SELECT * FROM routes WHERE status != \'inactive\' ORDER BY route_name;';
     try {
       const result = await pool.query(query);
       return result.rows;
@@ -35,7 +54,6 @@ class RouteModel {
     }
   }
 
-  // Get route by ID
   static async getRouteById(id) {
     const query = 'SELECT * FROM routes WHERE id = $1;';
     try {
@@ -46,23 +64,31 @@ class RouteModel {
     }
   }
 
-  // Create route (admin only)
-  static async createRoute(routeName, startLocation, endLocation, baseFare, description = null) {
+  static async createRoute(routeName, startLocation, endLocation, baseFare, startLat, startLng, endLat, endLng, description = null) {
     const query = `
-      INSERT INTO routes (route_name, start_location, end_location, base_fare, description)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO routes (route_name, start_location, end_location, base_fare, start_latitude, start_longitude, end_latitude, end_longitude, description)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *;
     `;
     try {
-      const result = await pool.query(query, [routeName, startLocation, endLocation, baseFare, description]);
+      const result = await pool.query(query, [
+        routeName, 
+        startLocation, 
+        endLocation, 
+        baseFare, 
+        startLat || null,
+        startLng || null,
+        endLat || null,
+        endLng || null,
+        description
+      ]);
       return result.rows[0];
     } catch (error) {
       throw error;
     }
   }
 
-  // Update route
-  static async updateRoute(id, { routeName, startLocation, endLocation, baseFare, description, status }) {
+  static async updateRoute(id, { routeName, startLocation, endLocation, baseFare, startLatitude, startLongitude, endLatitude, endLongitude, description, status }) {
     const query = `
       UPDATE routes
       SET
@@ -70,22 +96,37 @@ class RouteModel {
         start_location = COALESCE($2, start_location),
         end_location = COALESCE($3, end_location),
         base_fare = COALESCE($4, base_fare),
-        description = COALESCE($5, description),
-        status = COALESCE($6, status),
+        start_latitude = COALESCE($5, start_latitude),
+        start_longitude = COALESCE($6, start_longitude),
+        end_latitude = COALESCE($7, end_latitude),
+        end_longitude = COALESCE($8, end_longitude),
+        description = COALESCE($9, description),
+        status = COALESCE($10, status),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $11
       RETURNING *;
     `;
 
     try {
-      const result = await pool.query(query, [routeName, startLocation, endLocation, baseFare, description, status, id]);
+      const result = await pool.query(query, [
+        routeName, 
+        startLocation, 
+        endLocation, 
+        baseFare, 
+        startLatitude, 
+        startLongitude, 
+        endLatitude, 
+        endLongitude, 
+        description, 
+        status, 
+        id
+      ]);
       return result.rows[0];
     } catch (error) {
       throw error;
     }
   }
 
-  // Delete (soft-delete) route
   static async deleteRoute(id) {
     const query = `
       UPDATE routes
@@ -102,9 +143,8 @@ class RouteModel {
     }
   }
 
-  // Get total count of routes
   static async getTotalCount() {
-    const query = 'SELECT COUNT(*) as count FROM routes;';
+    const query = 'SELECT COUNT(*) as count FROM routes WHERE status != \'inactive\';';
     try {
       const result = await pool.query(query);
       return result.rows[0].count || 0;

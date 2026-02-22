@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
+import LocationPicker from "./LocationPicker";
 
 interface RouteRecord {
   id: number;
@@ -22,6 +23,10 @@ const initialForm = {
   route_name: "",
   start_location: "",
   end_location: "",
+  start_latitude: null as number | null,
+  start_longitude: null as number | null,
+  end_latitude: null as number | null,
+  end_longitude: null as number | null,
   price: "",
   distance_km: "",
 };
@@ -57,10 +62,14 @@ const RouteManager = () => {
     onSuccess: () => {
       setForm(initialForm);
       queryClient.invalidateQueries({ queryKey: ["routes"] });
-      toast({ title: "Route created" });
+      toast({ title: "Route created successfully!" });
     },
     onError: (err: any) => {
-      toast({ title: "Failed to create route", description: err.message, variant: "destructive" });
+      toast({
+        title: "Failed to create route",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -71,23 +80,53 @@ const RouteManager = () => {
       toast({ title: "Route deleted" });
     },
     onError: (err: any) => {
-      toast({ title: "Failed to delete route", description: err.message, variant: "destructive" });
+      toast({
+        title: "Failed to delete route",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
-      route_name: form.route_name.trim(),
-      start_location: form.start_location.trim(),
-      end_location: form.end_location.trim(),
-      base_fare: Number(form.price) || 0,
-      distance_km: Number(form.distance_km) || 0,
-    };
-    if (!payload.route_name || !payload.start_location || !payload.end_location) {
-      toast({ title: "Fill all fields", description: "Route name, start and end locations are required", variant: "destructive" });
+
+    if (!form.route_name.trim() || !form.start_location || !form.end_location) {
+      toast({
+        title: "Fill all fields",
+        description: "Route name, start location, and end location are required",
+        variant: "destructive",
+      });
       return;
     }
+
+    if (
+      !form.start_latitude ||
+      !form.start_longitude ||
+      !form.end_latitude ||
+      !form.end_longitude
+    ) {
+      toast({
+        title: "Select locations on map",
+        description:
+          "Please use the location pickers to select both start and end points",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payload = {
+      route_name: form.route_name.trim(),
+      start_location: form.start_location,
+      end_location: form.end_location,
+      base_fare: Number(form.price) || 0,
+      distance_km: Number(form.distance_km) || 0,
+      start_latitude: form.start_latitude,
+      start_longitude: form.start_longitude,
+      end_latitude: form.end_latitude,
+      end_longitude: form.end_longitude,
+    };
+
     createRoute.mutate(payload);
   };
 
@@ -105,7 +144,12 @@ const RouteManager = () => {
           <p className="text-sm text-muted-foreground">Manage routes & fares</p>
           <h3 className="text-lg font-semibold">Routes Management</h3>
         </div>
-        <Button variant="outline" size="sm" onClick={() => routesQuery.refetch()} disabled={routesQuery.isFetching}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => routesQuery.refetch()}
+          disabled={routesQuery.isFetching}
+        >
           {routesQuery.isFetching ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
@@ -117,34 +161,53 @@ const RouteManager = () => {
             <h3 className="text-lg font-semibold">Add Route</h3>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
+            {/* Route Name */}
             <div className="space-y-1">
               <Label>Route Name</Label>
               <Input
                 value={form.route_name}
-                onChange={(e) => setForm({ ...form, route_name: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, route_name: e.target.value })
+                }
                 placeholder="e.g., Route 23"
                 required
               />
             </div>
-            <div className="space-y-1">
-              <Label>Start Location</Label>
-              <Input
-                value={form.start_location}
-                onChange={(e) => setForm({ ...form, start_location: e.target.value })}
-                placeholder="e.g., CBD Nairobi"
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>End Location</Label>
-              <Input
-                value={form.end_location}
-                onChange={(e) => setForm({ ...form, end_location: e.target.value })}
-                placeholder="e.g., Westlands"
-                required
-              />
-            </div>
+
+            {/* Start Location Picker */}
+            <LocationPicker
+              label="Start Location"
+              locationName={form.start_location}
+              latitude={form.start_latitude}
+              longitude={form.start_longitude}
+              onLocationChange={(name, lat, lng) =>
+                setForm({
+                  ...form,
+                  start_location: name,
+                  start_latitude: lat,
+                  start_longitude: lng,
+                })
+              }
+            />
+
+            {/* End Location Picker */}
+            <LocationPicker
+              label="End Location"
+              locationName={form.end_location}
+              latitude={form.end_latitude}
+              longitude={form.end_longitude}
+              onLocationChange={(name, lat, lng) =>
+                setForm({
+                  ...form,
+                  end_location: name,
+                  end_latitude: lat,
+                  end_longitude: lng,
+                })
+              }
+            />
+
+            {/* Price and Distance */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Price (KES)</Label>
@@ -161,16 +224,44 @@ const RouteManager = () => {
                 <Input
                   type="number"
                   value={form.distance_km}
-                  onChange={(e) => setForm({ ...form, distance_km: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, distance_km: e.target.value })
+                  }
                   placeholder="Optional"
                 />
               </div>
             </div>
           </div>
 
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
+            <p className="font-semibold text-green-900 mb-2">✨ How to Create Routes</p>
+            <ul className="text-green-800 text-xs space-y-1">
+              <li>
+                <strong>1. Route Name:</strong> Give your route a name (e.g., "CBD to Westlands")
+              </li>
+              <li>
+                <strong>2. Start Location:</strong> Type a place name or click the map to pin
+              </li>
+              <li>
+                <strong>3. End Location:</strong> Type a place name or click the map to pin
+              </li>
+              <li>
+                <strong>4. Add Fare & Distance:</strong> Enter fare in KES and optional distance in km
+              </li>
+              <li>
+                <strong>5. Save:</strong> Click "Create Route" and see it on the occupancy map!
+              </li>
+            </ul>
+          </div>
+
           <Separator />
 
-          <Button type="submit" className="w-full" variant="hero" disabled={createRoute.isPending}>
+          <Button
+            type="submit"
+            className="w-full"
+            variant="hero"
+            disabled={createRoute.isPending}
+          >
             {createRoute.isPending ? "Saving..." : "Create Route"}
           </Button>
         </form>
@@ -192,7 +283,10 @@ const RouteManager = () => {
                 const start = route.start_location || "";
                 const end = route.end_location || "";
                 const fare = Number(route.base_fare ?? route.price ?? 0);
-                const distance = typeof route.distance_km === "number" ? route.distance_km : null;
+                const distance =
+                  typeof route.distance_km === "number"
+                    ? route.distance_km
+                    : null;
 
                 return (
                   <div
@@ -202,7 +296,7 @@ const RouteManager = () => {
                     <div className="space-y-1">
                       <p className="font-semibold">{routeLabel}</p>
                       <p className="text-sm text-muted-foreground">
-                        {start} to {end}
+                        {start} → {end}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Fare: KES {fare}

@@ -24,17 +24,32 @@ class RouteController {
 
   static async create(req, res) {
     try {
-      const { route_name, routeName, start_location, startLocation, end_location, endLocation, base_fare, baseFare, description } = req.body;
+      const { 
+        route_name, routeName, 
+        start_location, startLocation, 
+        end_location, endLocation, 
+        base_fare, baseFare, 
+        start_latitude, startLatitude, 
+        start_longitude, startLongitude, 
+        end_latitude, endLatitude, 
+        end_longitude, endLongitude, 
+        description 
+      } = req.body;
+      
       const name = route_name || routeName;
       const start = start_location || startLocation;
       const end = end_location || endLocation;
       const fare = base_fare || baseFare;
+      const startLat = start_latitude || startLatitude;
+      const startLng = start_longitude || startLongitude;
+      const endLat = end_latitude || endLatitude;
+      const endLng = end_longitude || endLongitude;
 
       if (!name || !start || !end || fare === undefined) {
         return res.status(400).json({ message: 'Missing required fields: route_name, start_location, end_location, base_fare' });
       }
 
-      const route = await RouteModel.createRoute(name, start, end, fare, description);
+      const route = await RouteModel.createRoute(name, start, end, fare, startLat, startLng, endLat, endLng, description);
       res.status(201).json({ message: 'Route created', route });
     } catch (error) {
       console.error('Create route error:', error);
