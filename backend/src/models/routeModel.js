@@ -71,19 +71,22 @@ class RouteModel {
       RETURNING *;
     `;
     try {
-      const result = await pool.query(query, [
+      const params = [
         routeName, 
         startLocation, 
         endLocation, 
         baseFare, 
-        startLat || null,
-        startLng || null,
-        endLat || null,
-        endLng || null,
+        startLat,
+        startLng,
+        endLat,
+        endLng,
         description
-      ]);
+      ];
+      
+      const result = await pool.query(query, params);
       return result.rows[0];
     } catch (error) {
+      console.error('[RouteModel.createRoute] Error:', error);
       throw error;
     }
   }

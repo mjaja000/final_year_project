@@ -25,47 +25,39 @@ class RouteController {
   static async create(req, res) {
     try {
       const { 
-        route_name, routeName, 
-        start_location, startLocation, 
-        end_location, endLocation, 
-        base_fare, baseFare, 
-        start_latitude, startLatitude, 
-        start_longitude, startLongitude, 
-        end_latitude, endLatitude, 
-        end_longitude, endLongitude, 
+        route_name, 
+        start_location, 
+        end_location, 
+        base_fare, 
+        distance_km,
+        start_latitude, 
+        start_longitude, 
+        end_latitude, 
+        end_longitude, 
         description 
       } = req.body;
-      
-      const name = route_name || routeName;
-      const start = start_location || startLocation;
-      const end = end_location || endLocation;
-      const fare = base_fare || baseFare;
-      const startLat = start_latitude || startLatitude;
-      const startLng = start_longitude || startLongitude;
-      const endLat = end_latitude || endLatitude;
-      const endLng = end_longitude || endLongitude;
 
-      if (!name || !start || !end || fare === undefined) {
-        return res.status(400).json({ message: 'Missing required fields: route_name, start_location, end_location, base_fare' });
+      if (!route_name || !start_location || !end_location || base_fare === undefined) {
+        return res.status(400).json({ message: 'Missing required fields' });
       }
 
-      // Parse coordinates to numbers
-      const parsedStartLat = startLat ? parseFloat(startLat) : null;
-      const parsedStartLng = startLng ? parseFloat(startLng) : null;
-      const parsedEndLat = endLat ? parseFloat(endLat) : null;
-      const parsedEndLng = endLng ? parseFloat(endLng) : null;
+      // Parse coordinates to numbers if they exist
+      const startLat = start_latitude ? parseFloat(start_latitude) : null;
+      const startLng = start_longitude ? parseFloat(start_longitude) : null;
+      const endLat = end_latitude ? parseFloat(end_latitude) : null;
+      const endLng = end_longitude ? parseFloat(end_longitude) : null;
 
-      console.log('[RouteController.create] Creating route with:', {
-        name, start, end, fare,
-        coordinates: {
-          startLat: parsedStartLat,
-          startLng: parsedStartLng,
-          endLat: parsedEndLat,
-          endLng: parsedEndLng
-        }
-      });
-
-      const route = await RouteModel.createRoute(name, start, end, fare, parsedStartLat, parsedStartLng, parsedEndLat, parsedEndLng, description);
+      const route = await RouteModel.createRoute(
+        route_name, 
+        start_location, 
+        end_location, 
+        base_fare, 
+        startLat,
+        startLng,
+        endLat,
+        endLng,
+        description
+      );
       res.status(201).json({ message: 'Route created', route });
     } catch (error) {
       console.error('Create route error:', error);
