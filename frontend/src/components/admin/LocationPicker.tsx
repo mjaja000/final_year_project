@@ -27,6 +27,7 @@ interface LocationPickerProps {
   locationName: string;
   latitude: number | null;
   longitude: number | null;
+  mapHeight?: string;
   onLocationChange: (name: string, lat: number, lng: number) => void;
 }
 
@@ -73,6 +74,7 @@ const LocationPicker = ({
   locationName,
   latitude,
   longitude,
+  mapHeight = "h-64 sm:h-80",
   onLocationChange,
 }: LocationPickerProps) => {
   const { toast } = useToast();
@@ -189,12 +191,12 @@ const LocationPicker = ({
         </p>
       </div>
 
-      <div className="relative">
+      <div className="relative z-10">
         <Input
           placeholder="e.g., CBD Nairobi, Westlands, Thika..."
           value={searchInput}
           onChange={(e) => handleSearch(e.target.value)}
-          className="w-full"
+          className="w-full relative z-10"
         />
         {isSearching && (
           <div className="absolute right-3 top-3">
@@ -203,7 +205,7 @@ const LocationPicker = ({
         )}
 
         {showResults && searchResults.length > 0 && (
-          <div className="absolute top-full left-0 right-0 bg-white border border-border rounded-md shadow-lg z-50 mt-1 max-h-48 overflow-y-auto">
+          <div className="absolute top-full left-0 right-0 bg-white border border-border rounded-md shadow-xl z-[9999] mt-1 max-h-48 overflow-y-auto">
             {searchResults.map((result, idx) => (
               <button
                 key={idx}
@@ -221,13 +223,13 @@ const LocationPicker = ({
         )}
 
         {showResults && searchInput.trim() && searchResults.length === 0 && !isSearching && (
-          <div className="absolute top-full left-0 right-0 bg-white border border-border rounded-md shadow-lg z-50 mt-1 p-3">
+          <div className="absolute top-full left-0 right-0 bg-white border border-border rounded-md shadow-xl z-[9999] mt-1 p-3">
             <p className="text-sm text-muted-foreground">No locations found</p>
           </div>
         )}
       </div>
 
-      <div className="border border-border rounded-lg overflow-hidden h-64 sm:h-80">
+      <div className={`border border-border rounded-lg overflow-hidden ${mapHeight} relative z-0 mt-2`}>
         <MapContainer
           center={[defaultLat, defaultLng]}
           zoom={13}
