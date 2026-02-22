@@ -53,7 +53,7 @@ const redIcon = new L.Icon({
 });
 
 interface Route {
-  route_id: number;
+  id: number;
   route_name: string;
   start_location: string;
   end_location: string;
@@ -86,31 +86,35 @@ const RouteVisualizationMap = () => {
     queryKey: ["routes"],
     queryFn: async () => {
       const baseURL = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${baseURL}/routes`);
+      const response = await fetch(`${baseURL}/api/routes`);
       if (!response.ok) throw new Error('Failed to fetch routes');
       const data = await response.json();
-      // Handle both direct array and object with routes property
-      return Array.isArray(data) ? data : (data.routes || []);
+      // Handle both direct array and {routes: []} format
+      const routesArray = Array.isArray(data) ? data : (data.routes || []);
+      console.log('[RouteVisualizationMap] Fetched routes:', routesArray.length, 'routes');
+      if (routesArray.length > 0) {
+        console.log('[RouteVisualizationMap] First route:', routesArray[0]);
+      }
+      return routesArray;
     },
     refetchInterval: 5000,
   });
 
   const selectedRoute = useMemo(
-    () => Array.isArray(routes) ? routes.find((r: Route) => r.route_id === selectedRouteId) : undefined,
+    () => routes.find((r: Route) => r.id === selectedRouteId),
     [routes, selectedRouteId]
   );
 
   const validRoutes = useMemo(
-    () => {
-      if (!Array.isArray(routes)) return [];
-      return routes.filter(
+    () =>
+      routes.filter(
         (r: Route) =>
+          r.id &&
           r.start_latitude &&
           r.start_longitude &&
           r.end_latitude &&
           r.end_longitude
-      );
-    },
+      ),
     [routes]
   );
 
@@ -164,30 +168,32 @@ const RouteVisualizationMap = () => {
 
           <div className="overflow-y-auto flex-1">
             {validRoutes.map((route: Route) => (
-              <button
-                key={route.route_id}
-                onClick={() => setSelectedRouteId(route.route_id)}
-                className={`w-full text-left px-3 py-3 border-b border-border transition-colors ${
-                  selectedRouteId === route.route_id
-                    ? "bg-blue-100 border-l-4 border-l-blue-600"
-                    : "hover:bg-gray-50"
-                }`}
-              >
-                <p className="font-medium text-sm text-gray-900">
-                  {route.route_name}
-                </p>
-                <p className="text-xs text-gray-600 mt-1">
-                  📍 {route.start_location}
-                </p>
-                <p className="text-xs text-gray-600">
-                  📍 {route.end_location}
-                </p>
-                {route.vehicle_count !== undefined && (
-                  <Badge variant="secondary" className="mt-2 text-xs">
-                    {route.vehicle_count} vehicle{route.vehicle_count !== 1 ? "s" : ""}
-                  </Badge>
-                )}
-              </button>
+              route.id ? (
+                <button
+                  key={route.id}
+                  onClick={() => setSelectedRouteId(route.id)}
+                  className={`w-full text-left px-3 py-3 border-b border-border transition-colors ${
+                    selectedRouteId === route.id
+                      ? "bg-blue-100 border-l-4 border-l-blue-600"
+                      : "hover:bg-gray-50"
+                  }`}
+                >
+                  <p className="font-medium text-sm text-gray-900">
+                    {route.route_name}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    📍 {route.start_location}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    📍 {route.end_location}
+                  </p>
+                  {route.vehicle_count !== undefined && (
+                    <Badge variant="secondary" className="mt-2 text-xs">
+                      {route.vehicle_count} vehicle{route.vehicle_count !== 1 ? "s" : ""}
+                    </Badge>
+                  )}
+                </button>
+              ) : null
             ))}
           </div>
         </div>
@@ -206,7 +212,7 @@ const RouteVisualizationMap = () => {
             />
 
             {validRoutes.map((route: Route) => (
-              <div key={route.route_id}>
+              <div key={route.id}>
                 <Marker
                   position={[route.start_latitude, route.start_longitude]}
                   icon={greenIcon}
@@ -240,10 +246,10 @@ const RouteVisualizationMap = () => {
                     [route.start_latitude, route.start_longitude],
                     [route.end_latitude, route.end_longitude],
                   ]}
-                  color={selectedRouteId === route.route_id ? "#2563eb" : "#d1d5db"}
-                  weight={selectedRouteId === route.route_id ? 4 : 2}
-                  opacity={selectedRouteId === route.route_id ? 1 : 0.6}
-                  dashArray={selectedRouteId === route.route_id ? "0" : "5, 5"}
+                  color={selectedRouteId === route.id ? "#2563eb" : "#d1d5db"}
+                  weight={selectedRouteId === route.id ? 4 : 2}
+                  opacity={selectedRouteId === route.id ? 1 : 0.6}
+                  dashArray={selectedRouteId === route.id ? "0" : "5, 5"}
                 />
               </div>
             ))}
@@ -264,9 +270,11 @@ const RouteVisualizationMap = () => {
           </SelectTrigger>
           <SelectContent>
             {validRoutes.map((route: Route) => (
-              <SelectItem key={route.route_id} value={route.route_id.toString()}>
-                {route.route_name}
-              </SelectItem>
+              route.id ? (
+                <SelectItem key={route.id} value={route.id.toString()}>
+                  {route.route_name}
+                </SelectItem>
+              ) : null
             ))}
           </SelectContent>
         </Select>
@@ -284,7 +292,7 @@ const RouteVisualizationMap = () => {
             />
 
             {validRoutes.map((route: Route) => (
-              <div key={route.route_id}>
+              <div key={route.id}>
                 <Marker
                   position={[route.start_latitude, route.start_longitude]}
                   icon={greenIcon}
@@ -304,13 +312,13 @@ const RouteVisualizationMap = () => {
                     [route.start_latitude, route.start_longitude],
                     [route.end_latitude, route.end_longitude],
                   ]}
-                  color={selectedRouteId === route.route_id ? "#2563eb" : "#d1d5db"}
-                  weight={selectedRouteId === route.route_id ? 4 : 2}
-                  opacity={selectedRouteId === route.route_id ? 1 : 0.6}
-                  dashArray={selectedRouteId === route.route_id ? "0" : "5, 5"}
+                  color={selectedRouteId === route.id ? "#2563eb" : "#d1d5db"}
+                  weight={selectedRouteId === route.id ? 4 : 2}
+                  opacity={selectedRouteId === route.id ? 1 : 0.6}
+                  dashArray={selectedRouteId === route.id ? "0" : "5, 5"}
                 />
               </div>
-            ))}
+            ))
 
             {mapBounds && <MapBounds bounds={mapBounds} />}
           </MapContainer>
