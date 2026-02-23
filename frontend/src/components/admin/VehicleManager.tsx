@@ -17,12 +17,22 @@ interface Vehicle {
   year?: number;
   capacity?: number;
   status?: string;
+  route_id?: number;
+  route_name?: string;
+}
+
+interface Route {
+  id: number;
+  route_name: string;
+  start_location: string;
+  end_location: string;
 }
 
 export default function VehicleManager() {
   const { toast } = useToast();
   console.log('[VehicleManager] Component loaded successfully');
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     registration_number: '',
@@ -32,6 +42,7 @@ export default function VehicleManager() {
     model: '',
     year: new Date().getFullYear(),
     capacity: 14,
+    route_id: '',
   });
 
   const getAuthHeaders = () => {
@@ -40,7 +51,6 @@ export default function VehicleManager() {
   };
 
   const fetchVehicles = async () => {
-    setLoading(true);
     try {
       const res = await fetch(API_BASE + '/api/vehicles', {
         headers: getAuthHeaders(),
@@ -56,13 +66,28 @@ export default function VehicleManager() {
     } catch (err) {
       console.error('Error fetching vehicles:', err);
       toast({ title: 'Error loading vehicles', description: 'Please check console for details', variant: 'destructive' });
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const fetchRoutes = async () => {
+    try {
+      const res = await fetch(API_BASE + '/api/routes', {
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const routesList = Array.isArray(data.routes) ? data.routes : Array.isArray(data) ? data : [];
+        setRoutes(routesList);
+        console.log('Routes loaded:', routesList.length);
+      }
+    } catch (err) {
+      console.error('Error fetching routes:', err);
     }
   };
 
   useEffect(() => {
-    fetchVehicles();
+    setLoading(true);
+    Promise.all([fetchVehicles(), fetchRoutes()]).finally(() => setLoading(false));
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -82,6 +107,7 @@ export default function VehicleManager() {
         model: form.model || null,
         year: form.year ? Number(form.year) : null,
         capacity: form.capacity ? Number(form.capacity) : 14,
+        route_id: form.route_id ? Number(form.route_id) : null,
       };
 
       const res = await fetch(API_BASE + '/api/vehicles', {
@@ -104,6 +130,7 @@ export default function VehicleManager() {
           model: '',
           year: new Date().getFullYear(),
           capacity: 14,
+          route_id: '',
         });
         fetchVehicles();
       } else {
@@ -222,7 +249,7 @@ export default function VehicleManager() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Color</Label>
                 <Input
@@ -242,6 +269,9 @@ export default function VehicleManager() {
                   max={new Date().getFullYear()}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Capacity (seats)</Label>
                 <Input
@@ -252,6 +282,21 @@ export default function VehicleManager() {
                   min="1"
                   max="60"
                 />
+              </div>
+              <div className="space-y-1">
+                <Label>Assign to Route</Label>
+                <select
+                  className="w-full rounded-md border px-3 py-2 bg-background"
+                  value={form.route_id}
+                  onChange={(e) => setForm({ ...form, route_id: e.target.value })}
+                >
+                  <option value="">-- No Route --</option>
+                  {routes.map((route) => (
+                    <option key={route.id} value={route.id}>
+                      {route.route_name} ({route.start_location} → {route.end_location})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -293,6 +338,7 @@ export default function VehicleManager() {
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Type: {vehicle.vehicle_type} • Capacity: {vehicle.capacity} seats
+                      {vehicle.route_id && vehicle.route_name && ` • Route: ${vehicle.route_name}`}
                     </div>
                   </div>
                   <Button

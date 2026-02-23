@@ -24,17 +24,40 @@ class RouteController {
 
   static async create(req, res) {
     try {
-      const { route_name, routeName, start_location, startLocation, end_location, endLocation, base_fare, baseFare, description } = req.body;
-      const name = route_name || routeName;
-      const start = start_location || startLocation;
-      const end = end_location || endLocation;
-      const fare = base_fare || baseFare;
+      const { 
+        route_name, 
+        start_location, 
+        end_location, 
+        base_fare, 
+        distance_km,
+        start_latitude, 
+        start_longitude, 
+        end_latitude, 
+        end_longitude, 
+        description 
+      } = req.body;
 
-      if (!name || !start || !end || fare === undefined) {
-        return res.status(400).json({ message: 'Missing required fields: route_name, start_location, end_location, base_fare' });
+      if (!route_name || !start_location || !end_location || base_fare === undefined) {
+        return res.status(400).json({ message: 'Missing required fields' });
       }
 
-      const route = await RouteModel.createRoute(name, start, end, fare, description);
+      // Parse coordinates to numbers if they exist
+      const startLat = start_latitude ? parseFloat(start_latitude) : null;
+      const startLng = start_longitude ? parseFloat(start_longitude) : null;
+      const endLat = end_latitude ? parseFloat(end_latitude) : null;
+      const endLng = end_longitude ? parseFloat(end_longitude) : null;
+
+      const route = await RouteModel.createRoute(
+        route_name, 
+        start_location, 
+        end_location, 
+        base_fare, 
+        startLat,
+        startLng,
+        endLat,
+        endLng,
+        description
+      );
       res.status(201).json({ message: 'Route created', route });
     } catch (error) {
       console.error('Create route error:', error);
@@ -55,9 +78,9 @@ class RouteController {
 
   static async remove(req, res) {
     try {
-      const deleted = await RouteModel.deleteRoute(req.params.id);
-      if (!deleted) return res.status(404).json({ message: 'Route not found' });
-      res.json({ message: 'Route deleted', route: deleted });
+      const result = await RouteModel.deleteRoute(req.params.id);
+      if (!result) return res.status(404).json({ message: 'Route not found' });
+      res.json({ message: 'Route deleted' });
     } catch (error) {
       console.error('Delete route error:', error);
       res.status(500).json({ message: 'Failed to delete route', error: error.message });
