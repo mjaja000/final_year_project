@@ -351,10 +351,10 @@ const RouteVisualizationMap = () => {
           value={selectedRouteId?.toString() || ""}
           onValueChange={(id) => setSelectedRouteId(Number(id))}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full relative z-10">
             <SelectValue placeholder="Select a route" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[9999]">
             {validRoutes.map((route: Route) => (
               route.id ? (
                 <SelectItem key={route.id} value={route.id.toString()}>
@@ -372,7 +372,7 @@ const RouteVisualizationMap = () => {
           </SelectContent>
         </Select>
 
-        <div className="border border-border rounded-lg overflow-hidden h-64">
+        <div className="border border-border rounded-lg overflow-hidden h-64 relative z-0">
           {isRoutePathLoading && selectedRoute && (
             <div className="bg-blue-50 text-blue-900 text-xs px-3 py-2 border-b border-border">
               Loading road path for {selectedRoute.route_name}...
