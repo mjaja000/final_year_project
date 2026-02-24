@@ -57,6 +57,14 @@ export default function DriverManager() {
     }
   };
 
+  // Helper to check if vehicle is assigned to any driver
+  const isVehicleAssigned = (vehicleId: number): { assigned: boolean; driverName?: string } => {
+    const driver = drivers.find(d => Number(d.assigned_vehicle_id) === Number(vehicleId));
+    return driver 
+      ? { assigned: true, driverName: driver.name || driver.username }
+      : { assigned: false };
+  };
+
   const fetchOccupancyVehicles = async () => {
     setLoadingOccupancyVehicles(true);
     try {
@@ -115,6 +123,8 @@ export default function DriverManager() {
         toast({ title: 'Driver assignment updated' });
         setAssignmentDrafts((prev) => ({ ...prev, [userId]: assignedVehicleValue }));
         fetchDrivers();
+        fetchVehicles(); // Refresh to update assignment status
+        fetchOccupancyVehicles(); // Refresh occupancy vehicles too
       } else {
         toast({ title: 'Assignment update failed', description: data.message || data.error || 'Error', variant: 'destructive' });
       }
@@ -127,10 +137,20 @@ export default function DriverManager() {
 
   useEffect(() => { 
     fetchDrivers();
+    fetchVehicles();
+    fetchOccupancyVehicles();
     try {
       const raw = localStorage.getItem('lastCreatedDriver');
       if (raw) setLastCreated(JSON.parse(raw));
     } catch (e) {}
+    
+    // Auto-refresh vehicles and occupancy every 30 seconds
+    const intervalId = setInterval(() => {
+      fetchVehicles();
+      fetchOccupancyVehicles();
+    }, 30000);
+    
+    return () => clearInterval(intervalId);
   }, []);
 
   const handleCreate = async () => {
@@ -166,6 +186,8 @@ export default function DriverManager() {
         } catch (e) { /* ignore storage errors */ }
         setForm({ name: '', email: '', phone: '', password: '', driving_license: '', assigned_vehicle_id: '' });
         fetchDrivers();
+        fetchVehicles(); // Refresh to update assignment status
+        fetchOccupancyVehicles(); // Refresh occupancy vehicles too
       } else {
         toast({ title: 'Create failed', description: data.message || 'Error', variant: 'destructive' });
       }
@@ -189,15 +211,20 @@ export default function DriverManager() {
           onChange={(e) => setForm({ ...form, assigned_vehicle_id: e.target.value })}
         >
           <option value="">No vehicle (optional)</option>
-          {vehicles.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.registration_number} - {v.route_name || 'No route'}
-            </option>
-          ))}
+          {vehicles.map((v) => {
+            const assignmentStatus = isVehicleAssigned(v.id);
+            return (
+              <option key={v.id} value={v.id}>
+                {v.registration_number} - {v.route_name || 'No route'} 
+                {assignmentStatus.assigned ? ` [Assigned to ${assignmentStatus.driverName}]` : ' [Available]'}
+              </option>
+            );
+          })}
         </select>
       </div>
       <p className="text-xs text-muted-foreground">
-        Available vehicles come from Occupancy entries{loadingOccupancyVehicles ? ' (loading...)' : ''}.
+        Vehicles are fetched from the database. Showing assignment status for each vehicle.
+        {loadingOccupancyVehicles && ' (Refreshing occupancy vehicles...)'}
       </p>
       <div className="flex gap-2">
         <Button onClick={handleCreate} disabled={loading} className="bg-green-600">Create Driver</Button>
@@ -345,11 +372,15 @@ export default function DriverManager() {
                     onChange={(e) => setAssignmentDrafts((prev) => ({ ...prev, [d.user_id]: e.target.value }))}
                   >
                     <option value="">Unassign vehicle</option>
-                    {occupancyVehicles.map((v) => (
-                      <option key={v.vehicleId} value={String(v.vehicleId)}>
-                        {v.registrationNumber} — {v.routeLabel}
-                      </option>
-                    ))}
+                    {occupancyVehicles.map((v) => {
+                      const assignmentStatus = isVehicleAssigned(v.vehicleId);
+                      return (
+                        <option key={v.vehicleId} value={String(v.vehicleId)}>
+                          {v.registrationNumber} — {v.routeLabel}
+                          {assignmentStatus.assigned ? ` [Assigned to ${assignmentStatus.driverName}]` : ' [Available]'}
+                        </option>
+                      );
+                    })}
                   </select>
                   <Button
                     variant="outline"
