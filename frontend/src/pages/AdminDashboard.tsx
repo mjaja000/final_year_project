@@ -15,6 +15,7 @@ import {
   PackageSearch,
   Shield,
   Truck,
+  Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -122,6 +123,133 @@ const AdminDashboard = () => {
 
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [activeTab, setActiveTab] = useState('feedback');
+
+  const printTicket = (payment: PaymentEntry) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+      toast({
+        title: 'Print blocked',
+        description: 'Please allow pop-ups to print tickets.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const paidAt = payment.timestamp;
+    const dateText = paidAt.toLocaleDateString('en-KE', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    const timeText = paidAt.toLocaleTimeString('en-KE', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Ticket - ${payment.transactionId}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              background: #f5f7fb;
+              margin: 0;
+              padding: 24px;
+              color: #111827;
+            }
+            .ticket {
+              max-width: 520px;
+              margin: 0 auto;
+              background: #ffffff;
+              border: 2px dashed #9ca3af;
+              border-radius: 16px;
+              padding: 24px;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 16px;
+            }
+            .title {
+              font-size: 20px;
+              font-weight: 700;
+            }
+            .status {
+              font-size: 12px;
+              font-weight: 600;
+              color: #065f46;
+              background: #d1fae5;
+              border-radius: 999px;
+              padding: 4px 10px;
+            }
+            .row {
+              display: flex;
+              justify-content: space-between;
+              margin: 10px 0;
+              font-size: 14px;
+            }
+            .label {
+              color: #6b7280;
+            }
+            .value {
+              font-weight: 600;
+            }
+            .amount {
+              margin-top: 16px;
+              padding-top: 14px;
+              border-top: 1px solid #e5e7eb;
+              display: flex;
+              justify-content: space-between;
+              font-size: 18px;
+              font-weight: 700;
+            }
+            .footer {
+              margin-top: 22px;
+              font-size: 12px;
+              color: #6b7280;
+              text-align: center;
+            }
+            @media print {
+              body {
+                background: #ffffff;
+                padding: 0;
+              }
+              .ticket {
+                border: 2px dashed #9ca3af;
+                box-shadow: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="ticket">
+            <div class="header">
+              <div class="title">MatatuConnect Ticket</div>
+              <div class="status">${payment.status.toUpperCase()}</div>
+            </div>
+
+            <div class="row"><span class="label">Transaction ID</span><span class="value">${payment.transactionId}</span></div>
+            <div class="row"><span class="label">Vehicle</span><span class="value">${payment.vehicleNumber}</span></div>
+            <div class="row"><span class="label">Route</span><span class="value">${payment.route}</span></div>
+            <div class="row"><span class="label">Date</span><span class="value">${dateText}</span></div>
+            <div class="row"><span class="label">Time</span><span class="value">${timeText}</span></div>
+
+            <div class="amount"><span>Amount Paid</span><span>KES ${payment.amount}</span></div>
+
+            <div class="footer">Printed by Admin Dashboard • ${new Date().toLocaleString('en-KE')}</div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   // Debug: Log active tab changes
   useEffect(() => {
@@ -455,6 +583,22 @@ const AdminDashboard = () => {
         </span>
       ),
       className: 'w-24',
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (item: PaymentEntry) => (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-2"
+          onClick={() => printTicket(item)}
+        >
+          <Printer className="h-3.5 w-3.5 mr-1" />
+          Print
+        </Button>
+      ),
+      className: 'w-28',
     },
   ];
 

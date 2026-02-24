@@ -1,8 +1,79 @@
 const UserModel = require('../models/userModel');
 const DriverModel = require('../models/driverModel');
 const ActivityLogModel = require('../models/activityLogModel');
+const VehicleModel = require('../models/vehicleModel');
 
 class DriverController {
+  static async getAssignedDriverAndTrip(userId) {
+    const driver = await DriverModel.getDriverByUserId(userId);
+    if (!driver || !driver.assigned_vehicle_id) {
+      return { driver, trip: null };
+    }
+
+    const TripModel = require('../models/tripModel');
+    const trips = await TripModel.getAvailableTrips();
+    const matchedTrips = trips.filter(
+      (t) => Number(t.vehicle_id) === Number(driver.assigned_vehicle_id)
+    );
+
+    if (!matchedTrips.length) {
+      return { driver, trip: null };
+    }
+
+    matchedTrips.sort((a, b) => {
+      const aTime = new Date(a.updated_at || a.start_time || a.created_at || 0).getTime();
+      const bTime = new Date(b.updated_at || b.start_time || b.created_at || 0).getTime();
+      return bTime - aTime;
+    });
+
+    return { driver, trip: matchedTrips[0] };
+  }
+
+  static async applyTripOccupancyAction({ tripId, action, value }) {
+    const TripModel = require('../models/tripModel');
+
+    if (action === 'increment') {
+      const currentTrip = await TripModel.getTripById(tripId);
+      if (!currentTrip) return { error: 'Trip not found', status: 404 };
+      const capacity = Number(currentTrip.capacity || 14);
+      const current = Number(currentTrip.current_occupancy || 0);
+      if (current >= capacity) {
+        return { error: 'Trip is already full', status: 400 };
+      }
+      const trip = await TripModel.incrementOccupancy(tripId);
+      return { trip };
+    }
+
+    if (action === 'decrement') {
+      const currentTrip = await TripModel.getTripById(tripId);
+      if (!currentTrip) return { error: 'Trip not found', status: 404 };
+      const current = Number(currentTrip.current_occupancy || 0);
+      if (current <= 0) {
+        return { error: 'Occupancy is already zero', status: 400 };
+      }
+      const trip = await TripModel.decrementOccupancy(tripId);
+      return { trip };
+    }
+
+    if (action === 'set') {
+      if (value === undefined || value === null || Number.isNaN(Number(value))) {
+        return { error: 'Missing value for set action', status: 400 };
+      }
+
+      const currentTrip = await TripModel.getTripById(tripId);
+      if (!currentTrip) return { error: 'Trip not found', status: 404 };
+
+      const capacity = Number(currentTrip.capacity || 14);
+      const numericValue = Math.max(0, Math.min(capacity, Number(value)));
+      const pool = require('../config/database');
+      const q = `UPDATE trips SET current_occupancy = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *;`;
+      const r = await pool.query(q, [numericValue, tripId]);
+      return { trip: r.rows[0] };
+    }
+
+    return { error: 'Invalid action', status: 400 };
+  }
+
   static async createDriver(req, res) {
     try {
       let { name, email, phone, password, driving_license, assigned_vehicle_id, documents } = req.body;
@@ -150,19 +221,45 @@ class DriverController {
       const { action } = req.body; // 'increment' | 'decrement' | 'set'
       if (!tripId || !action) return res.status(400).json({ message: 'Missing tripId or action' });
 
+      const { driver, trip: assignedTrip } = await DriverController.getAssignedDriverAndTrip(userId);
+      if (!driver || !driver.assigned_vehicle_id) {
+        return res.status(404).json({ message: 'No vehicle assigned' });
+      }
+
       const TripModel = require('../models/tripModel');
-      let trip;
-      if (action === 'increment') trip = await TripModel.incrementOccupancy(tripId);
-      else if (action === 'decrement') trip = await TripModel.decrementOccupancy(tripId);
-      else if (action === 'set') {
-        const { value } = req.body;
-        if (value === undefined || value === null) return res.status(400).json({ message: 'Missing value for set action' });
-        // Since there's no direct set in TripModel, use OccupancyModel update (or TripModel updateStatus + manual query)
-        const pool = require('../config/database');
-        const q = `UPDATE trips SET current_occupancy = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *;`;
-        const r = await pool.query(q, [Number(value), tripId]);
-        trip = r.rows[0];
-      } else return res.status(400).json({ message: 'Invalid action' });
+      const requestedTrip = await TripModel.getTripById(tripId);
+      if (!requestedTrip) {
+        return res.status(404).json({ message: 'Trip not found' });
+      }
+
+      if (Number(requestedTrip.vehicle_id) !== Number(driver.assigned_vehicle_id)) {
+        return res.status(403).json({ message: 'You can only update occupancy for your assigned vehicle' });
+      }
+
+      if (assignedTrip && Number(assignedTrip.id) !== Number(requestedTrip.id)) {
+        return res.status(409).json({ message: 'Use your active assigned trip for occupancy updates' });
+      }
+
+      const result = await DriverController.applyTripOccupancyAction({
+        tripId,
+        action,
+        value: req.body?.value,
+      });
+
+      if (result.error) {
+        return res.status(result.status || 400).json({ message: result.error });
+      }
+
+      const trip = result.trip;
+
+      const OccupancyModel = require('../models/occupancyModel');
+      const capacity = Number(trip.capacity || 14);
+      await OccupancyModel.updateOccupancyCount(
+        trip.vehicle_id,
+        userId,
+        Number(trip.current_occupancy || 0),
+        capacity
+      );
 
       // emit socket event to admin and driver rooms
       const io = req.app.get('io');
@@ -175,6 +272,141 @@ class DriverController {
     } catch (error) {
       console.error('Adjust occupancy error:', error.message);
       res.status(500).json({ message: 'Failed to adjust occupancy', error: error.message });
+    }
+  }
+
+  // Driver: update occupancy for active trip of assigned vehicle only
+  static async updateMyAssignedVehicleOccupancy(req, res) {
+    try {
+      const userId = req.userId;
+      const { action, value } = req.body;
+
+      if (!action) {
+        return res.status(400).json({ message: 'Missing action' });
+      }
+
+      const { driver, trip } = await DriverController.getAssignedDriverAndTrip(userId);
+      if (!driver) {
+        return res.status(404).json({ message: 'Driver not found' });
+      }
+      if (!driver.assigned_vehicle_id) {
+        return res.status(404).json({ message: 'No vehicle assigned' });
+      }
+      const OccupancyModel = require('../models/occupancyModel');
+      const vehicle = await VehicleModel.getVehicleById(driver.assigned_vehicle_id);
+      if (!vehicle) {
+        return res.status(404).json({ message: 'Assigned vehicle not found' });
+      }
+
+      const capacity = Number(vehicle.capacity || trip?.capacity || 14);
+      const occupancyRecord = await OccupancyModel.getOccupancyStatus(driver.assigned_vehicle_id);
+
+      let updatedTrip = null;
+      let nextOccupancy = Number(occupancyRecord?.current_occupancy || trip?.current_occupancy || 0);
+
+      if (trip) {
+        const result = await DriverController.applyTripOccupancyAction({
+          tripId: trip.id,
+          action,
+          value,
+        });
+
+        if (result.error) {
+          return res.status(result.status || 400).json({ message: result.error });
+        }
+
+        updatedTrip = result.trip;
+        nextOccupancy = Number(updatedTrip.current_occupancy || 0);
+      } else {
+        if (action === 'increment') {
+          if (nextOccupancy >= capacity) {
+            return res.status(400).json({ message: 'Vehicle is already full' });
+          }
+          nextOccupancy += 1;
+        } else if (action === 'decrement') {
+          if (nextOccupancy <= 0) {
+            return res.status(400).json({ message: 'Occupancy is already zero' });
+          }
+          nextOccupancy -= 1;
+        } else if (action === 'set') {
+          if (value === undefined || value === null || Number.isNaN(Number(value))) {
+            return res.status(400).json({ message: 'Missing value for set action' });
+          }
+          nextOccupancy = Math.max(0, Math.min(capacity, Number(value)));
+        } else {
+          return res.status(400).json({ message: 'Invalid action' });
+        }
+      }
+
+      const updatedOccupancy = await OccupancyModel.updateOccupancyCount(
+        driver.assigned_vehicle_id,
+        userId,
+        nextOccupancy,
+        capacity
+      );
+
+      const io = req.app.get('io');
+      if (io) {
+        if (updatedTrip) {
+          io.to('admin').emit('trip.occupancyUpdated', updatedTrip);
+          io.to(`vehicle_${updatedTrip.vehicle_id}`).emit('trip.occupancyUpdated', updatedTrip);
+        }
+        io.to('admin').emit('vehicle.occupancyUpdated', {
+          vehicle_id: driver.assigned_vehicle_id,
+          current_occupancy: updatedOccupancy.current_occupancy,
+          occupancy_status: updatedOccupancy.occupancy_status,
+          capacity,
+        });
+      }
+
+      res.json({
+        message: 'Occupancy updated for assigned vehicle',
+        trip: updatedTrip,
+        occupancy: {
+          ...updatedOccupancy,
+          capacity,
+        },
+        vehicleId: driver.assigned_vehicle_id,
+      });
+    } catch (error) {
+      console.error('Update assigned occupancy error:', error.message);
+      res.status(500).json({ message: 'Failed to update occupancy', error: error.message });
+    }
+  }
+
+  // Driver: get occupancy context for assigned vehicle
+  static async getMyAssignedVehicleOccupancy(req, res) {
+    try {
+      const userId = req.userId;
+      const { driver, trip } = await DriverController.getAssignedDriverAndTrip(userId);
+
+      if (!driver) {
+        return res.status(404).json({ message: 'Driver not found' });
+      }
+      if (!driver.assigned_vehicle_id) {
+        return res.status(404).json({ message: 'No vehicle assigned' });
+      }
+
+      const OccupancyModel = require('../models/occupancyModel');
+      const occupancy = await OccupancyModel.getOccupancyStatus(driver.assigned_vehicle_id);
+      const vehicle = await VehicleModel.getVehicleById(driver.assigned_vehicle_id);
+      const capacity = Number(vehicle?.capacity || trip?.capacity || 14);
+      const currentOccupancy = Number(occupancy?.current_occupancy || trip?.current_occupancy || 0);
+
+      res.json({
+        message: 'Assigned vehicle occupancy fetched',
+        vehicleId: driver.assigned_vehicle_id,
+        trip: trip || null,
+        occupancy: {
+          ...(occupancy || {}),
+          current_occupancy: currentOccupancy,
+          capacity,
+          occupancy_status: currentOccupancy >= capacity ? 'full' : 'available',
+        },
+      });
+    } catch (error) {
+      console.error('Get assigned occupancy error:', error.message);
+      res.status(500).json({ message: 'Failed to fetch occupancy', error: error.message });
     }
   }
 
