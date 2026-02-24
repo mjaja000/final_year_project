@@ -225,19 +225,22 @@ class AuthController {
       }
 
       // Ensure admin user exists; if not create one
+      const bcrypt = require('bcryptjs');
+      const pool = require('../config/database');
       let adminUser = await UserModel.getUserByEmail(DEMO_EMAIL);
       if (!adminUser) {
         // create admin user with demo password
-        const bcrypt = require('bcryptjs');
         const hashed = await bcrypt.hash(DEMO_PASSWORD, 10);
-        const pool = require('../config/database');
         const insert = `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, 'admin') RETURNING *;`;
         const r = await pool.query(insert, ['Demo Admin', DEMO_EMAIL, hashed]);
         adminUser = r.rows[0];
-      } else if (adminUser.role !== 'admin') {
-        // upgrade role if necessary
-        const pool = require('../config/database');
-        await pool.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', adminUser.id]);
+      } else {
+        // Sync role and password with env vars to prevent login drift
+        const passwordMatches = await bcrypt.compare(DEMO_PASSWORD, adminUser.password);
+        if (adminUser.role !== 'admin' || !passwordMatches) {
+          const hashed = await bcrypt.hash(DEMO_PASSWORD, 10);
+          await pool.query('UPDATE users SET role = $1, password = $2 WHERE id = $3', ['admin', hashed, adminUser.id]);
+        }
       }
 
       const jwt = require('jsonwebtoken');
@@ -250,7 +253,5 @@ class AuthController {
     }
   }
 }
-
-module.exports = AuthController;
 
 module.exports = AuthController;
