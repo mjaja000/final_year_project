@@ -26,6 +26,8 @@ router.get('/resets', authMiddleware, adminOnly, DriverController.getResetLogs);
 // Driver-specific endpoints
 router.get('/me/trip', authMiddleware, DriverController.getMyActiveTrip);
 router.get('/me/trip/bookings', authMiddleware, DriverController.getBookingsForMyTrip);
+router.get('/me/occupancy', authMiddleware, DriverController.getMyAssignedVehicleOccupancy);
+router.post('/me/occupancy', authMiddleware, DriverController.updateMyAssignedVehicleOccupancy);
 router.post('/me/trip/:tripId/occupancy', authMiddleware, DriverController.adjustOccupancy);
 router.get('/me/tickets', authMiddleware, DriverController.getMyVehicleTickets);
 

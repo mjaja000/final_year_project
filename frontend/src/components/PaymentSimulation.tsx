@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CreditCard, Smartphone, Loader2, AlertCircle } from 'lucide-react';
+import { CreditCard, Smartphone, Loader2, AlertCircle, CheckCircle2, XCircle, Clock3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { validateVehicleNumber } from '@/lib/mockData';
@@ -183,15 +183,38 @@ const PaymentSimulation = ({
   const phoneValid = phoneNumber.trim().length >= 9;
   const selectedRoute = availableRoutes.find((r) => r.id === selectedRouteId);
   const fare = selectedRoute?.fare ?? initialRouteFallback?.fare ?? 0;
-  const pollIntervalMs = useLiveMpesa ? 2000 : 1000;
-  const refreshEveryAttempts = useLiveMpesa ? 10 : 1;
+  const pollIntervalMs = useLiveMpesa ? 1500 : 1000;
+  const refreshEveryAttempts = useLiveMpesa ? 3 : 1;
+
+  const showPaymentToast = ({
+    title,
+    description,
+    variant = 'default',
+  }: {
+    title: string;
+    description: string;
+    variant?: 'default' | 'destructive';
+  }) => {
+    toast({
+      title,
+      description,
+      variant,
+      duration: 5000,
+      className: cn(
+        'rounded-xl border-2 p-5 pr-10 shadow-2xl',
+        variant === 'destructive'
+          ? 'border-red-400 bg-gradient-to-br from-red-50 to-rose-50 text-red-900'
+          : 'border-emerald-300 bg-gradient-to-br from-white to-emerald-50 text-foreground'
+      ),
+    });
+  };
 
   const pollPaymentUntilResolved = (paymentId: number, maxAttempts = 90) => {
     let attempts = 0;
     const id = window.setInterval(async () => {
       attempts += 1;
       try {
-        const shouldRefresh = useLiveMpesa && attempts % refreshEveryAttempts === 0;
+        const shouldRefresh = useLiveMpesa && (attempts === 1 || attempts % refreshEveryAttempts === 0);
         const statusRes = await api.payments.getById(paymentId, shouldRefresh);
         const payment = statusRes.payment || statusRes;
 
@@ -204,7 +227,7 @@ const PaymentSimulation = ({
           setDriverWhatsappStatus(statusRes.driver_whatsapp_status || null);
           setPaymentStatus('success');
           setIsProcessing(false);
-          toast({ title: 'Payment Confirmed', description: `Ticket: ${ref}` });
+          showPaymentToast({ title: 'Payment Confirmed', description: `Ticket: ${ref}` });
           setTimeout(() => setShowTicket(true), 300);
           return;
         }
@@ -213,7 +236,7 @@ const PaymentSimulation = ({
           window.clearInterval(id);
           setIsProcessing(false);
           setPaymentStatus('failed');
-          toast({
+          showPaymentToast({
             title: 'Payment Failed',
             description: payment.failure_reason || 'M-Pesa payment was not completed.',
             variant: 'destructive',
@@ -227,7 +250,10 @@ const PaymentSimulation = ({
         window.clearInterval(id);
         setIsProcessing(false);
         setPaymentStatus('idle');
-        toast({ title: 'Still Waiting', description: 'Complete the M-Pesa prompt on your phone. Ticket will appear once verified.' });
+        showPaymentToast({
+          title: 'Still Waiting',
+          description: 'Complete the M-Pesa prompt on your phone. Ticket will appear once verified.',
+        });
       }
     }, pollIntervalMs);
 
@@ -236,7 +262,7 @@ const PaymentSimulation = ({
 
   const handlePayment = async () => {
     if (!vehicleValid) {
-      toast({
+      showPaymentToast({
         title: "Invalid Vehicle Number",
         description: "Please enter a valid vehicle registration number.",
         variant: "destructive",
@@ -245,7 +271,7 @@ const PaymentSimulation = ({
     }
 
     if (!phoneValid) {
-      toast({
+      showPaymentToast({
         title: "Invalid Phone Number",
         description: "Please enter a valid phone number for M-Pesa confirmation.",
         variant: "destructive",
@@ -255,7 +281,7 @@ const PaymentSimulation = ({
 
     const routeIdNumber = Number(selectedRouteId);
     if (!selectedRouteId || Number.isNaN(routeIdNumber)) {
-      toast({
+      showPaymentToast({
         title: "Select a Route",
         description: "Please choose a valid route before paying.",
         variant: "destructive",
@@ -277,14 +303,14 @@ const PaymentSimulation = ({
 
         if (res.success && res.payment_id) {
           setPaymentStatus('processing');
-          toast({
+          showPaymentToast({
             title: 'STK Prompt Sent',
             description: 'Check your phone for the M-Pesa prompt and enter your PIN.',
           });
           pollPaymentUntilResolved(Number(res.payment_id), 120);
         } else {
           setPaymentStatus('failed');
-          toast({
+          showPaymentToast({
             title: 'Payment Failed',
             description: res.message || 'Failed to initiate M-Pesa prompt.',
             variant: 'destructive',
@@ -304,14 +330,14 @@ const PaymentSimulation = ({
       const res = await api.payments.create(payload);
       const createdPayment = res.payment;
 
-      toast({
+      showPaymentToast({
         title: 'Payment Initiated',
         description: 'M-Pesa STK prompt (simulated). You will receive a WhatsApp confirmation when payment completes.',
       });
 
       // If backend reports notifications status, show it
       if (res.notificationsSent && res.notificationsSent.whatsapp) {
-        toast({ title: 'WhatsApp confirmation sent', description: "You'll receive a message shortly." });
+        showPaymentToast({ title: 'WhatsApp Confirmation Sent', description: "You'll receive a message shortly." });
       }
 
       // Poll for payment completion/transaction id
@@ -319,7 +345,7 @@ const PaymentSimulation = ({
     } catch (error: any) {
       setIsProcessing(false);
       setPaymentStatus('failed');
-      toast({ title: 'Payment Failed', description: error.message || 'Payment could not be initiated.', variant: 'destructive' });
+      showPaymentToast({ title: 'Payment Failed', description: error.message || 'Payment could not be initiated.', variant: 'destructive' });
       setTimeout(() => setPaymentStatus('idle'), 2000);
     }
   };
@@ -459,48 +485,96 @@ const PaymentSimulation = ({
       </div>
 
       {/* Payment Info */}
-      <div className="p-3 sm:p-4 bg-secondary/50 rounded-lg">
-        <div className="flex items-start gap-3 text-secondary-foreground">
-          <Smartphone className="h-6 sm:h-8 w-6 sm:w-8 text-primary shrink-0 mt-0.5" />
+      <div
+        className={cn(
+          "rounded-xl border p-4 sm:p-5 shadow-sm transition-all",
+          paymentStatus === 'success' && "border-emerald-300 bg-gradient-to-br from-emerald-50 to-green-50",
+          paymentStatus === 'failed' && "border-red-300 bg-gradient-to-br from-red-50 to-rose-50",
+          paymentStatus === 'processing' && "border-blue-300 bg-gradient-to-br from-blue-50 to-cyan-50",
+          paymentStatus === 'idle' && "border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100"
+        )}
+      >
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div
+            className={cn(
+              "shrink-0 w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center",
+              paymentStatus === 'success' && "bg-emerald-100 text-emerald-700",
+              paymentStatus === 'failed' && "bg-red-100 text-red-700",
+              paymentStatus === 'processing' && "bg-blue-100 text-blue-700",
+              paymentStatus === 'idle' && "bg-slate-200 text-slate-700"
+            )}
+          >
+            {paymentStatus === 'success' ? (
+              <CheckCircle2 className="h-6 w-6" />
+            ) : paymentStatus === 'failed' ? (
+              <XCircle className="h-6 w-6" />
+            ) : paymentStatus === 'processing' ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <Smartphone className="h-6 w-6" />
+            )}
+          </div>
+
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-sm sm:text-base">
-              {useLiveMpesa ? 'M-Pesa STK Prompt' : 'M-Pesa Payment Simulation'}
+            <p className="font-semibold text-base sm:text-lg text-foreground">
+              {paymentStatus === 'success'
+                ? 'Payment Confirmed'
+                : paymentStatus === 'failed'
+                  ? 'Payment Failed'
+                  : paymentStatus === 'processing'
+                    ? 'Awaiting M-Pesa Confirmation'
+                    : useLiveMpesa
+                      ? 'M-Pesa STK Prompt'
+                      : 'M-Pesa Payment Simulation'}
             </p>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              {useLiveMpesa
-                ? 'A real STK prompt will be sent to your phone.'
-                : 'This is a demonstration — no real money will be charged.'}
+
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
+              {paymentStatus === 'success'
+                ? 'Your payment has been verified successfully and your ticket is ready.'
+                : paymentStatus === 'failed'
+                  ? 'We could not complete this transaction. Please try again.'
+                  : paymentStatus === 'processing'
+                    ? 'Check your phone, enter your M-Pesa PIN, and wait for confirmation.'
+                    : useLiveMpesa
+                      ? 'A real STK prompt will be sent to your phone.'
+                      : 'This is a demonstration — no real money will be charged.'}
             </p>
-            {paymentStatus === 'success' && transactionRef && (
-              <>
-                <p className="mt-2 text-xs sm:text-sm text-success font-medium break-all">
-                  ✓ Transaction ref: <span className="font-mono">{transactionRef}</span>
+
+            <div className="mt-3 space-y-1.5">
+              {paymentStatus === 'processing' && (
+                <p className="text-xs sm:text-sm font-medium text-blue-700 flex items-center gap-1.5">
+                  <Clock3 className="h-4 w-4" /> Processing in progress...
                 </p>
-                {whatsappStatus && (
-                  <p className={cn(
-                    "mt-1 text-xs sm:text-sm font-medium",
-                    whatsappStatus.sent ? "text-success" : "text-amber-600 dark:text-amber-400"
-                  )}>
-                    {whatsappStatus.sent
-                      ? "✓ Customer WhatsApp sent"
-                      : `⚠ Customer WhatsApp failed: ${whatsappStatus.error || "Unknown error"}`}
-                  </p>
-                )}
-                {driverWhatsappStatus && (
-                  <p className={cn(
-                    "mt-1 text-xs sm:text-sm font-medium",
-                    driverWhatsappStatus.sent ? "text-success" : "text-amber-600 dark:text-amber-400"
-                  )}>
-                    {driverWhatsappStatus.sent
-                      ? "✓ Driver WhatsApp sent"
-                      : `⚠ Driver WhatsApp failed: ${driverWhatsappStatus.error || "Unknown error"}`}
-                  </p>
-                )}
-              </>
-            )}
-            {paymentStatus === 'failed' && (
-              <p className="mt-2 text-xs sm:text-sm text-destructive font-medium">✕ Payment failed. Try again.</p>
-            )}
+              )}
+
+              {paymentStatus === 'success' && transactionRef && (
+                <p className="text-xs sm:text-sm text-emerald-700 font-semibold break-all">
+                  Transaction ref: <span className="font-mono">{transactionRef}</span>
+                </p>
+              )}
+
+              {whatsappStatus && (
+                <p className={cn(
+                  "text-xs sm:text-sm font-medium",
+                  whatsappStatus.sent ? "text-emerald-700" : "text-amber-700"
+                )}>
+                  {whatsappStatus.sent
+                    ? "✓ Customer WhatsApp notification sent"
+                    : `⚠ Customer WhatsApp failed: ${whatsappStatus.error || "Unknown error"}`}
+                </p>
+              )}
+
+              {driverWhatsappStatus && (
+                <p className={cn(
+                  "text-xs sm:text-sm font-medium",
+                  driverWhatsappStatus.sent ? "text-emerald-700" : "text-amber-700"
+                )}>
+                  {driverWhatsappStatus.sent
+                    ? "✓ Driver WhatsApp notification sent"
+                    : `⚠ Driver WhatsApp failed: ${driverWhatsappStatus.error || "Unknown error"}`}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>

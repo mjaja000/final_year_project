@@ -36,7 +36,7 @@ const isTruthyRefresh = (value) => {
   return normalized === '1' || normalized === 'true' || normalized === 'yes';
 };
 
-const STK_QUERY_MIN_INTERVAL_MS = 15000;
+const STK_QUERY_MIN_INTERVAL_MS = 5000;
 const STK_RATE_LIMIT_COOLDOWN_MS = 65000;
 const stkQueryLastRunByCheckout = new Map();
 

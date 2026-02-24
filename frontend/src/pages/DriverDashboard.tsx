@@ -2,10 +2,22 @@ import React, { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { AlertCircle, CheckCircle, Circle, CreditCard, Mail, MapPin, Navigation, Phone, Truck, Users } from 'lucide-react';
+import { AlertCircle, CheckCircle, Circle, CreditCard, Mail, MapPin, Navigation, Phone, Truck } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const socket = API_BASE ? io(API_BASE) : io(); // fall back to same host
+
+const mapOccupancyToStatus = (current: number, capacity: number): 'empty' | 'half-full' | 'full' => {
+  if (current <= 0) return 'empty';
+  if (current >= capacity) return 'full';
+  return 'half-full';
+};
+
+const mapStatusToOccupancy = (status: 'empty' | 'half-full' | 'full', capacity: number): number => {
+  if (status === 'full') return capacity;
+  if (status === 'half-full') return Math.ceil(capacity / 2);
+  return 0;
+};
 
 export default function DriverDashboard() {
   const [driver, setDriver] = useState<any>(null);
@@ -16,7 +28,8 @@ export default function DriverDashboard() {
   const locationWatchId = useRef<number | null>(null);
 
   const [trip, setTrip] = useState<any>(null);
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [driverOccupancy, setDriverOccupancy] = useState<any>(null);
+  const [occupancyStatus, setOccupancyStatus] = useState<'empty' | 'half-full' | 'full'>('empty');
   const [tickets, setTickets] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [messageText, setMessageText] = useState('');
@@ -80,13 +93,24 @@ export default function DriverDashboard() {
         if (tRes.ok) {
           const tdata = await tRes.json();
           setTrip(tdata.trip);
+          const capacity = Number(tdata.trip?.capacity || 14);
+          const current = Number(tdata.trip?.current_occupancy ?? 0);
+          setOccupancyStatus(mapOccupancyToStatus(current, capacity));
+        } else {
+          setTrip(null);
         }
 
-        // fetch bookings for trip
-        const bRes = await fetch(API_BASE + '/api/drivers/me/trip/bookings', { headers });
-        if (bRes.ok) {
-          const bdata = await bRes.json();
-          setBookings(bdata.bookings || []);
+        // fetch assigned vehicle occupancy context (works even without active trip)
+        const oRes = await fetch(API_BASE + '/api/drivers/me/occupancy', { headers });
+        if (oRes.ok) {
+          const odata = await oRes.json();
+          if (odata?.trip) {
+            setTrip(odata.trip);
+          }
+          setDriverOccupancy(odata?.occupancy || null);
+          const capacity = Number(odata?.occupancy?.capacity || odata?.trip?.capacity || 14);
+          const current = Number(odata?.occupancy?.current_occupancy ?? odata?.trip?.current_occupancy ?? 0);
+          setOccupancyStatus(mapOccupancyToStatus(current, capacity));
         }
 
         // fetch vehicle tickets
@@ -384,16 +408,24 @@ export default function DriverDashboard() {
   };
 
   const adjustOccupancy = async (action: 'increment' | 'decrement' | 'set', value?: number) => {
-    if (!trip || !trip.id) return;
+    if (!driver?.assigned_vehicle_id) return;
     try {
       const token = localStorage.getItem('token');
       const body: any = { action };
       if (action === 'set') body.value = Number(value || 0);
-      const res = await fetch(API_BASE + `/api/drivers/me/trip/${trip.id}/occupancy`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+      const res = await fetch(API_BASE + `/api/drivers/me/occupancy`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
       const data = await res.json();
       if (res.ok) {
-        setTrip(data.trip);
-        toast({ title: 'Occupancy updated', description: `Now ${data.trip.current_occupancy}` });
+        if (data.trip) {
+          setTrip(data.trip);
+        }
+        if (data.occupancy) {
+          setDriverOccupancy(data.occupancy);
+        }
+        const nextValue = data?.trip?.current_occupancy ?? data?.occupancy?.current_occupancy ?? 0;
+        const nextCapacity = Number(data?.trip?.capacity || data?.occupancy?.capacity || 14);
+        setOccupancyStatus(mapOccupancyToStatus(Number(nextValue), nextCapacity));
+        toast({ title: 'Occupancy updated', description: `Now ${nextValue}` });
       } else {
         toast({ title: 'Failed', description: data.message || 'Could not update occupancy' });
       }
@@ -464,6 +496,15 @@ export default function DriverDashboard() {
     });
     return rows;
   })();
+
+  const effectiveCapacity = Number(trip?.capacity || driverOccupancy?.capacity || 14);
+  const effectiveOccupancy = Number(trip?.current_occupancy ?? driverOccupancy?.current_occupancy ?? 0);
+  const effectiveStatus = mapOccupancyToStatus(effectiveOccupancy, effectiveCapacity);
+
+  const handleUpdateOccupancyStatus = () => {
+    const value = mapStatusToOccupancy(occupancyStatus, effectiveCapacity);
+    adjustOccupancy('set', value);
+  };
 
 
   return (
@@ -561,8 +602,8 @@ export default function DriverDashboard() {
             </div>
           </div>
 
-          {/* Vehicle & Trip Cards - 2 column grid on tablet+, 1 column on mobile */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
+          {/* Assigned Vehicle Card */}
+          <div className="grid grid-cols-1 gap-4 md:gap-6 mb-4 md:mb-6">
             {/* Assigned Vehicle Card */}
             <div className="bg-white rounded-xl shadow-md p-5 md:p-6">
               <div className="flex items-center justify-between mb-4">
@@ -580,11 +621,35 @@ export default function DriverDashboard() {
                 </Button>
               </div>
               {driver.assigned_vehicle_id ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="text-2xl font-bold text-green-700">{driver.vehicle_reg || `Vehicle ID: ${driver.assigned_vehicle_id}`}</div>
                   <p className="text-xs md:text-sm text-green-600 flex items-center gap-1">
                     <CheckCircle className="h-4 w-4" /> Vehicle assigned
                   </p>
+
+                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                    <p className="text-xs text-slate-600 font-medium mb-2">ASSIGNED VEHICLE OCCUPANCY</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-bold text-slate-900">{effectiveOccupancy}</span>
+                      <span className="text-slate-600">/ {effectiveCapacity}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 mb-2">Current status: <span className="font-medium text-slate-700">{effectiveStatus}</span></p>
+                    <div className="space-y-2 mt-2">
+                      <select
+                        className="w-full rounded-md border px-3 py-2 bg-white text-sm"
+                        value={occupancyStatus}
+                        onChange={(e) => setOccupancyStatus(e.target.value as 'empty' | 'half-full' | 'full')}
+                      >
+                        <option value="empty">Empty</option>
+                        <option value="half-full">Half-full</option>
+                        <option value="full">Full</option>
+                      </select>
+                      <Button onClick={handleUpdateOccupancyStatus} className="w-full" variant="hero" size="sm">
+                        Update Occupancy
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-2">You and Admin can coordinate these updates in chat.</p>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -595,85 +660,10 @@ export default function DriverDashboard() {
                 </div>
               )}
             </div>
-
-            {/* Active Trip Card */}
-            <div className="bg-white rounded-xl shadow-md p-5 md:p-6">
-              <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2">
-                <Navigation className="h-5 w-5 text-orange-600" />
-                Active Trip
-              </h3>
-              {trip ? (
-                <div className="space-y-3">
-                  <div className="bg-orange-50 rounded-lg p-3">
-                    <p className="text-xs text-orange-700 font-medium">ROUTE</p>
-                    <p className="text-lg font-bold text-orange-900">{trip.route_name || trip.route || 'N/A'}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs text-slate-600 font-medium">STATUS</p>
-                      <p className="font-semibold text-slate-900">{trip.status || 'unknown'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-600 font-medium">VEHICLE</p>
-                      <p className="font-semibold text-slate-900">{trip.vehicle_reg || trip.vehicle_id}</p>
-                    </div>
-                  </div>
-
-                  {/* Occupancy Control */}
-                  <div className="bg-slate-50 rounded-lg p-3">
-                    <p className="text-xs text-slate-600 font-medium mb-2">OCCUPANCY</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl font-bold text-slate-900">{trip.current_occupancy || 0}</span>
-                      <span className="text-slate-600">/ {trip.capacity || 'N/A'}</span>
-                    </div>
-                    <div className="flex gap-2 mt-2">
-                      <Button onClick={() => adjustOccupancy('decrement')} variant="outline" size="sm" className="text-xs flex-1">-</Button>
-                      <Button onClick={() => adjustOccupancy('increment')} variant="outline" size="sm" className="text-xs flex-1">+</Button>
-                      <div className="flex gap-1 flex-1">
-                        <input id="setOccupancy" className="border rounded px-2 py-1 text-xs w-12" placeholder="0" type="number" />
-                        <Button onClick={() => {
-                          const el: any = document.getElementById('setOccupancy');
-                          const v = Number(el?.value || 0);
-                          adjustOccupancy('set', v);
-                        }} variant="outline" size="sm" className="text-xs">Set</Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-slate-600">No active trip assigned</p>
-              )}
-            </div>
           </div>
 
-          {/* Bookings & Tickets Section - Stack on tablet, 2 cols on desktop */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-            {/* Bookings Card */}
-            <div className="bg-white rounded-xl shadow-md p-5 md:p-6">
-              <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2">
-                <Users className="h-5 w-5 text-indigo-600" />
-                Bookings
-              </h3>
-              {bookings.length === 0 ? (
-                <p className="text-sm text-slate-600">No bookings for the active trip</p>
-              ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {bookings.map(b => (
-                    <div key={b.id} className="p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="flex-1">
-                          <div className="font-semibold text-slate-900 text-sm md:text-base">{b.passenger_name || b.user_name || 'Passenger'}</div>
-                          <div className="text-xs text-slate-600">{b.phone || b.user_phone}</div>
-                        </div>
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-medium">{b.status || b.booking_status}</span>
-                      </div>
-                      <div className="text-xs text-slate-600 mt-2">{b.origin_stop} → {b.destination_stop}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
+          {/* Tickets Section */}
+          <div className="grid grid-cols-1 gap-4 md:gap-6">
             {/* Tickets Card */}
             <div className="bg-white rounded-xl shadow-md p-5 md:p-6">
               <h3 className="font-bold text-lg text-slate-900 mb-1 flex items-center gap-2">
