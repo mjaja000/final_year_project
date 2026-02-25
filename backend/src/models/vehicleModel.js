@@ -174,6 +174,26 @@ class VehicleModel {
     }
   }
 
+  // Get the current "active" vehicle for a route: first non-full vehicle (ordered by id ASC)
+  // This is the car currently being filled with passengers for this route.
+  static async getActiveVehicleForRoute(routeId) {
+    const query = `
+      SELECT v.*, COALESCE(vo.current_occupancy, 0) AS current_occupancy
+      FROM vehicles v
+      LEFT JOIN vehicle_occupancy vo ON v.id = vo.vehicle_id
+      WHERE v.route_id = $1 AND v.status = 'active'
+        AND COALESCE(vo.current_occupancy, 0) < v.capacity
+      ORDER BY v.id ASC
+      LIMIT 1;
+    `;
+    try {
+      const result = await pool.query(query, [routeId]);
+      return result.rows[0] || null;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   // Get total count of vehicles
   static async getTotalCount() {
     const query = 'SELECT COUNT(*) as count FROM vehicles;';
