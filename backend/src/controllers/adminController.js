@@ -8,6 +8,7 @@ const ActivityLogModel = require('../models/activityLogModel');
 const DatabaseStatsModel = require('../models/databaseStatsModel');
 const MessageModel = require('../models/messageModel');
 const ReportService = require('../services/reportService');
+const SaccoSettingsModel = require('../models/saccoSettingsModel');
 const twilio = require('twilio');
 const pool = require('../config/database');
 
@@ -143,6 +144,7 @@ class AdminController {
         status: req.query.status,
         startDate: req.query.startDate,
         endDate: req.query.endDate,
+        station: req.query.station,
       };
 
       const payments = await PaymentModel.getAllPayments(limit, offset, filters);
@@ -570,6 +572,52 @@ class AdminController {
         message: error.message || 'Failed to fetch reports',
         error: error.message,
       });
+    }
+  }
+
+  // Get all unique station names (derived from route start/end locations)
+  static async getStations(req, res) {
+    try {
+      const result = await pool.query(`
+        SELECT DISTINCT name FROM (
+          SELECT start_location AS name FROM routes WHERE status != 'inactive'
+          UNION
+          SELECT end_location AS name FROM routes WHERE status != 'inactive'
+        ) AS stations
+        ORDER BY name
+      `);
+      res.json({ stations: result.rows.map(r => r.name) });
+    } catch (error) {
+      console.error('Get stations error:', error);
+      res.status(500).json({ message: 'Failed to fetch stations', error: error.message });
+    }
+  }
+
+  // Get SACCO settings (public)
+  static async getSettings(req, res) {
+    try {
+      const settings = await SaccoSettingsModel.getAll();
+      const obj = {};
+      settings.forEach(s => { obj[s.key] = s.value; });
+      res.json(obj);
+    } catch (error) {
+      console.error('Get settings error:', error);
+      res.status(500).json({ message: 'Failed to fetch settings', error: error.message });
+    }
+  }
+
+  // Update SACCO settings (admin only)
+  static async updateSettings(req, res) {
+    try {
+      const { key, value } = req.body;
+      if (!key || value === undefined) {
+        return res.status(400).json({ message: 'key and value are required' });
+      }
+      const updated = await SaccoSettingsModel.set(key, value);
+      res.json({ message: 'Setting updated', setting: updated });
+    } catch (error) {
+      console.error('Update settings error:', error);
+      res.status(500).json({ message: 'Failed to update setting', error: error.message });
     }
   }
 }

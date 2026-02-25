@@ -44,6 +44,7 @@ const initializeTables = async () => {
     const SessionModel = require('./src/models/sessionModel');
     const { createReportsTable } = require('./src/migrations/createReportsTable');
     const { createVehicleLocationsTable } = require('./src/migrations/createVehicleLocationsTable');
+    const SaccoSettingsModel = require('./src/models/saccoSettingsModel');
 
     // Create tables in dependency order
     await UserModel.createTable();
@@ -61,6 +62,7 @@ const initializeTables = async () => {
     await createReportsTable();
     await LostAndFoundModel.createTable();
     await createVehicleLocationsTable();
+    await SaccoSettingsModel.createTable();
 
     console.log('✓ All database tables initialized successfully');
   } catch (error) {

@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useState, useRef, useEffect } from 'react';
 import React from 'react';
+import { useSaccoName } from '@/hooks/useSaccoName';
 
 // Inline top-left menu button component
 function MenuButton() {
@@ -141,6 +142,7 @@ const Header = () => {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
   const userRole = (localStorage.getItem('userRole') || 'passenger') as 'passenger' | 'driver' | 'admin';
+  const { saccoName } = useSaccoName();
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white dark:bg-gray-950 shadow-md border-b border-gray-200 dark:border-gray-800">
@@ -156,13 +158,13 @@ const Header = () => {
           <Link 
             to="/" 
             className="flex items-center gap-3 font-bold text-gray-900 dark:text-white hover:opacity-80 transition-opacity shrink-0 group"
-            aria-label="MatatuConnect Home"
+            aria-label={`${saccoName} Home`}
           >
             <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow">
               <Bus className="h-6 w-6 text-white" />
             </div>
             <span className="text-xl font-extrabold bg-gradient-to-r from-green-600 to-green-500 bg-clip-text text-transparent">
-              MatatuConnect
+              {saccoName}
             </span>
           </Link>
         </div>

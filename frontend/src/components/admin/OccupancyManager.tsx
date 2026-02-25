@@ -42,7 +42,7 @@ interface OccupancyRecord {
   updated_at?: string;
 }
 
-const OccupancyManager = () => {
+const OccupancyManager = ({ station = '' }: { station?: string }) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -92,8 +92,11 @@ const OccupancyManager = () => {
         ...r,
         id: Number(r.id ?? r.route_id ?? r.routeId ?? 0),
       }))
-      .filter((r: RouteRecord) => Number.isFinite(r.id));
-  }, [routesQuery.data]);
+      .filter((r: RouteRecord) => Number.isFinite(r.id))
+      .filter((r: RouteRecord) =>
+        !station || r.start_location === station || r.end_location === station
+      );
+  }, [routesQuery.data, station]);
 
   const occupancies: OccupancyRecord[] = useMemo(() => {
     const raw = Array.isArray(occupancyQuery.data)
@@ -108,8 +111,11 @@ const OccupancyManager = () => {
         vehicle_id: Number(o.vehicle_id ?? o.vehicleId ?? 0),
         route_id: Number(o.route_id ?? o.routeId ?? 0),
       }))
-      .filter((o: OccupancyRecord) => Number.isFinite(o.vehicle_id));
-  }, [occupancyQuery.data]);
+      .filter((o: OccupancyRecord) => Number.isFinite(o.vehicle_id))
+      .filter((o: OccupancyRecord) =>
+        !station || o.start_location === station || o.end_location === station
+      );
+  }, [occupancyQuery.data, station]);
 
   useEffect(() => {
     if (routes.length > 0 && selectedRouteId === null) {

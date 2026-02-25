@@ -201,6 +201,13 @@ class PaymentModel {
       paramCount++;
     }
 
+    // Filter by station (routes where start or end location matches)
+    if (filters.station) {
+      query += ` AND (r.start_location = $${paramCount} OR r.end_location = $${paramCount})`;
+      params.push(filters.station);
+      paramCount++;
+    }
+
     query += ` ORDER BY p.created_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
     params.push(limit, offset);
 
