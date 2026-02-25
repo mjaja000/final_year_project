@@ -526,10 +526,6 @@ export default function Index() {
               </Link>
             </div>
           </section>
-
-          <footer className="text-center text-sm sm:text-base text-gray-600 pt-8 border-t border-gray-200" role="contentinfo">
-            <p>© {new Date().getFullYear()} MatatuConnect. Revolutionizing public transport in Kenya.</p>
-          </footer>
         </main>
       </div>
     </>

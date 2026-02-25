@@ -1,4 +1,4 @@
-import { Bus, Menu, X } from 'lucide-react';
+import { Bus, Menu, X, Home as HomeIcon, MessageSquare, CreditCard, Users, MapPin, Shield, LogIn, Package } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useState, useRef, useEffect } from 'react';
@@ -40,30 +40,95 @@ function MenuButton() {
         ref={btnRef}
         type="button"
         onClick={() => setNavOpen((v) => !v)}
-        className="p-2 mr-1 hover:bg-muted rounded-lg transition-colors"
+        className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors border border-gray-200 dark:border-gray-700"
         aria-expanded={navOpen}
         aria-controls="main-nav-menu"
         aria-haspopup="true"
         aria-label="Open navigation menu"
       >
-        {navOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        {navOpen ? <X className="h-5 w-5 text-gray-700 dark:text-gray-300" /> : <Menu className="h-5 w-5 text-gray-700 dark:text-gray-300" />}
       </button>
 
       {navOpen && (
         <div
           ref={ref}
           id="main-nav-menu"
-          className="absolute left-0 top-full mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50"
+          className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl z-50 overflow-hidden"
         >
-          <nav className="flex flex-col" aria-label="Primary">
-            <Link to="/" className="text-sm py-2 px-3 hover:bg-muted rounded-t-lg" onClick={() => setNavOpen(false)}>Home</Link>
-            <Link to="/complaint-demo" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Complaint/Feedback</Link>
-            {/* <Link to="/feedback" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Feedback</Link> */}
-            <Link to="/payment" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Payments</Link>
-            <Link to="/occupancy" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Occupancy</Link>
-            <Link to="/drivers" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Drivers</Link>
-            <Link to="/admin/login" className="text-sm py-2 px-3 hover:bg-muted" onClick={() => setNavOpen(false)}>Admin</Link>
-            <Link to="/driver/login" className="text-sm py-2 px-3 hover:bg-muted rounded-b-lg" onClick={() => setNavOpen(false)}>Driver Login</Link>
+          <nav className="flex flex-col py-2" aria-label="Primary">
+            <Link 
+              to="/" 
+              className="flex items-center gap-3 text-sm py-2.5 px-4 text-black dark:text-white hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 transition-all group" 
+              onClick={() => setNavOpen(false)}
+            >
+              <HomeIcon className="h-5 w-5 text-gray-500 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
+              <span className="font-medium">Home</span>
+            </Link>
+            
+            <Link 
+              to="/complaint-demo" 
+              className="flex items-center gap-3 text-sm py-2.5 px-4 text-black dark:text-white hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 transition-all group" 
+              onClick={() => setNavOpen(false)}
+            >
+              <MessageSquare className="h-5 w-5 text-gray-500 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
+              <span className="font-medium">Complaint/Feedback</span>
+            </Link>
+            
+            <Link 
+              to="/payment" 
+              className="flex items-center gap-3 text-sm py-2.5 px-4 text-black dark:text-white hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 transition-all group" 
+              onClick={() => setNavOpen(false)}
+            >
+              <CreditCard className="h-5 w-5 text-gray-500 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
+              <span className="font-medium">Payments</span>
+            </Link>
+            
+            <Link 
+              to="/occupancy" 
+              className="flex items-center gap-3 text-sm py-2.5 px-4 text-black dark:text-white hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 transition-all group" 
+              onClick={() => setNavOpen(false)}
+            >
+              <MapPin className="h-5 w-5 text-gray-500 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
+              <span className="font-medium">Occupancy</span>
+            </Link>
+            
+            <Link 
+              to="/drivers" 
+              className="flex items-center gap-3 text-sm py-2.5 px-4 text-black dark:text-white hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 transition-all group" 
+              onClick={() => setNavOpen(false)}
+            >
+              <Users className="h-5 w-5 text-gray-500 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
+              <span className="font-medium">Drivers</span>
+            </Link>
+            
+            <Link 
+              to="/lost-and-found" 
+              className="flex items-center gap-3 text-sm py-2.5 px-4 text-black dark:text-white hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 transition-all group" 
+              onClick={() => setNavOpen(false)}
+            >
+              <Package className="h-5 w-5 text-gray-500 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
+              <span className="font-medium">Lost and Found</span>
+            </Link>
+            
+            <div className="h-px bg-gray-200 dark:bg-gray-800 my-2 mx-4" />
+            
+            <Link 
+              to="/admin/login" 
+              className="flex items-center gap-3 text-sm py-2.5 px-4 text-black dark:text-white hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 transition-all group" 
+              onClick={() => setNavOpen(false)}
+            >
+              <Shield className="h-5 w-5 text-gray-500 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
+              <span className="font-medium">Admin</span>
+            </Link>
+            
+            <Link 
+              to="/driver/login" 
+              className="flex items-center gap-3 text-sm py-2.5 px-4 text-black dark:text-white hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 transition-all group" 
+              onClick={() => setNavOpen(false)}
+            >
+              <LogIn className="h-5 w-5 text-gray-500 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
+              <span className="font-medium">Driver Login</span>
+            </Link>
           </nav>
         </div>
       )}
@@ -78,42 +143,64 @@ const Header = () => {
   const userRole = (localStorage.getItem('userRole') || 'passenger') as 'passenger' | 'driver' | 'admin';
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 border-b border-border">
-      {/* Matatu stripe accent */}
-      <div className="h-1 matatu-stripe" />
+    <header className="sticky top-0 z-50 w-full bg-white dark:bg-gray-950 shadow-md border-b border-gray-200 dark:border-gray-800">
+      {/* Matatu stripe accent - Kenyan flag inspired colors */}
+      <div className="h-1.5 flex">
+        <div className="flex-1 bg-black"></div>
+        <div className="flex-1 bg-red-600"></div>
+        <div className="flex-1 bg-green-600"></div>
+      </div>
       
-      <div className="container relative flex h-14 items-center justify-between px-4 sm:px-6">
-        <div className="flex items-center gap-2">
-          {/* Top-left menu button (opens inline dropdown) */}
-          <MenuButton />
-
+      <div className="container relative flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-3">
           <Link 
             to="/" 
-            className="flex items-center gap-2 font-semibold text-foreground hover:text-primary transition-colors shrink-0"
+            className="flex items-center gap-3 font-bold text-gray-900 dark:text-white hover:opacity-80 transition-opacity shrink-0 group"
             aria-label="MatatuConnect Home"
           >
-            <div className="flex items-center justify-center w-8 h-8 bg-primary rounded-lg">
-              <Bus className="h-5 w-5 text-primary-foreground" />
+            <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow">
+              <Bus className="h-6 w-6 text-white" />
             </div>
-            <span className="text-base sm:text-lg">MatatuConnect</span>
+            <span className="text-xl font-extrabold bg-gradient-to-r from-green-600 to-green-500 bg-clip-text text-transparent">
+              MatatuConnect
+            </span>
           </Link>
         </div>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center space-x-6">
-          <Link to="/" className="text-sm hover:text-primary transition-colors">Home</Link>
-          {/* <Link to="/feedback" className="text-sm hover:text-primary transition-colors">Feedback</Link> */}
-          <Link to="/complaint-demo" className="text-sm hover:text-primary transition-colors">Complaint/Feedback</Link>
-          <Link to="/payment" className="text-sm hover:text-primary transition-colors">Payments</Link>
-          <Link to="/occupancy" className="text-sm hover:text-primary transition-colors">Occupancy</Link>
-          <Link to="/drivers" className="text-sm hover:text-primary transition-colors">Drivers</Link>
+        <nav className="hidden md:flex items-center gap-1">
+          <Link to="/" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
+            Home
+          </Link>
+          <Link to="/complaint-demo" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
+            Complaint/Feedback
+          </Link>
+          <Link to="/payment" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
+            Payments
+          </Link>
+          <Link to="/occupancy" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
+            Occupancy
+          </Link>
+          <Link to="/drivers" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
+            Drivers
+          </Link>
+          <Link to="/lost-found" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
+            Lost and Found
+          </Link>
+
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2"></div>
 
           {/* Admin link */}
-          <Link to="/admin/login" className="text-sm font-medium text-primary hover:underline">Admin</Link>
-          <Link to="/driver/login" className="text-sm hover:text-primary transition-colors">Driver Login</Link>
+          <Link to="/admin/login" className="px-4 py-2 text-sm font-semibold text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
+            Admin
+          </Link>
+          <Link to="/driver/login" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
+            Driver Login
+          </Link>
         </nav>
 
-        {/* Right-side mobile toggle removed. Top-left button controls the menu on all screen sizes. */}
+        {/* Menu button (visible on all screens) */}
+        <MenuButton />
       </div>
     </header>
   );
