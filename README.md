@@ -935,12 +935,116 @@ Browse to `https://YOUR_LOCAL_IP:8080` and accept the self-signed certificate wa
 
 ## Management Dashboard
 
-A standalone admin dashboard — open `management.html` directly in a browser. No build step required.
+The React-based admin dashboard provides comprehensive control over the MatatuConnect platform with multi-station management capabilities.
 
-**URL:** `http://localhost:5000/management.html`  
-**Login:** `admin` / `admin`
+**URL:** `https://localhost:8080/admin/dashboard`  
+**Demo Login:** `admin@matatuconnect.test` / `Admin@Matatu2024!`
 
-### Dashboard Tabs
+### Multi-Station Architecture
+
+MatatuConnect supports multiple stations within a single SACCO (Savings and Credit Cooperative), enabling decentralized operations with centralized oversight.
+
+#### Station-Based Access Control
+
+**Station-Specific Data (Filtered by Selected Station):**
+- ❌ **Payment Transactions**: Only payments from routes originating at the selected station
+- ❌ **Local Route Management**: Routes that start from or end at the selected station
+- ❌ **Local Occupancy Updates**: Vehicles currently operating from the selected station
+
+**SACCO-Wide Data (Shared Across All Stations):**
+- ✅ **Vehicle Fleet**: Complete visibility of all SACCO vehicles with location tracking
+- ✅ **Driver Directory**: All drivers across all stations for coordination
+- ✅ **Inter-Station Routes**: Routes connecting different stations for handover planning
+- ✅ **Network Analytics**: Aggregated performance metrics across the entire SACCO
+
+#### How Station Selection Works
+
+1. **Station Dropdown**: Located at the top of the admin dashboard labeled "Managing Station:"
+2. **Automatic Detection**: Stations are automatically extracted from route `start_location` and `end_location` fields
+3. **Unique Names**: Each station name must be unique across the system
+4. **Dynamic Filtering**: When a station is selected, all station-specific data automatically filters to that context
+5. **Session Persistence**: Selection is saved to localStorage for continuity
+
+**Example:**
+```
+Admin creates route: "Nairobi Central → Mombasa Likoni"
+
+System automatically:
+- Extracts "Nairobi Central" as origin station
+- Extracts "Mombasa Likoni" as destination station
+- Adds both to the station dropdown if they don't exist
+- Enforces unique constraint on station names
+```
+
+#### Vehicle Handover Logic
+
+Vehicles operate across multiple stations. Tracking uses two fields:
+
+- `home_station_id`: Vehicle's permanent base station (never changes)
+- `current_station_id`: Where the vehicle physically is now (updates frequently)
+
+**Handover Example:**
+```
+Vehicle KBZ 123X completes route "Nairobi → Mombasa"
+
+At Departure (Nairobi):
+- home_station_id: Nairobi
+- current_station_id: Nairobi
+- Status: "In Transit"
+
+At Arrival (Mombasa):
+- home_station_id: Nairobi (unchanged)
+- current_station_id: Mombasa (updated)
+- Mombasa admin can now assign to local routes
+- Nairobi admin still sees it marked "Currently at Mombasa"
+
+On Return Journey:
+- Vehicle updates back to current_station_id: Nairobi
+- Full control returns to home station
+```
+
+#### Payment Attribution
+
+All payments are attributed to the **origin station** of the route:
+
+```
+Route: Nairobi → Mombasa (Fare: 1,500 KES)
+Payment recorded at: Origin station (Nairobi)
+
+Nairobi Station Admin:
+- Sees this payment in their dashboard
+- Revenue counts toward Nairobi station
+
+Mombasa Station Admin:
+- Does NOT see this payment
+- It belongs to the origin station (Nairobi)
+```
+
+#### SACCO Name Configuration
+
+MatatuConnect is the **system name** (fixed). Each SACCO can brand their instance with their own name.
+
+**Display Location:**
+The SACCO name appears below the "Admin Dashboard" title in the blue header:
+```
+Admin Dashboard
+{SACCO Name} · System Management & Analytics
+```
+
+**How to Change:**
+1. Navigate to Admin Dashboard → Settings Tab
+2. Update "SACCO Name" field (e.g., "Super Metro SACCO", "Coast Bus Service")
+3. Click "Update SACCO Name"
+4. Name persists across all sessions and appears on all admin pages
+
+**Technical Implementation:**
+- Stored in: `sacco_settings` table with `key='sacco_name'`
+- Retrieved via: `GET /api/admin/settings` (public endpoint)
+- Updated via: `PUT /api/admin/settings` with `{key: 'sacco_name', value: 'Your SACCO'}` (admin only)
+- Cached in localStorage with 5-minute TTL
+- Default fallback: "MatatuConnect"
+
+### Dashboard Features
 
 | Tab | Contents |
 |-----|----------|

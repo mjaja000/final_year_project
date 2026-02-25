@@ -179,7 +179,7 @@ export const api = {
     },
     
     // Get all payments
-    getPayments: (params?: { limit?: number; offset?: number; routeId?: string; status?: string; startDate?: string; endDate?: string }) => {
+    getPayments: (params?: { limit?: number; offset?: number; routeId?: string; status?: string; startDate?: string; endDate?: string; station?: string }) => {
       const qs = new URLSearchParams();
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.offset) qs.set('offset', String(params.offset));
@@ -187,6 +187,7 @@ export const api = {
       if (params?.status) qs.set('status', params.status);
       if (params?.startDate) qs.set('startDate', params.startDate);
       if (params?.endDate) qs.set('endDate', params.endDate);
+      if (params?.station) qs.set('station', params.station);
       const query = qs.toString() ? `?${qs.toString()}` : '';
       return apiFetch<any>(`/api/admin/payments${query}`);
     },
@@ -210,6 +211,13 @@ export const api = {
       return apiFetch<any>(`/api/admin/reports${query}`);
     },
     getAllReports: () => apiFetch<any>('/api/admin/reports'),
+    // Get all unique station names derived from routes
+    getStations: () => apiFetch<any>('/api/admin/stations'),
+    // Get SACCO-wide settings (public)
+    getSettings: () => apiFetch<any>('/api/admin/settings'),
+    // Update a SACCO setting (admin only)
+    updateSetting: (key: string, value: string) =>
+      apiFetch<any>('/api/admin/settings', { method: 'PUT', body: JSON.stringify({ key, value }) }),
   },
 
   // Users (authentication)
