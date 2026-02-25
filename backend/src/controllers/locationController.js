@@ -86,27 +86,33 @@ exports.getVehicleLocations = async (req, res) => {
     // Get locations from memory cache
     const locations = Array.from(vehicleLocations.values());
 
-    // Enrich with vehicle details
+    // Enrich with vehicle details and occupancy
     const enrichedLocations = await Promise.all(
       locations.map(async (loc) => {
         try {
-          const vehicleResult = await db.query(
-            'SELECT id, registration_number, vehicle_type, status FROM vehicles WHERE id = $1',
+          const result = await db.query(
+            `SELECT v.registration_number, v.vehicle_type, v.status,
+                    vo.occupancy_status, vo.current_occupancy
+             FROM vehicles v
+             LEFT JOIN vehicle_occupancy vo ON vo.vehicle_id = v.id
+             WHERE v.id = $1`,
             [loc.id]
           );
 
-          if (vehicleResult.rows.length > 0) {
-            const vehicle = vehicleResult.rows[0];
+          if (result.rows.length > 0) {
+            const row = result.rows[0];
             return {
               ...loc,
-              registration_number: vehicle.registration_number,
-              vehicle_type: vehicle.vehicle_type,
-              status: vehicle.status
+              registration_number: row.registration_number,
+              vehicle_type: row.vehicle_type,
+              status: row.status,
+              occupancy_status: row.occupancy_status || 'available',
+              current_occupancy: row.current_occupancy || 0
             };
           }
-          return loc;
+          return { ...loc, occupancy_status: 'available', current_occupancy: 0 };
         } catch (err) {
-          return loc;
+          return { ...loc, occupancy_status: 'available', current_occupancy: 0 };
         }
       })
     );

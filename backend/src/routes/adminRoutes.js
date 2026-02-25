@@ -1,52 +1,52 @@
 const express = require('express');
 const AdminController = require('../controllers/adminController');
-// Note: Dashboard login is hardcoded (admin/admin) in management.js
-// No auth middleware required for demo purposes
+const { authMiddleware, authorizeRoles } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
+const adminOnly = [authMiddleware, authorizeRoles(['admin'])];
 
 // Database health check
 router.get('/health/db', AdminController.checkDatabaseHealth);
 
 // FR5: Admin Dashboard Overview
-router.get('/dashboard', AdminController.getDashboardOverview);
+router.get('/dashboard', adminOnly, AdminController.getDashboardOverview);
 
 // FR5: Feedback Management with filtering (by date, route, vehicle)
-router.get('/feedback', AdminController.getAllFeedback);
-router.get('/feedback/stats', AdminController.getFeedbackStats);
-router.put('/feedback/:feedbackId/status', AdminController.updateFeedbackStatus);
+router.get('/feedback', adminOnly, AdminController.getAllFeedback);
+router.get('/feedback/stats', adminOnly, AdminController.getFeedbackStats);
+router.put('/feedback/:feedbackId/status', adminOnly, AdminController.updateFeedbackStatus);
 
 // Reports from complaint-demo (separate table)
-router.get('/reports', AdminController.getAllReports);
+router.get('/reports', adminOnly, AdminController.getAllReports);
 
 // FR5: Payment Management with filtering (by date, route, status)
-router.get('/payments', AdminController.getAllPayments);
-router.get('/payments/stats', AdminController.getPaymentStats);
-router.get('/payments/failures', AdminController.getPaymentFailureStats);
+router.get('/payments', adminOnly, AdminController.getAllPayments);
+router.get('/payments/stats', adminOnly, AdminController.getPaymentStats);
+router.get('/payments/failures', adminOnly, AdminController.getPaymentFailureStats);
 
 // System Management
-router.get('/routes/stats', AdminController.getRouteStatistics);
-router.get('/metrics', AdminController.getSystemMetrics);
-router.get('/users', AdminController.getAllUsers);
+router.get('/routes/stats', adminOnly, AdminController.getRouteStatistics);
+router.get('/metrics', adminOnly, AdminController.getSystemMetrics);
+router.get('/users', adminOnly, AdminController.getAllUsers);
 
 // Revenue reporting
-router.get('/revenue', AdminController.getRevenue);
+router.get('/revenue', adminOnly, AdminController.getRevenue);
 
 // User Activity Tracking
-router.get('/users/activity', AdminController.getUsersActivity);
+router.get('/users/activity', adminOnly, AdminController.getUsersActivity);
 
 // Vehicle Status and Occupancy Tracking
-router.get('/vehicles/status', AdminController.getVehicleStatus);
-router.get('/occupancy/details', AdminController.getOccupancyDetails);
+router.get('/vehicles/status', adminOnly, AdminController.getVehicleStatus);
+router.get('/occupancy/details', adminOnly, AdminController.getOccupancyDetails);
 
 // Activity Logs and Database Stats
-router.get('/activity/logs', AdminController.getActivityLogs);
-router.post('/activity/log', AdminController.logActivity);
-router.get('/database/stats', AdminController.getDatabaseStats);
+router.get('/activity/logs', adminOnly, AdminController.getActivityLogs);
+router.post('/activity/log', adminOnly, AdminController.logActivity);
+router.get('/database/stats', adminOnly, AdminController.getDatabaseStats);
 
 // WhatsApp joiners (users who sent join keyword)
-router.get('/whatsapp/joiners', AdminController.getWhatsAppJoiners);
+router.get('/whatsapp/joiners', adminOnly, AdminController.getWhatsAppJoiners);
 // WhatsApp participants from Twilio
-router.get('/whatsapp/participants', AdminController.getWhatsAppParticipants);
+router.get('/whatsapp/participants', adminOnly, AdminController.getWhatsAppParticipants);
 
 module.exports = router;

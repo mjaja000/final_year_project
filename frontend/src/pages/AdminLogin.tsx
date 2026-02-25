@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const DEMO_EMAIL = "admin@matatuconnect.test";
-const DEMO_PASSWORD = "password123";
+const DEMO_PASSWORD = "Admin@Matatu2024!";
 
 const AdminLogin = () => {
   const [email, setEmail] = useState("");
@@ -30,6 +30,34 @@ const AdminLogin = () => {
       localStorage.removeItem('userRole');
     }
   }, [location]);
+
+  const quickDemoLogin = async () => {
+    setEmail(DEMO_EMAIL);
+    setPassword(DEMO_PASSWORD);
+    setIsLoading(true);
+    try {
+      const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api/auth/demo_login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userRole', data.user?.role || 'admin');
+        localStorage.setItem('adminLoginTime', new Date().toISOString());
+        localStorage.setItem('adminEmail', DEMO_EMAIL);
+        toast({ title: 'Welcome back!', description: 'Admin portal access granted.' });
+        navigate('/admin/dashboard');
+      } else {
+        toast({ title: 'Demo Login Failed', description: data.message || 'Invalid credentials', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Demo Login Failed', description: err.message || 'Error', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,7 +227,7 @@ const AdminLogin = () => {
             <p className="text-xs sm:text-sm font-medium text-green-400 mb-2">
               Demo Credentials:
             </p>
-            <div className="space-y-1 text-xs sm:text-sm text-gray-300">
+            <div className="space-y-1 text-xs sm:text-sm text-gray-300 mb-3">
               <p>
                 Email:{" "}
                 <code className="bg-white/10 px-1.5 py-0.5 rounded text-white text-xs">
@@ -212,6 +240,23 @@ const AdminLogin = () => {
                   {DEMO_PASSWORD}
                 </code>
               </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setEmail(DEMO_EMAIL); setPassword(DEMO_PASSWORD); }}
+                className="flex-1 text-xs py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white border border-white/10 transition-all"
+              >
+                Fill Credentials
+              </button>
+              <button
+                type="button"
+                onClick={quickDemoLogin}
+                disabled={isLoading}
+                className="flex-1 text-xs py-2 px-3 rounded-lg bg-green-600 hover:bg-green-500 text-white font-semibold border border-green-500/50 transition-all disabled:opacity-50"
+              >
+                {isLoading ? 'Signing in...' : '⚡ Quick Demo Login'}
+              </button>
             </div>
           </div>
           </div>

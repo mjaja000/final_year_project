@@ -8,6 +8,13 @@ const parseSsl = (value, fallback = false) => {
   return { rejectUnauthorized: false };
 };
 
+// Parse channel_binding for Neon SSL connections
+const parseChannelBinding = (value, fallback = false) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === 'require' || normalized === 'true' || normalized === '1';
+};
+
 const hasCloudConfig = Boolean(process.env.DB_HOST && process.env.DB_NAME && process.env.DB_USER);
 const hasLocalConfig = Boolean(
   process.env.DB_HOST_LOCAL ||
@@ -37,10 +44,11 @@ const dbConfig = useLocal
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       ssl: parseSsl(process.env.DB_SSL, process.env.DB_HOST?.includes('neon.tech')),
+      channel_binding: parseChannelBinding(process.env.PGCHANNELBINDING || process.env.DB_CHANNEL_BINDING, process.env.DB_HOST?.includes('neon.tech')),
       max: 10,
-      min: 2,
-      idleTimeoutMillis: 60000,
-      connectionTimeoutMillis: 15000,
+      min: 0,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 30000,
       query_timeout: 30000,
       statement_timeout: 30000,
       keepAlive: true,

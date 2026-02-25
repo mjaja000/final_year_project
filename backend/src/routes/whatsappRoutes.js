@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const MessageModel = require('../models/messageModel');
 const WhatsappService = require('../services/whatsappService');
+const { authMiddleware, authorizeRoles } = require('../middlewares/authMiddleware');
+
+const adminOnly = [authMiddleware, authorizeRoles(['admin'])];
 
 // WhatsApp webhook token for verification
 const WHATSAPP_WEBHOOK_TOKEN = process.env.WHATSAPP_WEBHOOK_TOKEN || 'matatuconnect-verify-token-2024';
@@ -219,7 +222,7 @@ router.get('/status', (req, res) => {
  * Body: { phone: string, message?: string, secret?: string }
  * Sends a test WhatsApp message using backend service. If WHATSAPP_TEST_SECRET is set in env, it will be validated.
  */
-router.post('/test', async (req, res) => {
+router.post('/test', adminOnly, async (req, res) => {
   const { phone, message = 'MatatuConnect WhatsApp test message', secret } = req.body || {};
 
   // Optional secret guard - set WHATSAPP_TEST_SECRET in your environment to require a secret
@@ -249,7 +252,7 @@ router.post('/test', async (req, res) => {
  * Body: { phone: string }
  * Sends sandbox join instructions to a user (via SMS fallback if WhatsApp fails)
  */
-router.post('/send-join-instructions', async (req, res) => {
+router.post('/send-join-instructions', adminOnly, async (req, res) => {
   const { phone } = req.body || {};
 
   if (!phone) {
@@ -317,7 +320,7 @@ const normalizeWhatsAppPhone = (phone) => {
  * GET /api/whatsapp/chats
  * List WhatsApp contacts with last message time
  */
-router.get('/chats', async (req, res) => {
+router.get('/chats', adminOnly, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit, 10) || 200;
     const contacts = await MessageModel.listWhatsAppContacts(limit);
@@ -336,7 +339,7 @@ router.get('/chats', async (req, res) => {
  * GET /api/whatsapp/chats/:phone
  * Get conversation for a WhatsApp phone number
  */
-router.get('/chats/:phone', async (req, res) => {
+router.get('/chats/:phone', adminOnly, async (req, res) => {
   try {
     const phone = normalizePhoneForStorage(req.params.phone);
     if (!phone) return res.status(400).json({ success: false, error: 'Missing phone number' });
@@ -362,7 +365,7 @@ router.get('/chats/:phone', async (req, res) => {
  * POST /api/whatsapp/chats/send
  * Body: { phone: string, message: string }
  */
-router.post('/chats/send', async (req, res) => {
+router.post('/chats/send', adminOnly, async (req, res) => {
   const { phone, message } = req.body || {};
   const storagePhone = normalizePhoneForStorage(phone);
   if (!storagePhone || !message) {
@@ -398,7 +401,7 @@ router.post('/chats/send', async (req, res) => {
  * POST /api/whatsapp/chats/invite
  * Body: { phone: string }
  */
-router.post('/chats/invite', async (req, res) => {
+router.post('/chats/invite', adminOnly, async (req, res) => {
   const { phone } = req.body || {};
   const storagePhone = normalizePhoneForStorage(phone);
   if (!storagePhone) {
@@ -456,7 +459,7 @@ router.post('/chats/invite', async (req, res) => {
  * DELETE /api/whatsapp/chats/:phone
  * Delete a WhatsApp chat (contact and all messages)
  */
-router.delete('/chats/:phone', async (req, res) => {
+router.delete('/chats/:phone', adminOnly, async (req, res) => {
   const phone = req.params.phone;
   const storagePhone = normalizePhoneForStorage(phone);
   

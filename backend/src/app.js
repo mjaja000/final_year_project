@@ -31,8 +31,15 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(helmet());
+const allowedOrigins = (process.env.CORS_ORIGIN || '*').split(',').map(o => o.trim());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS: ' + origin));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());

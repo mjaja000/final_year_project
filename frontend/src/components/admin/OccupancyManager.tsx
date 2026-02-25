@@ -119,8 +119,7 @@ const OccupancyManager = () => {
 
   // Socket: listen for booking.created events and refresh occupancy if relevant
   useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_URL || '';
-    const socket = io(API_BASE.replace(/http(s?):\/\//, ''));
+    const socket = io();
     socket.on('connect', () => {
       socket.emit('join', 'admin');
     });

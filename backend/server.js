@@ -1,3 +1,26 @@
+// Force IPv4 DNS resolution - must be before any other require.
+// pg calls dns.lookup with { all: true } which returns both IPv4 and IPv6;
+// on hosts without IPv6 internet, the IPv6 connection hangs until timeout.
+const dns = require('dns');
+const _origLookup = dns.lookup.bind(dns);
+dns.lookup = (hostname, options, callback) => {
+  if (typeof options === 'function') {
+    // No options provided - simple callback, force IPv4
+    return _origLookup(hostname, { family: 4 }, options);
+  }
+  if (options && options.all) {
+    // pg-pool passes { all: true } - return results but filter to IPv4 only
+    return _origLookup(hostname, options, (err, addresses) => {
+      if (err) return callback(err, addresses);
+      const ipv4 = Array.isArray(addresses)
+        ? addresses.filter(a => a.family === 4)
+        : addresses;
+      callback(null, ipv4.length ? ipv4 : addresses);
+    });
+  }
+  return _origLookup(hostname, { ...options, family: 4 }, callback);
+};
+
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const app = require('./src/app');
 const pool = require('./src/config/database');
@@ -48,9 +71,10 @@ const initializeTables = async () => {
 // Start server
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, async () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🚀 MatatuConnect Server Running`);
   console.log(`📡 URL: http://localhost:${PORT}`);
+  console.log(`📡 Network: http://0.0.0.0:${PORT}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}\n`);
 
   // Initialize database
@@ -61,8 +85,9 @@ const server = app.listen(PORT, async () => {
     const { Server } = require('socket.io');
     const io = new Server(server, {
       cors: {
-        origin: process.env.CORS_ORIGIN || '*',
-        methods: ['GET', 'POST']
+        origin: (process.env.CORS_ORIGIN || '*').split(',').map(o => o.trim()),
+        methods: ['GET', 'POST'],
+        credentials: true
       }
     });
 

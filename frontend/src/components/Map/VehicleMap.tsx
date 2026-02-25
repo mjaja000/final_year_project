@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -20,6 +20,20 @@ const DefaultIcon = L.icon({
 });
 
 L.Marker.prototype.options.icon = DefaultIcon;
+
+// Haversine distance (km)
+const calcDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const formatDistance = (km: number) =>
+  km < 1 ? `${(km * 1000).toFixed(0)} m` : `${km.toFixed(2)} km`;
 
 // Custom vehicle icon (matatu/bus)
 const createVehicleIcon = (isOnline: boolean) => {
@@ -42,6 +56,26 @@ const createVehicleIcon = (isOnline: boolean) => {
     popupAnchor: [0, -20]
   });
 };
+
+// Nearest vehicle icon — yellow/gold with pulsing ring
+const nearestVehicleIcon = L.divIcon({
+  className: 'custom-nearest-marker',
+  html: `
+    <div style="position:relative;width:56px;height:56px;">
+      <div style="position:absolute;inset:-8px;border-radius:50%;border:3px solid #eab308;opacity:0.6;animation:ping 1s cubic-bezier(0,0,0.2,1) infinite;"></div>
+      <svg width="40" height="40" viewBox="0 0 40 40" style="position:absolute;top:8px;left:8px;filter:drop-shadow(0 2px 6px rgba(234,179,8,0.8));">
+        <circle cx="20" cy="20" r="18" fill="#eab308" opacity="0.35"/>
+        <circle cx="20" cy="20" r="12" fill="#eab308"/>
+        <path d="M15 15 L25 15 L25 25 L15 25 Z" fill="white" opacity="0.95"/>
+        <circle cx="17" cy="22" r="1.5" fill="#92400e"/>
+        <circle cx="23" cy="22" r="1.5" fill="#92400e"/>
+      </svg>
+    </div>
+  `,
+  iconSize: [56, 56],
+  iconAnchor: [28, 28],
+  popupAnchor: [0, -28]
+});
 
 // User location icon
 const userIcon = L.divIcon({
@@ -67,12 +101,15 @@ interface Vehicle {
   latitude: number;
   longitude: number;
   is_online: boolean;
+  occupancy_status?: string;
+  current_occupancy?: number;
   last_update?: string;
 }
 
 interface VehicleMapProps {
   vehicles: Vehicle[];
   userLocation?: { latitude: number; longitude: number } | null;
+  nearestVehicleId?: number | null;
   center?: [number, number];
   zoom?: number;
   height?: string;
@@ -93,6 +130,7 @@ function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }
 const VehicleMap = ({ 
   vehicles, 
   userLocation, 
+  nearestVehicleId = null,
   center = [-1.286389, 36.817223], // Nairobi, Kenya default
   zoom = 12,
   height = '600px',
@@ -143,53 +181,86 @@ const VehicleMap = ({
         {userLocation && (
           <Marker position={[userLocation.latitude, userLocation.longitude]} icon={userIcon}>
             <Popup>
-              <div className="text-sm font-semibold">Your Location</div>
+              <div className="text-sm font-semibold">📍 Your Location</div>
             </Popup>
           </Marker>
         )}
 
+        {/* Dashed polyline from user to nearest vehicle */}
+        {userLocation && nearestVehicleId != null && (() => {
+          const nearest = vehicles.find(v => v.id === nearestVehicleId);
+          if (!nearest) return null;
+          return (
+            <Polyline
+              positions={[
+                [userLocation.latitude, userLocation.longitude],
+                [nearest.latitude, nearest.longitude]
+              ]}
+              color="#3b82f6"
+              weight={3}
+              dashArray="10, 8"
+              opacity={0.75}
+            />
+          );
+        })()}
+
         {/* Vehicle Markers */}
-        {vehicles.map((vehicle) => (
-          <Marker
-            key={vehicle.id}
-            position={[vehicle.latitude, vehicle.longitude]}
-            icon={createVehicleIcon(vehicle.is_online)}
-            eventHandlers={{
-              click: () => {
-                if (onVehicleClick) {
-                  onVehicleClick(vehicle);
-                }
-              }
-            }}
-          >
-            <Popup>
-              <div className="space-y-1 min-w-[200px]">
-                <div className="font-bold text-base">{vehicle.driver_name}</div>
-                {vehicle.registration_number && (
-                  <div className="text-sm text-gray-600">
-                    Vehicle: {vehicle.registration_number}
+        {vehicles.map((vehicle) => {
+          const isNearest = vehicle.id === nearestVehicleId;
+          const distText = userLocation
+            ? formatDistance(calcDistance(userLocation.latitude, userLocation.longitude, vehicle.latitude, vehicle.longitude))
+            : null;
+          const occupancyLabel = vehicle.occupancy_status === 'full' ? '🔴 Full' : '🟢 Available';
+
+          return (
+            <Marker
+              key={vehicle.id}
+              position={[vehicle.latitude, vehicle.longitude]}
+              icon={isNearest ? nearestVehicleIcon : createVehicleIcon(vehicle.is_online)}
+              eventHandlers={{
+                click: () => { if (onVehicleClick) onVehicleClick(vehicle); }
+              }}
+            >
+              <Popup>
+                <div className="space-y-1 min-w-[200px]">
+                  {isNearest && (
+                    <div className="text-xs font-bold text-yellow-600 bg-yellow-50 px-2 py-1 rounded mb-1">
+                      ⭐ Nearest Available Vehicle
+                    </div>
+                  )}
+                  <div className="font-bold text-base">{vehicle.driver_name}</div>
+                  {vehicle.registration_number && (
+                    <div className="text-sm text-gray-600">
+                      Vehicle: {vehicle.registration_number}
+                    </div>
+                  )}
+                  {vehicle.vehicle_type && (
+                    <div className="text-sm text-gray-600 capitalize">
+                      Type: {vehicle.vehicle_type}
+                    </div>
+                  )}
+                  <div className="text-sm font-medium">{occupancyLabel}</div>
+                  {distText && (
+                    <div className="text-sm font-bold text-blue-600">
+                      📍 {distText} from you
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className={`w-2 h-2 rounded-full ${vehicle.is_online ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className="text-xs font-medium">
+                      {vehicle.is_online ? 'Online' : 'Offline'}
+                    </span>
                   </div>
-                )}
-                {vehicle.vehicle_type && (
-                  <div className="text-sm text-gray-600 capitalize">
-                    Type: {vehicle.vehicle_type}
-                  </div>
-                )}
-                <div className="flex items-center gap-2 mt-2">
-                  <div className={`w-2 h-2 rounded-full ${vehicle.is_online ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <span className="text-xs font-medium">
-                    {vehicle.is_online ? 'Online' : 'Offline'}
-                  </span>
+                  {vehicle.last_update && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Updated: {new Date(vehicle.last_update).toLocaleTimeString()}
+                    </div>
+                  )}
                 </div>
-                {vehicle.last_update && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    Updated: {new Date(vehicle.last_update).toLocaleTimeString()}
-                  </div>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
     </div>
   );

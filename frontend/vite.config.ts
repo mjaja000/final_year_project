@@ -4,32 +4,47 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-// Use mkcert certs when HTTPS is enabled.
-const httpsConfig = process.env.VITE_HTTPS === 'true'
+// Auto-detect HTTPS: use certs if they exist, enable HTTPS automatically
+const certPath = path.resolve(__dirname, '.cert/cert.pem');
+const keyPath = path.resolve(__dirname, '.cert/key.pem');
+const hasCerts = fs.existsSync(certPath) && fs.existsSync(keyPath);
+
+const httpsConfig = hasCerts
   ? {
-      key: fs.readFileSync(path.resolve(__dirname, '.cert/key.pem')),
-      cert: fs.readFileSync(path.resolve(__dirname, '.cert/cert.pem')),
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath),
     }
   : false;
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  server: {
-    host: "::",
-    port: 8080,
-    https: httpsConfig, // Enable via VITE_HTTPS=true npm run dev
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
-        secure: false, // Allow proxy to insecure backend
+export default defineConfig(({ mode }) => {
+  // Get API URL from env, default to localhost
+  const apiUrl = process.env.VITE_API_URL || 'http://localhost:5000';
+  
+  return {
+    server: {
+      host: "::",
+      port: 8080,
+      https: httpsConfig, // Automatically enabled if certs exist
+      proxy: {
+        '/api': {
+          target: apiUrl,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/socket.io': {
+          target: 'http://localhost:5000',
+          changeOrigin: true,
+          secure: false,
+          ws: true,
+        },
       },
     },
-  },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+    plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
-}));
+  };
+});

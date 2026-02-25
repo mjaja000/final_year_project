@@ -7,7 +7,7 @@ import { useGeolocation, findNearestVehicle, calculateDistance } from '@/hooks/u
 import io from 'socket.io-client';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
-const socket = API_BASE ? io(API_BASE) : io();
+const socket = io();
 
 interface Vehicle {
   id: number;
@@ -17,6 +17,8 @@ interface Vehicle {
   latitude: number;
   longitude: number;
   is_online: boolean;
+  occupancy_status?: string;
+  current_occupancy?: number;
   last_update?: string;
 }
 
@@ -142,10 +144,14 @@ const LiveVehicleMap = ({
     }
   }, [latitude, longitude, userWantsLocation]);
 
-  // Calculate nearest vehicle when user location or vehicles change
+  // Calculate nearest non-full vehicle when user location or vehicles change
   useEffect(() => {
     if (latitude && longitude && vehicles.length > 0) {
-      const nearest = findNearestVehicle(latitude, longitude, vehicles.filter(v => v.is_online));
+      // Only consider online vehicles that are NOT full
+      const availableVehicles = vehicles.filter(
+        v => v.is_online && v.occupancy_status !== 'full'
+      );
+      const nearest = findNearestVehicle(latitude, longitude, availableVehicles);
       setNearestVehicle(nearest);
     } else {
       setNearestVehicle(null);
@@ -237,7 +243,7 @@ const LiveVehicleMap = ({
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <MapPin className="h-5 w-5 text-blue-600" />
-                <h3 className="font-semibold text-lg">Nearest Vehicle</h3>
+                <h3 className="font-semibold text-lg">Nearest Available Vehicle</h3>
               </div>
               <div className="space-y-1">
                 <p className="text-sm">
@@ -249,7 +255,15 @@ const LiveVehicleMap = ({
                   </p>
                 )}
                 <p className="text-sm font-bold text-blue-600">
-                  Distance: {nearestVehicle.distance.toFixed(2)} km away
+                  📍 Distance: {nearestVehicle.distance < 1
+                    ? `${(nearestVehicle.distance * 1000).toFixed(0)} m`
+                    : `${nearestVehicle.distance.toFixed(2)} km`} away
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">Status:</span>{' '}
+                  <span className="text-green-600 font-semibold">
+                    {nearestVehicle.vehicle.occupancy_status === 'full' ? '🔴 Full' : '🟢 Available'}
+                  </span>
                 </p>
               </div>
             </div>
@@ -277,8 +291,12 @@ const LiveVehicleMap = ({
             <span className="font-medium">Your Location</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full border-2 border-yellow-400 bg-transparent"></div>
-            <span className="font-medium">Nearest Vehicle</span>
+            <div className="w-3 h-3 rounded-full bg-yellow-400 border-2 border-yellow-600"></div>
+            <span className="font-medium">Nearest Available</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 border-t-2 border-dashed border-blue-500"></div>
+            <span className="font-medium">Distance Line</span>
           </div>
         </div>
       </div>
@@ -291,13 +309,14 @@ const LiveVehicleMap = ({
             ? { latitude, longitude }
             : null
         }
+        nearestVehicleId={nearestVehicle?.vehicle.id ?? null}
         height={height}
         onVehicleClick={(vehicle) => {
           if (latitude && longitude) {
             const distance = calculateDistance(latitude, longitude, vehicle.latitude, vehicle.longitude);
             toast({
               title: vehicle.driver_name,
-              description: `${distance.toFixed(2)} km away from you`,
+              description: `${distance < 1 ? `${(distance * 1000).toFixed(0)} m` : `${distance.toFixed(2)} km`} away${vehicle.occupancy_status === 'full' ? ' · Full' : ' · Available'}`,
             });
           }
         }}

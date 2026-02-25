@@ -55,7 +55,7 @@ export default function AdminMessages() {
   }, [conversation, isOtherTyping, selectedUser]);
 
   useEffect(() => {
-    const socket = io(API_BASE.replace(/http(s?):\/\//, ''));
+    const socket = io();
     socketRef.current = socket;
 
     socket.on('connect', () => {

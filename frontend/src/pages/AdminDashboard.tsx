@@ -290,7 +290,7 @@ const AdminDashboard = () => {
     queryFn: async () => {
       console.log('[AdminDashboard] Fetching feedback and reports from backend...');
       try {
-        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const apiBase = import.meta.env.VITE_API_URL || '';
 
         const [feedbackResult, reportsResult] = await Promise.allSettled([
           fetch(`${apiBase}/api/admin/feedback?limit=1000`).then((res) => {
@@ -348,7 +348,7 @@ const AdminDashboard = () => {
     refetchInterval: 15000,
   });
   useEffect(() => {
-    const socket = io(API_BASE.replace(/http(s?):\/\//, ''));
+    const socket = io();
 
     socket.on('connect', () => {
       socket.emit('join', 'admin');
