@@ -2,10 +2,22 @@ import React, { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { AlertCircle, CheckCircle, Circle, CreditCard, Mail, MapPin, Minus, Navigation, Phone, Plus, Truck } from 'lucide-react';
+import { AlertCircle, CheckCircle, Circle, CreditCard, Mail, MapPin, Navigation, Phone, Truck } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const socket = API_BASE ? io(API_BASE) : io(); // fall back to same host
+
+const mapOccupancyToStatus = (current: number, capacity: number): 'empty' | 'half-full' | 'full' => {
+  if (current <= 0) return 'empty';
+  if (current >= capacity) return 'full';
+  return 'half-full';
+};
+
+const mapStatusToOccupancy = (status: 'empty' | 'half-full' | 'full', capacity: number): number => {
+  if (status === 'full') return capacity;
+  if (status === 'half-full') return Math.ceil(capacity / 2);
+  return 0;
+};
 
 export default function DriverDashboard() {
   const [driver, setDriver] = useState<any>(null);
@@ -17,6 +29,7 @@ export default function DriverDashboard() {
 
   const [trip, setTrip] = useState<any>(null);
   const [driverOccupancy, setDriverOccupancy] = useState<any>(null);
+  const [occupancyStatus, setOccupancyStatus] = useState<'empty' | 'half-full' | 'full'>('empty');
   const [tickets, setTickets] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [messageText, setMessageText] = useState('');
@@ -80,6 +93,9 @@ export default function DriverDashboard() {
         if (tRes.ok) {
           const tdata = await tRes.json();
           setTrip(tdata.trip);
+          const capacity = Number(tdata.trip?.capacity || 14);
+          const current = Number(tdata.trip?.current_occupancy ?? 0);
+          setOccupancyStatus(mapOccupancyToStatus(current, capacity));
         } else {
           setTrip(null);
         }
@@ -92,6 +108,9 @@ export default function DriverDashboard() {
             setTrip(odata.trip);
           }
           setDriverOccupancy(odata?.occupancy || null);
+          const capacity = Number(odata?.occupancy?.capacity || odata?.trip?.capacity || 14);
+          const current = Number(odata?.occupancy?.current_occupancy ?? odata?.trip?.current_occupancy ?? 0);
+          setOccupancyStatus(mapOccupancyToStatus(current, capacity));
         }
 
         // fetch vehicle tickets
@@ -164,29 +183,8 @@ export default function DriverDashboard() {
       console.log('driver.statusUpdated', payload);
     });
 
-    socket.on('vehicle.occupancyUpdated', (payload: any) => {
-      if (!payload) return;
-      // Update local occupancy state when a payment triggers it
-      const updatedVehicleId = Number(payload.vehicle_id);
-      setDriverOccupancy((prev: any) => {
-        const prevVehicleId = Number(prev?.vehicle_id ?? driver?.assigned_vehicle_id);
-        if (prevVehicleId && prevVehicleId === updatedVehicleId) {
-          return { ...(prev || {}), current_occupancy: payload.current_occupancy, capacity: payload.capacity };
-        }
-        return prev;
-      });
-      setTrip((prev: any) => {
-        if (prev && Number(prev.vehicle_id) === updatedVehicleId) {
-          return { ...prev, current_occupancy: payload.current_occupancy, capacity: payload.capacity };
-        }
-        return prev;
-      });
-      toast({ title: 'Passenger boarded', description: `Occupancy: ${payload.current_occupancy} / ${payload.capacity}` });
-    });
-
     return () => {
       socket.off('driver.statusUpdated');
-      socket.off('vehicle.occupancyUpdated');
       socket.off('chat.message');
       socket.off('chat.notification');
       socket.off('chat.typing');
@@ -418,10 +416,16 @@ export default function DriverDashboard() {
       const res = await fetch(API_BASE + `/api/drivers/me/occupancy`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
       const data = await res.json();
       if (res.ok) {
-        if (data.trip) setTrip(data.trip);
-        if (data.occupancy) setDriverOccupancy(data.occupancy);
+        if (data.trip) {
+          setTrip(data.trip);
+        }
+        if (data.occupancy) {
+          setDriverOccupancy(data.occupancy);
+        }
         const nextValue = data?.trip?.current_occupancy ?? data?.occupancy?.current_occupancy ?? 0;
-        toast({ title: 'Occupancy updated', description: `Now ${nextValue} passengers` });
+        const nextCapacity = Number(data?.trip?.capacity || data?.occupancy?.capacity || 14);
+        setOccupancyStatus(mapOccupancyToStatus(Number(nextValue), nextCapacity));
+        toast({ title: 'Occupancy updated', description: `Now ${nextValue}` });
       } else {
         toast({ title: 'Failed', description: data.message || 'Could not update occupancy' });
       }
@@ -495,7 +499,12 @@ export default function DriverDashboard() {
 
   const effectiveCapacity = Number(trip?.capacity || driverOccupancy?.capacity || 14);
   const effectiveOccupancy = Number(trip?.current_occupancy ?? driverOccupancy?.current_occupancy ?? 0);
-  const isFull = effectiveOccupancy >= effectiveCapacity;
+  const effectiveStatus = mapOccupancyToStatus(effectiveOccupancy, effectiveCapacity);
+
+  const handleUpdateOccupancyStatus = () => {
+    const value = mapStatusToOccupancy(occupancyStatus, effectiveCapacity);
+    adjustOccupancy('set', value);
+  };
 
 
   return (
@@ -619,37 +628,27 @@ export default function DriverDashboard() {
                   </p>
 
                   <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                    <p className="text-xs text-slate-600 font-medium mb-2">CURRENT PASSENGERS</p>
-                    {/* Big numeric display */}
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className={`text-4xl font-bold ${isFull ? 'text-red-600' : 'text-green-700'}`}>{effectiveOccupancy}</span>
-                      <span className="text-slate-500 text-lg">/ {effectiveCapacity}</span>
-                      {isFull && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">FULL</span>}
-                    </div>
-                    {/* +/- controls for driver to adjust (e.g. passenger got off) */}
+                    <p className="text-xs text-slate-600 font-medium mb-2">ASSIGNED VEHICLE OCCUPANCY</p>
                     <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
-                        onClick={() => adjustOccupancy('decrement')}
-                        disabled={effectiveOccupancy <= 0}
+                      <span className="text-2xl font-bold text-slate-900">{effectiveOccupancy}</span>
+                      <span className="text-slate-600">/ {effectiveCapacity}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 mb-2">Current status: <span className="font-medium text-slate-700">{effectiveStatus}</span></p>
+                    <div className="space-y-2 mt-2">
+                      <select
+                        className="w-full rounded-md border px-3 py-2 bg-white text-sm"
+                        value={occupancyStatus}
+                        onChange={(e) => setOccupancyStatus(e.target.value as 'empty' | 'half-full' | 'full')}
                       >
-                        <Minus className="h-4 w-4 mr-1" /> Passenger Off
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 border-green-400 text-green-700 hover:bg-green-50"
-                        onClick={() => adjustOccupancy('increment')}
-                        disabled={isFull}
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Add Passenger
+                        <option value="empty">Empty</option>
+                        <option value="half-full">Half-full</option>
+                        <option value="full">Full</option>
+                      </select>
+                      <Button onClick={handleUpdateOccupancyStatus} className="w-full" variant="hero" size="sm">
+                        Update Occupancy
                       </Button>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-2">
-                      Count updates automatically from M-Pesa payments. Use "Passenger Off" when someone alights.
-                    </p>
+                    <p className="text-[11px] text-slate-500 mt-2">You and Admin can coordinate these updates in chat.</p>
                   </div>
                 </div>
               ) : (

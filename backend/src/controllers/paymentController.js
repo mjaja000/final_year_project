@@ -4,8 +4,6 @@ const WhatsappService = require('../services/whatsappService');
 const UserModel = require('../models/userModel');
 const MpesaService = require('../services/mpesaService');
 const VehicleModel = require('../models/vehicleModel');
-const OccupancyModel = require('../models/occupancyModel');
-const pool = require('../config/database');
 
 const normalizePhoneNumber = (rawPhone) => {
   if (!rawPhone) return null;
@@ -43,55 +41,7 @@ const STK_RATE_LIMIT_COOLDOWN_MS = 65000;
 const stkQueryLastRunByCheckout = new Map();
 
 class PaymentController {
-  // Auto-increment vehicle occupancy when a payment completes.
-  // Assigns vehicle_id to the payment if not set, then increments occupancy of the active vehicle.
-  static async autoIncrementOccupancy(payment, io = null) {
-    if (!payment) return;
-    try {
-      let vehicleId = payment.vehicle_id ? Number(payment.vehicle_id) : null;
-
-      // Find the active (currently-filling) vehicle for this route if not already linked
-      if (!vehicleId && payment.route_id) {
-        const activeVehicle = await VehicleModel.getActiveVehicleForRoute(Number(payment.route_id));
-        vehicleId = activeVehicle?.id || null;
-        if (vehicleId) {
-          // Persist the vehicle assignment on the payment row
-          await pool.query('UPDATE payments SET vehicle_id = $1 WHERE id = $2', [vehicleId, payment.id]);
-        }
-      }
-
-      if (!vehicleId) return;
-
-      const vehicle = await VehicleModel.getVehicleById(vehicleId);
-      if (!vehicle) return;
-
-      const capacity = Number(vehicle.capacity || 14);
-      const occupancyRecord = await OccupancyModel.getOccupancyStatus(vehicleId);
-      const currentOccupancy = Number(occupancyRecord?.current_occupancy || 0);
-
-      if (currentOccupancy >= capacity) return; // already full, next payment will go to next vehicle
-
-      const newOccupancy = currentOccupancy + 1;
-      const driverId = vehicle.user_id || null;
-      const updated = await OccupancyModel.updateOccupancyCount(vehicleId, driverId, newOccupancy, capacity);
-
-      if (io) {
-        const payload = {
-          vehicle_id: vehicleId,
-          current_occupancy: newOccupancy,
-          occupancy_status: updated.occupancy_status,
-          capacity,
-        };
-        io.to('admin').emit('vehicle.occupancyUpdated', payload);
-        if (driverId) io.to(`user_${driverId}`).emit('vehicle.occupancyUpdated', payload);
-      }
-      return updated;
-    } catch (err) {
-      console.error('Auto increment occupancy error:', err.message);
-    }
-  }
-
-  static async reconcilePendingPayment(payment, io = null) {
+  static async reconcilePendingPayment(payment) {
     if (!payment || payment.status !== 'pending' || !payment.checkout_request_id) {
       return payment;
     }
@@ -170,8 +120,6 @@ class PaymentController {
           const result = paymentWithDetails || updated;
           result.whatsapp_status = customerWhatsappStatus;
           result.driver_whatsapp_status = driverWhatsappStatus;
-          // Auto-increment vehicle occupancy from this completed payment
-          await PaymentController.autoIncrementOccupancy(updated, io);
           return result;
         }
       }
@@ -223,11 +171,6 @@ class PaymentController {
       if (vehicle) {
         const foundVehicle = await VehicleModel.getVehicleByRegistration(String(vehicle).trim().toUpperCase());
         vehicleId = foundVehicle?.id || null;
-      }
-      // Auto-assign the active vehicle for this route if none specified
-      if (!vehicleId && parsedRouteId) {
-        const activeVehicle = await VehicleModel.getActiveVehicleForRoute(parsedRouteId);
-        vehicleId = activeVehicle?.id || null;
       }
 
       paymentRecord = await PaymentModel.initiatePayment(
@@ -402,9 +345,6 @@ class PaymentController {
         }
 
         console.log(`✓ Payment verified and completed for payment_id=${updatedPayment.id}`);
-        // Auto-increment vehicle occupancy from this completed payment
-        const io = req.app.get('io') || null;
-        await PaymentController.autoIncrementOccupancy(updatedPayment, io);
       } else {
         await PaymentModel.updateStatusByCheckoutRequestId(
           checkoutRequestId,
@@ -523,8 +463,7 @@ class PaymentController {
       }
 
       if (shouldRefresh && payment.status === 'pending') {
-        const io = req.app.get('io') || null;
-        payment = await PaymentController.reconcilePendingPayment(payment, io);
+        payment = await PaymentController.reconcilePendingPayment(payment);
         payment = await PaymentModel.getPaymentByIdWithDetails(paymentId) || payment;
       }
 

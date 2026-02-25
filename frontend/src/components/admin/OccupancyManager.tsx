@@ -63,7 +63,7 @@ const OccupancyManager = () => {
 
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
   const [vehicleName, setVehicleName] = useState<string>("");
-  const [occupancyCount, setOccupancyCount] = useState<number>(0);
+  const [occupancyStatus, setOccupancyStatus] = useState<string>("empty");
 
   const vehicles: VehicleRecord[] = useMemo(() => {
     const raw = Array.isArray(vehiclesQuery.data)
@@ -153,7 +153,7 @@ const OccupancyManager = () => {
   }, [queryClient, toast]);
 
   const updateOccupancy = useMutation({
-    mutationFn: async ({ routeId, registrationNumber, count }: { routeId: number; registrationNumber: string; count: number }) => {
+    mutationFn: async ({ routeId, registrationNumber, status }: { routeId: number; registrationNumber: string; status: string }) => {
       const normalized = registrationNumber.trim();
       const existing = vehicles.find((v) => {
         const name = (v.vehicle_number || v.vehicleNumber || "").toLowerCase();
@@ -170,11 +170,18 @@ const OccupancyManager = () => {
         vehicle = created?.vehicle || created;
       }
 
-      return api.occupancy.update(Number(vehicle?.id), { current_occupancy: count });
+      const capacity = Number(vehicle?.capacity ?? 14);
+      const normalizedStatus = status.toLowerCase();
+      const occupancyValue = normalizedStatus === "full"
+        ? capacity
+        : normalizedStatus === "half-full"
+          ? Math.ceil(capacity / 2)
+          : 0;
+
+      return api.occupancy.update(Number(vehicle?.id), { current_occupancy: occupancyValue });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
-      queryClient.invalidateQueries({ queryKey: ["occupancy"] });
       toast({ title: "Occupancy updated" });
     },
     onError: (err: any) => {
@@ -218,7 +225,7 @@ const OccupancyManager = () => {
     updateOccupancy.mutate({
       routeId: selectedRouteId,
       registrationNumber: vehicleName,
-      count: occupancyCount,
+      status: occupancyStatus,
     });
   };
 
@@ -305,19 +312,16 @@ const OccupancyManager = () => {
           </div>
 
           <div className="space-y-2">
-            <Label>Number of Passengers (manual / cash payment)</Label>
-            <Input
-              type="number"
-              min={0}
-              max={selectedRouteId ? (vehicles.find(v => {
-                const vName = (v.vehicle_number || v.vehicleNumber || "").toLowerCase();
-                return vName === vehicleName.toLowerCase();
-              })?.capacity ?? 14) : 14}
-              value={occupancyCount}
-              onChange={(e) => setOccupancyCount(Math.max(0, Number(e.target.value)))}
-              placeholder="e.g., 8"
-            />
-            <p className="text-xs text-muted-foreground">Enter actual passenger count (0 = empty, up to vehicle capacity)</p>
+            <Label>Current Occupancy</Label>
+            <select
+              className="w-full rounded-md border px-3 py-2 bg-background"
+              value={occupancyStatus}
+              onChange={(e) => setOccupancyStatus(e.target.value)}
+            >
+              <option value="empty">Empty</option>
+              <option value="half-full">Half-full</option>
+              <option value="full">Full</option>
+            </select>
           </div>
 
           <Button onClick={handleSave} className="w-full" variant="hero" disabled={updateOccupancy.isPending || routes.length === 0}>
@@ -341,7 +345,7 @@ const OccupancyManager = () => {
             </p>
             <p>
               <span className="font-semibold text-foreground">Occupancy:</span>{" "}
-              {occupancyCount} passengers
+              {occupancyStatus}
             </p>
           </div>
         </div>
@@ -368,33 +372,25 @@ const OccupancyManager = () => {
           {filteredOccupancies.length === 0 ? (
             <p className="text-sm text-muted-foreground">No occupancy records found for this route.</p>
           ) : (
-            filteredOccupancies.map((record, idx) => {
+            filteredOccupancies.map((record) => {
               const vehicleLabel = record.registration_number || record.vehicle_number || record.vehicleNumber || "Unknown vehicle";
               const keyValue = String(record.vehicle_id ?? record.vehicleId ?? vehicleLabel);
               const start = record.start_location || "";
               const end = record.end_location || "";
               const routeLabel = (start && end) ? `${start} to ${end}` : (record.route_name || "Route not set");
               const occupancyValue = typeof record.current_occupancy === "number" ? record.current_occupancy : 0;
-              // Active vehicle = first non-full one per route (ordered by vehicle_id asc)
-              const capacityVal = (record as any).capacity ?? 14;
-              const isActive = idx === filteredOccupancies.findIndex(
-                r => (r.current_occupancy ?? 0) < ((r as any).capacity ?? 14)
-              );
+              const statusLabel = record.occupancy_status || "unknown";
 
               return (
                 <div
                   key={keyValue}
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border bg-background p-3 ${isActive ? 'border-green-400 bg-green-50' : 'border-border'}`}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-background p-3"
                 >
                   <div className="space-y-1">
-                    <p className="font-semibold flex items-center gap-2">
-                      {vehicleLabel}
-                      {isActive && <span className="text-[10px] bg-green-600 text-white px-2 py-0.5 rounded-full">● Filling Now</span>}
-                    </p>
+                    <p className="font-semibold">{vehicleLabel}</p>
                     <p className="text-sm text-muted-foreground">{routeLabel}</p>
-                    <p className="text-xs font-bold text-foreground">
-                      {occupancyValue} / {capacityVal} passengers
-                      <span className="ml-2 text-muted-foreground font-normal">| Updated: {formatUpdatedAt(record.updated_at)}</span>
+                    <p className="text-xs text-muted-foreground">
+                      Occupancy: {occupancyValue} | Status: {statusLabel} | Updated: {formatUpdatedAt(record.updated_at)}
                     </p>
                   </div>
                   <Button

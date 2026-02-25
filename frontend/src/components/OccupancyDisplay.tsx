@@ -36,7 +36,7 @@ type DisplayRoute = {
   from: string;
   to: string;
   fare: number;
-  vehicles: Array<{ id: number; name: string; status: Occ; current: number; capacity: number }>;
+  vehicles: Array<{ id: number; name: string; status: Occ }>;
 };
 
 const statusColor = (s: Occ) => {
@@ -140,8 +140,6 @@ const OccupancyDisplay = ({ interactive = true, showPayButton = true }: Occupanc
         const routeId = Number(o.route_id ?? 0);
         const vehicleId = Number(o.vehicle_id ?? o.vehicleId ?? index + 1);
         const name = o.registration_number || `Vehicle ${vehicleId}`;
-        const cap = Number(o.capacity ?? 14);
-        const current = Number(o.current_occupancy ?? 0);
         const status = toStatus(o);
 
         if (!routeMap.has(routeId)) {
@@ -155,7 +153,7 @@ const OccupancyDisplay = ({ interactive = true, showPayButton = true }: Occupanc
           });
         }
 
-        routeMap.get(routeId)!.vehicles.push({ id: vehicleId, name, status, current, capacity: cap });
+        routeMap.get(routeId)!.vehicles.push({ id: vehicleId, name, status });
       });
 
       const mapped = Array.from(routeMap.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -275,17 +273,13 @@ const OccupancyDisplay = ({ interactive = true, showPayButton = true }: Occupanc
                   No vehicles updated for this route yet.
                 </div>
               )}
-              {r.vehicles.map((v, idx) => {
+              {r.vehicles.map((v) => {
                 const s = v.status || 'empty';
-                // Highlight the first non-full vehicle as "currently filling"
-                const isActive = s !== 'full' && idx === r.vehicles.findIndex(x => x.status !== 'full');
                 const cardClass = cn(
                   'p-2 sm:p-3 rounded-lg border-2 transition-all text-left',
                   statusColor(s),
-                  isActive ? 'ring-2 ring-offset-1 ring-green-400' : '',
                   interactive ? 'cursor-pointer hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40' : 'cursor-default'
                 );
-                const countLabel = `${v.current ?? 0} / ${v.capacity ?? 14}`;
 
                 if (interactive) {
                   return (
@@ -296,8 +290,9 @@ const OccupancyDisplay = ({ interactive = true, showPayButton = true }: Occupanc
                       className={cardClass}
                     >
                       <p className="font-mono text-xs sm:text-sm font-semibold mb-1">{v.name}</p>
-                      <p className="text-xs font-bold">{countLabel}</p>
-                      {isActive && <p className="text-[10px] text-green-700 font-medium mt-0.5">● Filling</p>}
+                      <p className="text-xs font-medium">
+                        {statusEmoji(s)} {statusLabel(s)}
+                      </p>
                     </button>
                   );
                 }
@@ -305,8 +300,9 @@ const OccupancyDisplay = ({ interactive = true, showPayButton = true }: Occupanc
                 return (
                   <div key={v.id} className={cardClass}>
                     <p className="font-mono text-xs sm:text-sm font-semibold mb-1">{v.name}</p>
-                    <p className="text-xs font-bold">{countLabel}</p>
-                    {isActive && <p className="text-[10px] text-green-700 font-medium mt-0.5">● Filling</p>}
+                    <p className="text-xs font-medium">
+                      {statusEmoji(s)} {statusLabel(s)}
+                    </p>
                   </div>
                 );
               })}
