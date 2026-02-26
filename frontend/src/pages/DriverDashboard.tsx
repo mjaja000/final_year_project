@@ -2,7 +2,23 @@ import React, { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { AlertCircle, CheckCircle, Circle, CreditCard, Mail, MapPin, Minus, Navigation, Phone, Plus, Truck } from 'lucide-react';
+import { AlertCircle, CheckCircle, Circle, CreditCard, Mail, MapPin, Minus, Navigation, Phone, Plus, Printer, Truck, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const socket = API_BASE ? io(API_BASE) : io(); // fall back to same host
@@ -27,6 +43,16 @@ export default function DriverDashboard() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const driverIdRef = useRef<number | null>(null);
   const adminIdRef = useRef<number | null>(null);
+
+  // Payment dialog state
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [routes, setRoutes] = useState<any[]>([]);
+  const [paymentForm, setPaymentForm] = useState({
+    routeId: '',
+    phoneNumber: '',
+    amount: '',
+    paymentMethod: 'cash' // 'cash' or 'mpesa'
+  });
 
   const refreshDriverData = async () => {
     const token = localStorage.getItem('token');
@@ -120,6 +146,19 @@ export default function DriverDashboard() {
         }
       } catch (err) {
         // ignore
+      }
+    })();
+
+    // Fetch routes for payment dialog
+    (async () => {
+      try {
+        const res = await fetch(API_BASE + '/api/routes');
+        if (res.ok) {
+          const data = await res.json();
+          setRoutes(data.routes || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch routes:', err);
       }
     })();
 
@@ -430,6 +469,75 @@ export default function DriverDashboard() {
     }
   };
 
+  // Open payment dialog and set default route if trip exists
+  const openPaymentDialog = () => {
+    if (trip?.route_id) {
+      setPaymentForm(prev => ({ ...prev, routeId: String(trip.route_id) }));
+      const route = routes.find(r => r.id === trip.route_id);
+      if (route) {
+        setPaymentForm(prev => ({ ...prev, amount: String(route.fare) }));
+      }
+    }
+    setShowPaymentDialog(true);
+  };
+
+  // Handle route selection - auto-fill fare
+  const handleRouteChange = (routeId: string) => {
+    const route = routes.find(r => r.id === Number(routeId));
+    setPaymentForm(prev => ({
+      ...prev,
+      routeId,
+      amount: route ? String(route.fare) : ''
+    }));
+  };
+
+  // Submit payment (driver adds passenger with payment)
+  const submitDriverPayment = async () => {
+    if (!paymentForm.routeId || !paymentForm.phoneNumber || !paymentForm.amount) {
+      toast({ title: 'Incomplete form', description: 'Please fill all fields', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(API_BASE + '/api/drivers/me/add-passenger-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          routeId: Number(paymentForm.routeId),
+          phoneNumber: paymentForm.phoneNumber,
+          amount: Number(paymentForm.amount),
+          paymentMethod: paymentForm.paymentMethod,
+          vehicleId: driver?.assigned_vehicle_id
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast({
+          title: 'Payment recorded',
+          description: `${paymentForm.paymentMethod === 'cash' ? 'Cash' : 'M-Pesa'} payment of KSh ${paymentForm.amount}`,
+          icon: <CheckCircle className="h-4 w-4 text-green-600" />
+        });
+        
+        // Update occupancy
+        if (data.trip) setTrip(data.trip);
+        if (data.occupancy) setDriverOccupancy(data.occupancy);
+        
+        // Close dialog and reset form
+        setShowPaymentDialog(false);
+        setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
+      } else {
+        toast({ title: 'Failed', description: data.message || 'Could not record payment', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Network error', variant: 'destructive' });
+    }
+  };
+
   const sendMessage = async () => {
     if (!messageText || messageText.trim().length === 0) return;
     try {
@@ -641,7 +749,7 @@ export default function DriverDashboard() {
                         size="sm"
                         variant="outline"
                         className="flex-1 border-green-400 text-green-700 hover:bg-green-50"
-                        onClick={() => adjustOccupancy('increment')}
+                        onClick={openPaymentDialog}
                         disabled={isFull}
                       >
                         <Plus className="h-4 w-4 mr-1" /> Add Passenger
@@ -789,6 +897,103 @@ export default function DriverDashboard() {
       ) : (
         <p>Loading driver profile...</p>
       )}
+
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-green-600" />
+              Add Passenger & Record Payment
+            </DialogTitle>
+            <DialogDescription>
+              Select route and enter passenger details to record payment
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 pt-4">
+            {/* Route Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="route">Route</Label>
+              <Select value={paymentForm.routeId} onValueChange={handleRouteChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select route" />
+                </SelectTrigger>
+                <SelectContent>
+                  {routes.map(route => (
+                    <SelectItem key={route.id} value={String(route.id)}>
+                      {route.route_name} - KSh {route.fare}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Phone Number */}
+            <div className="space-y-2">
+              <Label htmlFor="phone">Passenger Phone Number</Label>
+              <Input
+                id="phone"
+                placeholder="0712345678"
+                value={paymentForm.phoneNumber}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
+              />
+            </div>
+
+            {/* Amount */}
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount (KSh)</Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="0"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
+              />
+            </div>
+
+            {/* Payment Method */}
+            <div className="space-y-2">
+              <Label>Payment Method</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={paymentForm.paymentMethod === 'cash' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => setPaymentForm(prev => ({ ...prev, paymentMethod: 'cash' }))}
+                >
+                  Cash
+                </Button>
+                <Button
+                  type="button"
+                  variant={paymentForm.paymentMethod === 'mpesa' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => setPaymentForm(prev => ({ ...prev, paymentMethod: 'mpesa' }))}
+                >
+                  M-Pesa
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mt-6">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setShowPaymentDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              onClick={submitDriverPayment}
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Record Payment
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

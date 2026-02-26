@@ -56,4 +56,7 @@ router.get('/stations', adminOnly, AdminController.getStations);
 router.get('/settings', AdminController.getSettings);
 router.put('/settings', adminOnly, AdminController.updateSettings);
 
+// Manual Payment
+router.post('/manual-payment', adminOnly, AdminController.createManualPayment);
+
 module.exports = router;

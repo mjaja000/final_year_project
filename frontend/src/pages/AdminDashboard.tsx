@@ -836,9 +836,9 @@ const AdminDashboard = () => {
                     <Trello className="h-4 w-4" />
                     Routes
                   </TabsTrigger>
-                  <TabsTrigger value="occupancy" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-amber-300 hover:bg-amber-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                  <TabsTrigger value="manual-payment" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-amber-300 hover:bg-amber-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
                     <Gauge className="h-4 w-4" />
-                    Occupancy
+                    Manual Payment
                   </TabsTrigger>
                   <TabsTrigger value="revenue" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-green-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
                     <DollarSign className="h-4 w-4" />
@@ -938,10 +938,10 @@ const AdminDashboard = () => {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="occupancy" className="animate-fade-in m-0">
+                <TabsContent value="manual-payment" className="animate-fade-in m-0">
                   <div className="max-w-5xl mx-auto space-y-6">
                     <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
-                      <h3 className="font-semibold mb-4">Occupancy Control</h3>
+                      <h3 className="font-semibold mb-4">Manual Payment & Occupancy Control</h3>
                       <OccupancyManager station={selectedStation} />
                     </section>
 

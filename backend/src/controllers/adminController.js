@@ -620,6 +620,68 @@ class AdminController {
       res.status(500).json({ message: 'Failed to update setting', error: error.message });
     }
   }
+
+  // Manual payment processing (admin creates payment for station customer)
+  static async createManualPayment(req, res) {
+    try {
+      const { routeId, phoneNumber, amount, paymentMethod, station } = req.body;
+
+      // Validate input
+      if (!routeId || !phoneNumber || !amount) {
+        return res.status(400).json({ message: 'Missing required fields: routeId, phoneNumber, amount' });
+      }
+
+      // Generate transaction ID
+      const transactionId = `ADMIN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+      // Create payment record
+      const insertQuery = `
+        INSERT INTO payments (
+          route_id, phone_number, amount, status, payment_method, transaction_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *;
+      `;
+
+      const result = await pool.query(insertQuery, [
+        routeId,
+        phoneNumber,
+        amount,
+        'completed', // Admin payments are pre-completed
+        paymentMethod || 'cash',
+        transactionId
+      ]);
+
+      const payment = result.rows[0];
+
+      // Get route details for receipt and WhatsApp
+      const route = await RouteModel.getRouteById(routeId);
+
+      // Send WhatsApp confirmation
+      try {
+        const whatsappService = require('../services/whatsappService');
+        const saccoName = await SaccoSettingsModel.get('sacco_name') || 'MatatuConnect';
+        const message = `Payment confirmed! Route: ${route?.route_name || 'N/A'}, Amount: KSh ${amount}, Transaction: ${transactionId}. Thank you for using ${saccoName}!`;
+        
+        await whatsappService.sendMessage(phoneNumber, message);
+      } catch (whatsappErr) {
+        console.error('WhatsApp notification failed:', whatsappErr.message);
+        // Don't fail the whole request if WhatsApp fails
+      }
+
+      res.json({
+        message: 'Payment recorded successfully',
+        payment,
+        route,
+        transactionId,
+        station: station || null
+      });
+
+    } catch (error) {
+      console.error('Manual payment error:', error.message);
+      res.status(500).json({ message: 'Failed to process payment', error: error.message });
+    }
+  }
 }
 
 module.exports = AdminController;
