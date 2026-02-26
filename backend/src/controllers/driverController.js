@@ -578,6 +578,16 @@ class DriverController {
         return res.status(400).json({ message: 'Missing required fields' });
       }
 
+      // Validate phone number
+      const { validatePhoneOrThrow, normalizeKenyanPhone } = require('../utils/phoneValidation');
+      try {
+        validatePhoneOrThrow(phoneNumber);
+      } catch (error) {
+        return res.status(400).json({ message: error.message });
+      }
+
+      const normalizedPhone = normalizeKenyanPhone(phoneNumber);
+
       // Get driver and trip
       const { driver, trip } = await DriverController.getAssignedDriverAndTrip(userId);
       if (!driver) {
@@ -609,7 +619,7 @@ class DriverController {
         routeId,
         finalVehicleId,
         amount,
-        phoneNumber,
+        normalizedPhone,
         'completed', // Driver records are pre-completed
         paymentMethod || 'cash',
         transactionId
@@ -638,7 +648,7 @@ class DriverController {
         const whatsappService = require('../services/whatsappService');
         const message = `Payment confirmed! Route: ${route?.route_name || 'N/A'}, Amount: KSh ${amount}, Transaction: ${transactionId}. Thank you for traveling with us!`;
         
-        await whatsappService.sendMessage(phoneNumber, message);
+        await whatsappService.sendMessage(normalizedPhone, message);
       } catch (whatsappErr) {
         console.error('WhatsApp notification failed:', whatsappErr.message);
         // Don't fail the whole request if WhatsApp fails

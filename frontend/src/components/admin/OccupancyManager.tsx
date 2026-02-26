@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, CreditCard, Printer } from "lucide-react";
+import { CheckCircle, CreditCard, Phone, Printer } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getPhoneValidationError, normalizeKenyanPhone } from "@/utils/phoneValidation";
 import api from "@/lib/api";
 import io from 'socket.io-client';
 
@@ -266,48 +267,97 @@ const OccupancyManager = ({ station = '' }: { station?: string }) => {
 
   // Submit manual payment
   const submitManualPayment = async () => {
-    if (!paymentForm.routeId || !paymentForm.phoneNumber || !paymentForm.amount) {
-      toast({ title: 'Incomplete form', description: 'Please fill all fields', variant: 'destructive' });
+    // Validate form
+    if (!paymentForm.routeId || !paymentForm.amount) {
+      toast({ title: 'Incomplete form', description: 'Please select route and amount', variant: 'destructive' });
+      return;
+    }
+
+    // Validate phone number
+    const phoneError = getPhoneValidationError(paymentForm.phoneNumber);
+    if (phoneError) {
+      toast({ title: 'Invalid phone number', description: phoneError, variant: 'destructive' });
+      return;
+    }
+
+    const normalizedPhone = normalizeKenyanPhone(paymentForm.phoneNumber);
+    if (!normalizedPhone) {
+      toast({ title: 'Invalid phone', description: 'Could not normalize phone number', variant: 'destructive' });
       return;
     }
 
     try {
-      const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api/admin/manual-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          routeId: Number(paymentForm.routeId),
-          phoneNumber: paymentForm.phoneNumber,
-          amount: Number(paymentForm.amount),
-          paymentMethod: paymentForm.paymentMethod,
-          station
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        toast({
-          title: 'Payment processed',
-          description: `Transaction ${data.transactionId} - KSh ${paymentForm.amount}`,
-          icon: <CheckCircle className="h-4 w-4 text-green-600" />
+      // If M-Pesa selected, initiate STK push
+      if (paymentForm.paymentMethod === 'mpesa') {
+        const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api/payments/initiate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            routeId: Number(paymentForm.routeId),
+            amount: Number(paymentForm.amount),
+            phoneNumber: normalizedPhone
+          })
         });
 
-        // Reset form
-        setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
+        const data = await res.json();
+        if (res.ok) {
+          toast({
+            title: 'M-Pesa prompt sent',
+            description: `Check phone ${paymentForm.phoneNumber} to complete payment`,
+            icon: <Phone className="h-4 w-4 text-blue-600" />
+          });
 
-        // Invalidate queries to refresh data
-        queryClient.invalidateQueries({ queryKey: ['admin', 'payments'] });
-        queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+          // Reset form
+          setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
 
-        // Print receipt if requested
-        if (data.payment) {
-          printReceipt(data.payment, data.route);
+          // Invalidate queries
+          queryClient.invalidateQueries({ queryKey: ['admin', 'payments'] });
+          queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+        } else {
+          toast({ title: 'M-Pesa failed', description: data.message || 'Could not send payment prompt', variant: 'destructive' });
         }
       } else {
-        toast({ title: 'Payment failed', description: data.message || 'Could not process payment', variant: 'destructive' });
+        // Cash payment - direct recording
+        const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api/admin/manual-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            routeId: Number(paymentForm.routeId),
+            phoneNumber: normalizedPhone,
+            amount: Number(paymentForm.amount),
+            paymentMethod: 'cash',
+            station
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          toast({
+            title: 'Payment processed',
+            description: `Transaction ${data.transactionId} - KSh ${paymentForm.amount}`,
+            icon: <CheckCircle className="h-4 w-4 text-green-600" />
+          });
+
+          // Reset form
+          setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
+
+          // Invalidate queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['admin', 'payments'] });
+          queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+
+          // Print receipt if requested
+          if (data.payment) {
+            printReceipt(data.payment, data.route);
+          }
+        } else {
+          toast({ title: 'Payment failed', description: data.message || 'Could not process payment', variant: 'destructive' });
+        }
       }
     } catch (err: any) {
       toast({ title: 'Error', description: err.message || 'Network error', variant: 'destructive' });

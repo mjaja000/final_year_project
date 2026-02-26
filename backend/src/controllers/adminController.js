@@ -631,6 +631,16 @@ class AdminController {
         return res.status(400).json({ message: 'Missing required fields: routeId, phoneNumber, amount' });
       }
 
+      // Validate phone number
+      const { validatePhoneOrThrow, normalizeKenyanPhone } = require('../utils/phoneValidation');
+      try {
+        validatePhoneOrThrow(phoneNumber);
+      } catch (error) {
+        return res.status(400).json({ message: error.message });
+      }
+
+      const normalizedPhone = normalizeKenyanPhone(phoneNumber);
+
       // Generate transaction ID
       const transactionId = `ADMIN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
@@ -645,7 +655,7 @@ class AdminController {
 
       const result = await pool.query(insertQuery, [
         routeId,
-        phoneNumber,
+        normalizedPhone,
         amount,
         'completed', // Admin payments are pre-completed
         paymentMethod || 'cash',
@@ -663,7 +673,7 @@ class AdminController {
         const saccoName = await SaccoSettingsModel.get('sacco_name') || 'MatatuConnect';
         const message = `Payment confirmed! Route: ${route?.route_name || 'N/A'}, Amount: KSh ${amount}, Transaction: ${transactionId}. Thank you for using ${saccoName}!`;
         
-        await whatsappService.sendMessage(phoneNumber, message);
+        await whatsappService.sendMessage(normalizedPhone, message);
       } catch (whatsappErr) {
         console.error('WhatsApp notification failed:', whatsappErr.message);
         // Don't fail the whole request if WhatsApp fails
@@ -680,6 +690,166 @@ class AdminController {
     } catch (error) {
       console.error('Manual payment error:', error.message);
       res.status(500).json({ message: 'Failed to process payment', error: error.message });
+    }
+  }
+
+  // Payment Analytics - Comprehensive payment analysis
+  static async getPaymentAnalytics(req, res) {
+    try {
+      const { startDate, endDate, station, period = 'daily' } = req.query;
+
+      // Build date filter
+      let dateFilter = '';
+      const params = [];
+      let paramIndex = 1;
+
+      if (startDate) {
+        dateFilter += ` AND p.created_at >= $${paramIndex}`;
+        params.push(startDate);
+        paramIndex++;
+      }
+
+      if (endDate) {
+        dateFilter += ` AND p.created_at <= $${paramIndex}`;
+        params.push(endDate);
+        paramIndex++;
+      }
+
+      // Total Revenue & Payment Counts
+      const summaryQuery = `
+        SELECT 
+          COUNT(*) as total_payments,
+          COUNT(CASE WHEN payment_method = 'cash' THEN 1 END) as cash_count,
+          COUNT(CASE WHEN payment_method = 'mpesa' THEN 1 END) as mpesa_count,
+          COALESCE(SUM(amount), 0) as total_revenue,
+          COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN amount ELSE 0 END), 0) as cash_revenue,
+          COALESCE(SUM(CASE WHEN payment_method = 'mpesa' THEN amount ELSE 0 END), 0) as mpesa_revenue,
+          COALESCE(AVG(amount), 0) as average_payment
+        FROM payments p
+        WHERE status = 'completed' ${dateFilter}
+      `;
+
+      const summaryResult = await pool.query(summaryQuery, params);
+      const summary = summaryResult.rows[0];
+
+      // Payment Trends Over Time
+      let groupByClause = '';
+      if (period === 'hourly') {
+        groupByClause = "DATE_TRUNC('hour', p.created_at)";
+      } else if (period === 'daily') {
+        groupByClause = "DATE_TRUNC('day', p.created_at)";
+      } else if (period === 'weekly') {
+        groupByClause = "DATE_TRUNC('week', p.created_at)";
+      } else if (period === 'monthly') {
+        groupByClause = "DATE_TRUNC('month', p.created_at)";
+      } else {
+        groupByClause = "DATE_TRUNC('day', p.created_at)";
+      }
+
+      const trendsQuery = `
+        SELECT 
+          ${groupByClause} as period,
+          COUNT(*) as payment_count,
+          COALESCE(SUM(amount), 0) as revenue
+        FROM payments p
+        WHERE status = 'completed' ${dateFilter}
+        GROUP BY ${groupByClause}
+        ORDER BY period ASC
+        LIMIT 100
+      `;
+
+      const trendsResult = await pool.query(trendsQuery, params);
+      const trends = trendsResult.rows;
+
+      // Route-wise Revenue
+      const routeRevenueQuery = `
+        SELECT 
+          r.id as route_id,
+          r.route_name,
+          r.start_location,
+          r.end_location,
+          COUNT(p.id) as payment_count,
+          COALESCE(SUM(p.amount), 0) as total_revenue,
+          COALESCE(AVG(p.amount), 0) as average_fare
+        FROM payments p
+        JOIN routes r ON p.route_id = r.id
+        WHERE p.status = 'completed' ${dateFilter}
+        GROUP BY r.id, r.route_name, r.start_location, r.end_location
+        ORDER BY total_revenue DESC
+        LIMIT 20
+      `;
+
+      const routeRevenueResult = await pool.query(routeRevenueQuery, params);
+      const routeRevenue = routeRevenueResult.rows;
+
+      // Station-wise Revenue (if applicable)
+      let stationRevenue = [];
+      if (!station) {
+        const stationRevenueQuery = `
+          SELECT 
+            r.start_location as station,
+            COUNT(p.id) as payment_count,
+            COALESCE(SUM(p.amount), 0) as total_revenue
+          FROM payments p
+          JOIN routes r ON p.route_id = r.id
+          WHERE p.status = 'completed' ${dateFilter}
+          GROUP BY r.start_location
+          ORDER BY total_revenue DESC
+        `;
+
+        const stationRevenueResult = await pool.query(stationRevenueQuery, params);
+        stationRevenue = stationRevenueResult.rows;
+      }
+
+      // Payment Method Breakdown
+      const paymentMethodBreakdown = {
+        cash: {
+          count: parseInt(summary.cash_count || 0),
+          revenue: parseFloat(summary.cash_revenue || 0),
+          percentage: summary.total_revenue > 0 
+            ? (parseFloat(summary.cash_revenue || 0) / parseFloat(summary.total_revenue)) * 100 
+            : 0
+        },
+        mpesa: {
+          count: parseInt(summary.mpesa_count || 0),
+          revenue: parseFloat(summary.mpesa_revenue || 0),
+          percentage: summary.total_revenue > 0 
+            ? (parseFloat(summary.mpesa_revenue || 0) / parseFloat(summary.total_revenue)) * 100 
+            : 0
+        }
+      };
+
+      res.json({
+        summary: {
+          totalPayments: parseInt(summary.total_payments || 0),
+          totalRevenue: parseFloat(summary.total_revenue || 0),
+          averagePayment: parseFloat(summary.average_payment || 0)
+        },
+        paymentMethodBreakdown,
+        trends: trends.map(t => ({
+          period: t.period,
+          paymentCount: parseInt(t.payment_count || 0),
+          revenue: parseFloat(t.revenue || 0)
+        })),
+        routeRevenue: routeRevenue.map(r => ({
+          routeId: r.route_id,
+          routeName: r.route_name,
+          startLocation: r.start_location,
+          endLocation: r.end_location,
+          paymentCount: parseInt(r.payment_count || 0),
+          totalRevenue: parseFloat(r.total_revenue || 0),
+          averageFare: parseFloat(r.average_fare || 0)
+        })),
+        stationRevenue: stationRevenue.map(s => ({
+          station: s.station,
+          paymentCount: parseInt(s.payment_count || 0),
+          totalRevenue: parseFloat(s.total_revenue || 0)
+        }))
+      });
+
+    } catch (error) {
+      console.error('Payment analytics error:', error.message);
+      res.status(500).json({ message: 'Failed to fetch payment analytics', error: error.message });
     }
   }
 }

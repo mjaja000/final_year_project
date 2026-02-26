@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { getPhoneValidationError, normalizeKenyanPhone } from '@/utils/phoneValidation';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const socket = API_BASE ? io(API_BASE) : io(); // fall back to same host
@@ -493,45 +494,94 @@ export default function DriverDashboard() {
 
   // Submit payment (driver adds passenger with payment)
   const submitDriverPayment = async () => {
-    if (!paymentForm.routeId || !paymentForm.phoneNumber || !paymentForm.amount) {
-      toast({ title: 'Incomplete form', description: 'Please fill all fields', variant: 'destructive' });
+    // Validate form
+    if (!paymentForm.routeId || !paymentForm.amount) {
+      toast({ title: 'Incomplete form', description: 'Please select route and amount', variant: 'destructive' });
+      return;
+    }
+
+    // Validate phone number
+    const phoneError = getPhoneValidationError(paymentForm.phoneNumber);
+    if (phoneError) {
+      toast({ title: 'Invalid phone number', description: phoneError, variant: 'destructive' });
+      return;
+    }
+
+    const normalizedPhone = normalizeKenyanPhone(paymentForm.phoneNumber);
+    if (!normalizedPhone) {
+      toast({ title: 'Invalid phone', description: 'Could not normalize phone number', variant: 'destructive' });
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(API_BASE + '/api/drivers/me/add-passenger-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          routeId: Number(paymentForm.routeId),
-          phoneNumber: paymentForm.phoneNumber,
-          amount: Number(paymentForm.amount),
-          paymentMethod: paymentForm.paymentMethod,
-          vehicleId: driver?.assigned_vehicle_id
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        toast({
-          title: 'Payment recorded',
-          description: `${paymentForm.paymentMethod === 'cash' ? 'Cash' : 'M-Pesa'} payment of KSh ${paymentForm.amount}`,
-          icon: <CheckCircle className="h-4 w-4 text-green-600" />
+      
+      // If M-Pesa selected, initiate STK push
+      if (paymentForm.paymentMethod === 'mpesa') {
+        const res = await fetch(API_BASE + '/api/payments/initiate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            routeId: Number(paymentForm.routeId),
+            amount: Number(paymentForm.amount),
+            phoneNumber: normalizedPhone,
+            vehicleId: driver?.assigned_vehicle_id
+          })
         });
-        
-        // Update occupancy
-        if (data.trip) setTrip(data.trip);
-        if (data.occupancy) setDriverOccupancy(data.occupancy);
-        
-        // Close dialog and reset form
-        setShowPaymentDialog(false);
-        setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
+
+        const data = await res.json();
+        if (res.ok) {
+          toast({
+            title: 'M-Pesa prompt sent',
+            description: `Check phone ${paymentForm.phoneNumber} to complete payment`,
+            icon: <Phone className="h-4 w-4 text-blue-600" />
+          });
+          
+          setShowPaymentDialog(false);
+          setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
+          
+          // Note: Occupancy will be incremented automatically when payment completes
+        } else {
+          toast({ title: 'M-Pesa failed', description: data.message || 'Could not send payment prompt', variant: 'destructive' });
+        }
       } else {
-        toast({ title: 'Failed', description: data.message || 'Could not record payment', variant: 'destructive' });
+        // Cash payment - direct recording
+        const res = await fetch(API_BASE + '/api/drivers/me/add-passenger-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            routeId: Number(paymentForm.routeId),
+            phoneNumber: normalizedPhone,
+            amount: Number(paymentForm.amount),
+            paymentMethod: 'cash',
+            vehicleId: driver?.assigned_vehicle_id
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          toast({
+            title: 'Payment recorded',
+            description: `Cash payment of KSh ${paymentForm.amount}`,
+            icon: <CheckCircle className="h-4 w-4 text-green-600" />
+          });
+          
+          // Update occupancy
+          if (data.trip) setTrip(data.trip);
+          if (data.occupancy) setDriverOccupancy(data.occupancy);
+          
+          // Close dialog and reset form
+          setShowPaymentDialog(false);
+          setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
+        } else {
+          toast({ title: 'Failed', description: data.message || 'Could not record payment', variant: 'destructive' });
+        }
       }
     } catch (err: any) {
       toast({ title: 'Error', description: err.message || 'Network error', variant: 'destructive' });

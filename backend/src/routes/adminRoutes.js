@@ -59,4 +59,7 @@ router.put('/settings', adminOnly, AdminController.updateSettings);
 // Manual Payment
 router.post('/manual-payment', adminOnly, AdminController.createManualPayment);
 
+// Payment Analytics
+router.get('/payment-analytics', adminOnly, AdminController.getPaymentAnalytics);
+
 module.exports = router;
