@@ -307,13 +307,25 @@ export default function DriverDashboard() {
       longitude: pos.coords.longitude
     };
     setCurrentLocation(newLoc);
+    const vehicleId = driver.assigned_vehicle_id || driver.vehicleId;
     socket.emit('driver:updateLocation', {
       userId: driver.id,
-      vehicleId: driver.assigned_vehicle_id || driver.vehicleId,
+      vehicleId,
+      driverName: driver.name,
       latitude: newLoc.latitude,
       longitude: newLoc.longitude,
       accuracy: pos.coords.accuracy
     });
+
+    // Also persist location to server REST cache so new page loads pick it up
+    if (vehicleId) {
+      const token = localStorage.getItem('token');
+      fetch(API_BASE + '/api/locations/location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ latitude: newLoc.latitude, longitude: newLoc.longitude, status: 'online', accuracy: pos.coords.accuracy })
+      }).catch(() => {}); // fire-and-forget
+    }
   };
 
   const startLocationWatch = () => {
@@ -419,7 +431,9 @@ export default function DriverDashboard() {
     socket.emit('driver:updateStatus', { 
       userId: driver.id, 
       status: newStatus, 
-      vehicleId: driver.assigned_vehicle_id || driver.vehicleId
+      vehicleId: driver.assigned_vehicle_id || driver.vehicleId,
+      driverName: driver.name,
+      ...(currentLocation ? { latitude: currentLocation.latitude, longitude: currentLocation.longitude } : {})
     });
 
     if (currentLocation) {

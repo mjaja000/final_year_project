@@ -32,4 +32,8 @@ router.post('/me/trip/:tripId/occupancy', authMiddleware, DriverController.adjus
 router.get('/me/tickets', authMiddleware, DriverController.getMyVehicleTickets);
 router.post('/me/add-passenger-payment', authMiddleware, DriverController.addPassengerPayment);
 
+// Driver location update
+const locationController = require('../controllers/locationController');
+router.post('/location', authMiddleware, locationController.updateLocation);
+
 module.exports = router;

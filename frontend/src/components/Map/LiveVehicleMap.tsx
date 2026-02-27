@@ -7,7 +7,7 @@ import { useGeolocation, findNearestVehicle, calculateDistance } from '@/hooks/u
 import io from 'socket.io-client';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
-const socket = io();
+const socket = API_BASE ? io(API_BASE) : io();
 
 interface Vehicle {
   id: number;
@@ -70,6 +70,9 @@ const LiveVehicleMap = ({
 
     fetchVehicles();
 
+    // Poll every 30 seconds so freshly-loaded pages get current driver positions
+    const pollInterval = setInterval(fetchVehicles, 30000);
+
     // Listen for real-time vehicle location updates
     socket.on('vehicle:locationUpdate', (data: any) => {
       setVehicles((prev) => {
@@ -82,6 +85,7 @@ const LiveVehicleMap = ({
             latitude: data.latitude,
             longitude: data.longitude,
             is_online: data.is_online ?? data.isOnline ?? true,
+            driver_name: data.driver_name || updated[index].driver_name,
             last_update: new Date().toISOString()
           };
           return updated;
@@ -105,16 +109,24 @@ const LiveVehicleMap = ({
       });
     });
 
+    // Listen for driver going offline
     socket.on('driver:statusUpdate', (data: any) => {
       if (data.status === 'offline') {
-        // Remove offline vehicles
-        setVehicles((prev) => prev.filter((v) => v.id !== data.userId && v.id !== data.vehicleId));
+        setVehicles((prev) => prev.filter((v) => v.id !== data.vehicleId && v.id !== data.userId));
+      }
+    });
+
+    socket.on('driver.statusUpdated', (data: any) => {
+      if (data.status === 'offline') {
+        setVehicles((prev) => prev.filter((v) => v.id !== data.vehicleId));
       }
     });
 
     return () => {
+      clearInterval(pollInterval);
       socket.off('vehicle:locationUpdate');
       socket.off('driver:statusUpdate');
+      socket.off('driver.statusUpdated');
     };
   }, []);
 

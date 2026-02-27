@@ -654,6 +654,23 @@ class DriverController {
         // Don't fail the whole request if WhatsApp fails
       }
 
+      // Emit socket event to admin and driver so UI updates in real-time
+      try {
+        const io = req.app.get('io');
+        if (io) {
+          const occupancyPayload = {
+            vehicle_id: finalVehicleId,
+            current_occupancy: occupancy?.current_occupancy || 0,
+            occupancy_status: occupancy?.occupancy_status || 'available',
+            capacity: occupancy?.capacity || 14,
+          };
+          io.to('admin').emit('vehicle.occupancyUpdated', occupancyPayload);
+          io.to(`user_${userId}`).emit('vehicle.occupancyUpdated', occupancyPayload);
+        }
+      } catch (ioErr) {
+        console.error('Socket emission failed:', ioErr.message);
+      }
+
       res.json({
         message: 'Payment recorded and passenger added',
         payment,
