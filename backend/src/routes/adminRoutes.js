@@ -62,4 +62,7 @@ router.post('/manual-payment', adminOnly, AdminController.createManualPayment);
 // Payment Analytics
 router.get('/payment-analytics', adminOnly, AdminController.getPaymentAnalytics);
 
+// Get active vehicle for route
+router.get('/routes/:routeId/active-vehicle', adminOnly, AdminController.getActiveVehicleForRoute);
+
 module.exports = router;

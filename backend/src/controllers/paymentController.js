@@ -201,8 +201,8 @@ class PaymentController {
   static async initiatePayment(req, res) {
     let paymentRecord = null;
     try {
-      const { phone, amount = 50, vehicle, route } = req.body || {};
-      const normalizedPhone = normalizePhoneNumber(phone);
+      const { phone, phoneNumber, amount = 50, vehicle, route, routeId } = req.body || {};
+      const normalizedPhone = normalizePhoneNumber(phone || phoneNumber);
 
       if (!normalizedPhone) {
         return res.status(400).json({ message: 'Invalid phone number format' });
@@ -213,7 +213,7 @@ class PaymentController {
         return res.status(400).json({ message: 'Amount must be a positive number' });
       }
 
-      const parsedRouteId = Number(route);
+      const parsedRouteId = Number(route || routeId);
       if (!Number.isFinite(parsedRouteId) || parsedRouteId <= 0) {
         return res.status(400).json({ message: 'A valid route ID is required to initiate payment' });
       }

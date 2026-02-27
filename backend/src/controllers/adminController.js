@@ -641,15 +641,23 @@ class AdminController {
 
       const normalizedPhone = normalizeKenyanPhone(phoneNumber);
 
+      // Get active vehicle for this route to link payment
+      const VehicleModel = require('../models/vehicleModel');
+      const activeVehicle = await VehicleModel.getActiveVehicleForRoute(routeId);
+      
+      if (!activeVehicle) {
+        return res.status(400).json({ message: 'No active vehicle available for this route' });
+      }
+
       // Generate transaction ID
       const transactionId = `ADMIN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-      // Create payment record
+      // Create payment record with vehicle_id
       const insertQuery = `
         INSERT INTO payments (
-          route_id, phone_number, amount, status, payment_method, transaction_id
+          route_id, phone_number, amount, status, payment_method, transaction_id, vehicle_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *;
       `;
 
@@ -659,12 +667,30 @@ class AdminController {
         amount,
         'completed', // Admin payments are pre-completed
         paymentMethod || 'cash',
-        transactionId
+        transactionId,
+        activeVehicle.id
       ]);
 
       const payment = result.rows[0];
 
-      // Get route details for receipt and WhatsApp
+      // Increment vehicle occupancy
+      const occupancyQuery = `
+        INSERT INTO vehicle_occupancy (vehicle_id, current_occupancy, occupancy_status)
+        VALUES ($1, 1, CASE WHEN 1 >= $2 THEN 'full' ELSE 'available' END)
+        ON CONFLICT (vehicle_id)
+        DO UPDATE SET
+          current_occupancy = vehicle_occupancy.current_occupancy + 1,
+          occupancy_status = CASE
+            WHEN vehicle_occupancy.current_occupancy + 1 >= $2 THEN 'full'
+            ELSE 'available'
+          END,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *;
+      `;
+
+      await pool.query(occupancyQuery, [activeVehicle.id, activeVehicle.capacity]);
+
+      // Get route details for WhatsApp
       const route = await RouteModel.getRouteById(routeId);
 
       // Send WhatsApp confirmation
@@ -684,7 +710,13 @@ class AdminController {
         payment,
         route,
         transactionId,
-        station: station || null
+        station: station || null,
+        vehicle: {
+          id: activeVehicle.id,
+          registration_number: activeVehicle.registration_number,
+          current_occupancy: (activeVehicle.current_occupancy || 0) + 1,
+          capacity: activeVehicle.capacity
+        }
       });
 
     } catch (error) {
@@ -850,6 +882,36 @@ class AdminController {
     } catch (error) {
       console.error('Payment analytics error:', error.message);
       res.status(500).json({ message: 'Failed to fetch payment analytics', error: error.message });
+    }
+  }
+
+  // Get active vehicle for a route
+  static async getActiveVehicleForRoute(req, res) {
+    try {
+      const { routeId } = req.params;
+      const VehicleModel = require('../models/vehicleModel');
+      
+      const activeVehicle = await VehicleModel.getActiveVehicleForRoute(routeId);
+      
+      if (!activeVehicle) {
+        return res.json({ vehicle: null, message: 'No active vehicle available for this route' });
+      }
+
+      res.json({ 
+        vehicle: {
+          id: activeVehicle.id,
+          registration_number: activeVehicle.registration_number,
+          vehicle_type: activeVehicle.vehicle_type,
+          make: activeVehicle.make,
+          model: activeVehicle.model,
+          color: activeVehicle.color,
+          capacity: activeVehicle.capacity,
+          current_occupancy: activeVehicle.current_occupancy || 0
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching active vehicle:', error.message);
+      res.status(500).json({ message: 'Failed to fetch active vehicle', error: error.message });
     }
   }
 }

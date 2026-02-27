@@ -7,6 +7,7 @@ const router = express.Router();
 // Public routes (for dashboard)
 router.get('/', PaymentController.getAllPaymentsPublic);
 router.post('/', PaymentController.simulatePayment);
+router.post('/initiate', PaymentController.initiatePayment);
 router.post('/initiate-payment', PaymentController.initiatePayment);
 router.post('/mpesa-callback', PaymentController.mpesaCallback);
 router.post('/mpesa/callback', PaymentController.mpesaCallback);

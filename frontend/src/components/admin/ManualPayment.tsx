@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, CreditCard, Phone } from "lucide-react";
+import { CheckCircle, CreditCard, Phone, Car } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -20,6 +20,17 @@ interface ManualPaymentProps {
   station?: string;
 }
 
+interface ActiveVehicle {
+  id: number;
+  registration_number: string;
+  vehicle_type: string;
+  make: string;
+  model: string;
+  color: string;
+  capacity: number;
+  current_occupancy: number;
+}
+
 const ManualPayment = ({ station = '' }: ManualPaymentProps) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -30,6 +41,8 @@ const ManualPayment = ({ station = '' }: ManualPaymentProps) => {
     amount: '',
     paymentMethod: 'cash' as 'cash' | 'mpesa'
   });
+
+  const [activeVehicle, setActiveVehicle] = useState<ActiveVehicle | null>(null);
 
   const routesQuery = useQuery({
     queryKey: ["routes"],
@@ -42,14 +55,37 @@ const ManualPayment = ({ station = '' }: ManualPaymentProps) => {
       ? (routesQuery.data as any).routes
       : [];
 
-  // Handle route selection - auto-fill fare
-  const handlePaymentRouteChange = (routeId: string) => {
+  // Handle route selection - auto-fill fare and fetch active vehicle
+  const handlePaymentRouteChange = async (routeId: string) => {
     const route = routes.find(r => r.id === Number(routeId));
     setPaymentForm(prev => ({
       ...prev,
       routeId,
       amount: route?.fare ? String(route.fare) : ''
     }));
+
+    // Fetch active vehicle for this route
+    try {
+      const res = await fetch((import.meta.env.VITE_API_URL || '') + `/api/admin/routes/${routeId}/active-vehicle`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (data.vehicle) {
+        setActiveVehicle(data.vehicle);
+      } else {
+        setActiveVehicle(null);
+        toast({ 
+          title: 'No vehicle available', 
+          description: 'No active vehicle for this route. Payment will be queued.', 
+          variant: 'default' 
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch active vehicle:', err);
+      setActiveVehicle(null);
+    }
   };
 
   // Submit manual payment
@@ -99,6 +135,7 @@ const ManualPayment = ({ station = '' }: ManualPaymentProps) => {
 
           // Reset form
           setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
+          setActiveVehicle(null);
 
           // Invalidate queries
           queryClient.invalidateQueries({ queryKey: ['admin', 'payments'] });
@@ -133,15 +170,13 @@ const ManualPayment = ({ station = '' }: ManualPaymentProps) => {
 
           // Reset form
           setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
+          setActiveVehicle(null);
 
           // Invalidate queries to refresh data
           queryClient.invalidateQueries({ queryKey: ['admin', 'payments'] });
           queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
 
-          // Print receipt if requested
-          if (data.payment) {
-            printReceipt(data.payment, data.route);
-          }
+          // No receipt printing - payment added to transactions
         } else {
           toast({ title: 'Payment failed', description: data.message || 'Could not process payment', variant: 'destructive' });
         }
@@ -149,51 +184,6 @@ const ManualPayment = ({ station = '' }: ManualPaymentProps) => {
     } catch (err: any) {
       toast({ title: 'Error', description: err.message || 'Network error', variant: 'destructive' });
     }
-  };
-
-  // Print receipt
-  const printReceipt = (payment: any, route: any) => {
-    const receiptWindow = window.open('', '_blank');
-    if (!receiptWindow) return;
-
-    const receiptHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Receipt - ${payment.transaction_id}</title>
-        <style>
-          body { font-family: 'Courier New', monospace; padding: 20px; max-width: 400px; margin: 0 auto; }
-          h2 { text-align: center; margin-bottom: 5px; }
-          .center { text-align: center; }
-          .line { border-top: 1px dashed #000; margin: 10px 0; }
-          .row { display: flex; justify-between; margin: 5px 0; }
-          .label { font-weight: bold; }
-          .total { font-size: 1.2em; font-weight: bold; margin-top: 15px; }
-        </style>
-      </head>
-      <body>
-        <h2>PAYMENT RECEIPT</h2>
-        <p class="center">${station || 'Station'}</p>
-        <div class="line"></div>
-        <div class="row"><span class="label">Transaction ID:</span><span>${payment.transaction_id}</span></div>
-        <div class="row"><span class="label">Route:</span><span>${route?.route_name || 'N/A'}</span></div>
-        <div class="row"><span class="label">Phone:</span><span>${payment.phone_number}</span></div>
-        <div class="row"><span class="label">Payment Method:</span><span>${payment.payment_method}</span></div>
-        <div class="row"><span class="label">Date:</span><span>${new Date(payment.created_at).toLocaleString()}</span></div>
-        <div class="line"></div>
-        <div class="row total"><span>AMOUNT:</span><span>KSh ${payment.amount}</span></div>
-        <div class="line"></div>
-        <p class="center">Thank you for traveling with us!</p>
-        <p class="center" style="font-size: 0.8em;">MatatuConnect</p>
-      </body>
-      </html>
-    `;
-
-    receiptWindow.document.write(receiptHTML);
-    receiptWindow.document.close();
-    setTimeout(() => {
-      receiptWindow.print();
-    }, 250);
   };
 
   return (
@@ -208,6 +198,24 @@ const ManualPayment = ({ station = '' }: ManualPaymentProps) => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Active Vehicle Display */}
+        {activeVehicle && (
+          <div className="flex items-center justify-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <Car className="h-6 w-6 text-blue-600" />
+            <div className="text-center">
+              <p className="font-semibold text-blue-900">
+                {activeVehicle.registration_number}
+              </p>
+              <p className="text-sm text-blue-700">
+                {activeVehicle.make} {activeVehicle.model} • {activeVehicle.color}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                Occupancy: {activeVehicle.current_occupancy}/{activeVehicle.capacity}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Route Selection */}
           <div className="space-y-2">
