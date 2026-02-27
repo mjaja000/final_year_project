@@ -28,7 +28,7 @@ import { Helmet } from 'react-helmet-async';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import RouteManager from '@/components/admin/RouteManager';
-import OccupancyManager from '@/components/admin/OccupancyManager';
+import OccupancyOverview from '@/components/admin/OccupancyOverview';
 import DriverManager from '@/components/admin/DriverManager';
 import VehicleManager from '@/components/admin/VehicleManager';
 import AdminRevenue from '@/components/admin/AdminRevenue';
@@ -948,8 +948,7 @@ const AdminDashboard = () => {
                 <TabsContent value="occupancy" className="animate-fade-in m-0">
                   <div className="max-w-5xl mx-auto space-y-6">
                     <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
-                      <h3 className="font-semibold mb-4">Occupancy Control</h3>
-                      <OccupancyManager station={selectedStation} />
+                      <OccupancyOverview station={selectedStation} />
                     </section>
 
                     <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">

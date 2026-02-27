@@ -65,4 +65,7 @@ router.get('/payment-analytics', adminOnly, AdminController.getPaymentAnalytics)
 // Get active vehicle for route
 router.get('/routes/:routeId/active-vehicle', adminOnly, AdminController.getActiveVehicleForRoute);
 
+// Get occupancy overview
+router.get('/occupancy/overview', adminOnly, AdminController.getOccupancyOverview);
+
 module.exports = router;

@@ -914,6 +914,165 @@ class AdminController {
       res.status(500).json({ message: 'Failed to fetch active vehicle', error: error.message });
     }
   }
+
+  // Get comprehensive occupancy overview for station
+  static async getOccupancyOverview(req, res) {
+    try {
+      const { station } = req.query;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // 1. Get all routes (filter by station if provided)
+      let routesQuery = `
+        SELECT id, route_name, start_location, end_location, fare, distance
+        FROM routes
+        WHERE 1=1
+      `;
+      const routesParams = [];
+      
+      if (station) {
+        routesQuery += ` AND (start_location = $1 OR end_location = $1)`;
+        routesParams.push(station);
+      }
+      
+      routesQuery += ` ORDER BY route_name`;
+      const routesResult = await pool.query(routesQuery, routesParams);
+      const routes = routesResult.rows;
+
+      // 2. Get all vehicles with their occupancy and driver info
+      const vehiclesQuery = `
+        SELECT 
+          v.id,
+          v.registration_number,
+          v.vehicle_type,
+          v.make,
+          v.model,
+          v.color,
+          v.capacity,
+          v.route_id,
+          v.status,
+          r.route_name,
+          r.start_location,
+          r.end_location,
+          vo.current_occupancy,
+          vo.occupancy_status,
+          vo.updated_at as occupancy_updated_at,
+          u.name as driver_name,
+          u.phone as driver_phone,
+          d.status as driver_status
+        FROM vehicles v
+        LEFT JOIN routes r ON v.route_id = r.id
+        LEFT JOIN vehicle_occupancy vo ON v.id = vo.vehicle_id
+        LEFT JOIN drivers d ON v.id = d.assigned_vehicle_id
+        LEFT JOIN users u ON d.user_id = u.id
+        WHERE v.status = 'active'
+        ORDER BY v.route_id, v.id
+      `;
+      const vehiclesResult = await pool.query(vehiclesQuery);
+      const vehicles = vehiclesResult.rows;
+
+      // 3. Get today's revenue by route
+      const revenueQuery = `
+        SELECT 
+          r.id as route_id,
+          r.route_name,
+          COUNT(p.id) as total_trips,
+          SUM(p.amount) as total_revenue,
+          COUNT(DISTINCT p.vehicle_id) as active_vehicles
+        FROM routes r
+        LEFT JOIN payments p ON r.id = p.route_id 
+          AND p.status = 'completed' 
+          AND p.created_at >= $1
+        GROUP BY r.id, r.route_name
+        ORDER BY total_revenue DESC NULLS LAST
+      `;
+      const revenueResult = await pool.query(revenueQuery, [today]);
+      const routeStats = revenueResult.rows;
+
+      // 4. Get overall stats for today
+      const overallStatsQuery = `
+        SELECT 
+          COUNT(DISTINCT p.route_id) as active_routes,
+          COUNT(DISTINCT p.vehicle_id) as vehicles_used,
+          COUNT(p.id) as total_trips,
+          SUM(p.amount) as total_revenue,
+          AVG(p.amount) as avg_trip_cost
+        FROM payments p
+        WHERE p.status = 'completed' AND p.created_at >= $1
+      `;
+      const overallStatsResult = await pool.query(overallStatsQuery, [today]);
+      const overallStats = overallStatsResult.rows[0];
+
+      // 5. Group vehicles by route with queue order
+      const vehiclesByRoute = {};
+      vehicles.forEach(vehicle => {
+        const routeId = vehicle.route_id;
+        if (!routeId) return;
+        
+        if (!vehiclesByRoute[routeId]) {
+          vehiclesByRoute[routeId] = {
+            route_name: vehicle.route_name,
+            vehicles: []
+          };
+        }
+
+        const currentOccupancy = vehicle.current_occupancy || 0;
+        const capacity = vehicle.capacity || 14;
+        const isFull = currentOccupancy >= capacity;
+        const hasDriver = !!vehicle.driver_name;
+        const isActive = currentOccupancy > 0 && currentOccupancy < capacity;
+
+        vehiclesByRoute[routeId].vehicles.push({
+          id: vehicle.id,
+          registration_number: vehicle.registration_number,
+          vehicle_type: vehicle.vehicle_type,
+          make: vehicle.make,
+          model: vehicle.model,
+          color: vehicle.color,
+          capacity: capacity,
+          current_occupancy: currentOccupancy,
+          occupancy_status: vehicle.occupancy_status || (isFull ? 'full' : (currentOccupancy > 0 ? 'filling' : 'empty')),
+          driver_name: vehicle.driver_name,
+          driver_phone: vehicle.driver_phone,
+          driver_status: vehicle.driver_status,
+          has_driver: hasDriver,
+          is_filling: isActive,
+          is_full: isFull,
+          is_next_in_line: !isActive && !isFull && hasDriver,
+          updated_at: vehicle.occupancy_updated_at
+        });
+      });
+
+      // Sort vehicles within each route: filling first, then next in line, then others
+      Object.keys(vehiclesByRoute).forEach(routeId => {
+        vehiclesByRoute[routeId].vehicles.sort((a, b) => {
+          if (a.is_filling && !b.is_filling) return -1;
+          if (!a.is_filling && b.is_filling) return 1;
+          if (a.is_next_in_line && !b.is_next_in_line) return -1;
+          if (!a.is_next_in_line && b.is_next_in_line) return 1;
+          return a.id - b.id;
+        });
+      });
+
+      res.json({
+        routes,
+        vehiclesByRoute,
+        routeStats,
+        overallStats: {
+          active_routes: parseInt(overallStats.active_routes) || 0,
+          vehicles_used: parseInt(overallStats.vehicles_used) || 0,
+          total_trips: parseInt(overallStats.total_trips) || 0,
+          total_revenue: parseFloat(overallStats.total_revenue) || 0,
+          avg_trip_cost: parseFloat(overallStats.avg_trip_cost) || 0
+        },
+        date: today.toISOString()
+      });
+
+    } catch (error) {
+      console.error('Error fetching occupancy overview:', error.message);
+      res.status(500).json({ message: 'Failed to fetch occupancy overview', error: error.message });
+    }
+  }
 }
 
 module.exports = AdminController;
