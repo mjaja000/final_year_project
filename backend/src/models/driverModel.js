@@ -47,7 +47,20 @@ class DriverModel {
   }
 
   static async getDriverByUserId(userId) {
-    const query = 'SELECT d.*, u.username, u.name, u.phone, u.email, v.registration_number as vehicle_reg FROM drivers d LEFT JOIN users u on d.user_id = u.id LEFT JOIN vehicles v ON d.assigned_vehicle_id = v.id WHERE d.user_id = $1';
+    const query = `
+      SELECT d.*, 
+             u.username, u.name, u.phone, u.email, 
+             v.registration_number as vehicle_reg,
+             v.route_id,
+             r.route_name,
+             r.start_location,
+             r.end_location
+      FROM drivers d 
+      LEFT JOIN users u ON d.user_id = u.id 
+      LEFT JOIN vehicles v ON d.assigned_vehicle_id = v.id
+      LEFT JOIN routes r ON v.route_id = r.id
+      WHERE d.user_id = $1
+    `;
     try {
       const result = await pool.query(query, [userId]);
       return result.rows[0];

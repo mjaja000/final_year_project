@@ -775,6 +775,19 @@ export default function DriverDashboard() {
                   <p className="text-xs md:text-sm text-green-600 flex items-center gap-1">
                     <CheckCircle className="h-4 w-4" /> Vehicle assigned
                   </p>
+                  
+                  {/* Route Information */}
+                  {driver.route_name && (
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                      <p className="text-xs font-semibold text-blue-700 mb-1 flex items-center gap-1">
+                        <Navigation className="h-3 w-3" /> Current Route
+                      </p>
+                      <p className="text-sm font-bold text-blue-900">{driver.route_name}</p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        {driver.start_location} → {driver.end_location}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                     <p className="text-xs text-slate-600 font-medium mb-2">CURRENT PASSENGERS</p>
