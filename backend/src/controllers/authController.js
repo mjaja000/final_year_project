@@ -129,7 +129,11 @@ class AuthController {
             user.vehicle_reg = driverDetails.vehicle_reg;
             user.driving_license = driverDetails.driving_license;
             user.driver_status = driverDetails.status;
-            console.log('Assigned vehicle:', user.assigned_vehicle_id, 'Reg:', user.vehicle_reg);
+            user.route_id = driverDetails.route_id;
+            user.route_name = driverDetails.route_name;
+            user.start_location = driverDetails.start_location;
+            user.end_location = driverDetails.end_location;
+            console.log('Assigned vehicle:', user.assigned_vehicle_id, 'Reg:', user.vehicle_reg, 'Route:', user.route_name);
           } else {
             console.log('No driver record found for userId', userId);
           }

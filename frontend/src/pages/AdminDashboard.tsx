@@ -16,6 +16,9 @@ import {
   Shield,
   Truck,
   Printer,
+  MapPin,
+  Settings,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,16 +35,52 @@ import AdminRevenue from '@/components/admin/AdminRevenue';
 import AdminMessages from '@/components/admin/AdminMessages';
 import WhatsAppChats from '@/components/admin/WhatsAppChats';
 import FeedbackManager from '@/components/admin/FeedbackManager';
+import ManualPayment from '@/components/admin/ManualPayment';
 import io from 'socket.io-client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import OccupancyDisplay from '@/components/OccupancyDisplay';
 import api from '@/lib/api';
+import { useSaccoName } from '@/hooks/useSaccoName';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [feedbackSearch, setFeedbackSearch] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
+
+  // Station selection (persisted to localStorage)
+  const [selectedStation, setSelectedStation] = useState<string>(
+    () => localStorage.getItem('adminSelectedStation') || ''
+  );
+  const handleStationChange = (station: string) => {
+    setSelectedStation(station);
+    localStorage.setItem('adminSelectedStation', station);
+    queryClient.invalidateQueries({ queryKey: ['admin', 'payments'] });
+  };
+
+  // SACCO name
+  const { saccoName, invalidateSaccoName } = useSaccoName();
+  const [saccoNameInput, setSaccoNameInput] = useState('');
+
+  // Stations list
+  const { data: stationsData } = useQuery({
+    queryKey: ['admin', 'stations'],
+    queryFn: () => api.admin.getStations(),
+    staleTime: 2 * 60 * 1000,
+  });
+  const stations: string[] = stationsData?.stations || [];
+
+  // SACCO name update mutation
+  const updateSaccoMutation = useMutation({
+    mutationFn: (name: string) => api.admin.updateSetting('sacco_name', name),
+    onSuccess: () => {
+      invalidateSaccoName();
+      toast({ title: 'SACCO name updated successfully' });
+    },
+    onError: () => {
+      toast({ title: 'Failed to update SACCO name', variant: 'destructive' });
+    },
+  });
 
   interface FeedbackEntry {
     id: string;
@@ -75,8 +114,8 @@ const AdminDashboard = () => {
 
   // Fetch payments from database
   const { data: paymentsResponse } = useQuery({
-    queryKey: ['admin', 'payments'],
-    queryFn: () => api.admin.getPayments({ limit: 1000 }),
+    queryKey: ['admin', 'payments', selectedStation],
+    queryFn: () => api.admin.getPayments({ limit: 1000, station: selectedStation || undefined }),
     refetchInterval: 30000,
   });
 
@@ -605,8 +644,8 @@ const AdminDashboard = () => {
   return (
     <>
       <Helmet>
-        <title>Admin Dashboard - MatatuConnect</title>
-        <meta name="description" content="MatatuConnect administrator dashboard for managing feedback and payment logs." />
+        <title>Admin Dashboard - {saccoName}</title>
+        <meta name="description" content={`${saccoName} administrator dashboard for managing feedback and payment logs.`} />
       </Helmet>
 
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -623,8 +662,23 @@ const AdminDashboard = () => {
                   </div>
                   <div>
                     <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Admin Dashboard</h1>
-                    <p className="text-sm text-blue-100 mt-1 font-medium">System Management & Analytics</p>
+                    <p className="text-sm text-blue-100 mt-1 font-medium">{saccoName} · System Management & Analytics</p>
                   </div>
+                </div>
+                {/* Station selector */}
+                <div className="flex items-center gap-2 mt-2">
+                  <Building2 className="h-4 w-4 text-blue-200 shrink-0" />
+                  <label className="text-xs text-blue-200 font-medium whitespace-nowrap">Managing Station:</label>
+                  <select
+                    value={selectedStation}
+                    onChange={e => handleStationChange(e.target.value)}
+                    className="text-sm bg-white/20 border border-white/30 text-white rounded-lg px-3 py-1.5 font-medium focus:outline-none focus:ring-2 focus:ring-white/50 min-w-[180px]"
+                  >
+                    <option value="" className="text-gray-900">All Stations (SACCO-wide)</option>
+                    {stations.map(s => (
+                      <option key={s} value={s} className="text-gray-900">{s}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto"> 
@@ -795,6 +849,10 @@ const AdminDashboard = () => {
                     <MessageSquare className="h-4 w-4" />
                     WhatsApp
                   </TabsTrigger>
+                  <TabsTrigger value="settings" className="px-5 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-gray-600 data-[state=active]:to-gray-700 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-0">
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -832,14 +890,20 @@ const AdminDashboard = () => {
                 </TabsContent>
 
                 <TabsContent value="payments" className="animate-fade-in m-0">
-                  <DataTable
-                    data={filteredPayments}
-                    columns={paymentColumns}
-                    searchPlaceholder="Search by transaction ID, vehicle, or route..."
-                    searchValue={paymentSearch}
-                    onSearchChange={setPaymentSearch}
-                    emptyMessage="No payment records found"
-                  />
+                  <div className="space-y-6">
+                    {/* Manual Payment Section */}
+                    <ManualPayment station={selectedStation} />
+                    
+                    {/* Payment Records Table */}
+                    <DataTable
+                      data={filteredPayments}
+                      columns={paymentColumns}
+                      searchPlaceholder="Search by transaction ID, vehicle, or route..."
+                      searchValue={paymentSearch}
+                      onSearchChange={setPaymentSearch}
+                      emptyMessage="No payment records found"
+                    />
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="drivers" className="animate-fade-in m-0">
@@ -876,7 +940,7 @@ const AdminDashboard = () => {
                   <div className="max-w-5xl mx-auto space-y-6">
                     <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
                       <h3 className="font-semibold mb-4">Routes & Fares</h3>
-                      <RouteManager />
+                      <RouteManager station={selectedStation} />
                     </section>
                   </div>
                 </TabsContent>
@@ -885,7 +949,7 @@ const AdminDashboard = () => {
                   <div className="max-w-5xl mx-auto space-y-6">
                     <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
                       <h3 className="font-semibold mb-4">Occupancy Control</h3>
-                      <OccupancyManager />
+                      <OccupancyManager station={selectedStation} />
                     </section>
 
                     <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
@@ -902,6 +966,52 @@ const AdminDashboard = () => {
                   <div className="p-2">
                     <h3 className="font-semibold mb-3">WhatsApp Chats</h3>
                     <WhatsAppChats />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="settings" className="animate-fade-in m-0">
+                  <div className="max-w-lg mx-auto p-4">
+                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                      <div className="bg-gradient-to-r from-gray-700 to-gray-800 px-6 py-4">
+                        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                          <Settings className="h-5 w-5" />
+                          SACCO Settings
+                        </h2>
+                        <p className="text-sm text-gray-300 mt-1">Configure your SACCO branding — changes reflect system-wide.</p>
+                      </div>
+                      <div className="p-6 space-y-6">
+                        {/* SACCO Name */}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            SACCO Name
+                          </label>
+                          <p className="text-xs text-gray-500 mb-3">
+                            Current: <span className="font-semibold text-green-600">{saccoName}</span>
+                          </p>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={saccoNameInput}
+                              onChange={e => setSaccoNameInput(e.target.value)}
+                              placeholder={saccoName}
+                              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            />
+                            <Button
+                              onClick={() => {
+                                if (saccoNameInput.trim()) {
+                                  updateSaccoMutation.mutate(saccoNameInput.trim());
+                                  setSaccoNameInput('');
+                                }
+                              }}
+                              disabled={!saccoNameInput.trim() || updateSaccoMutation.isPending}
+                              className="bg-green-600 hover:bg-green-700 text-white px-4"
+                            >
+                              {updateSaccoMutation.isPending ? 'Saving...' : 'Save'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </TabsContent>
               </div>

@@ -30,5 +30,6 @@ router.get('/me/occupancy', authMiddleware, DriverController.getMyAssignedVehicl
 router.post('/me/occupancy', authMiddleware, DriverController.updateMyAssignedVehicleOccupancy);
 router.post('/me/trip/:tripId/occupancy', authMiddleware, DriverController.adjustOccupancy);
 router.get('/me/tickets', authMiddleware, DriverController.getMyVehicleTickets);
+router.post('/me/add-passenger-payment', authMiddleware, DriverController.addPassengerPayment);
 
 module.exports = router;

@@ -2,22 +2,27 @@ import React, { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { AlertCircle, CheckCircle, Circle, CreditCard, Mail, MapPin, Navigation, Phone, Truck } from 'lucide-react';
+import { AlertCircle, CheckCircle, Circle, CreditCard, Mail, MapPin, Minus, Navigation, Phone, Plus, Printer, Truck, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { getPhoneValidationError, normalizeKenyanPhone } from '@/utils/phoneValidation';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const socket = API_BASE ? io(API_BASE) : io(); // fall back to same host
-
-const mapOccupancyToStatus = (current: number, capacity: number): 'empty' | 'half-full' | 'full' => {
-  if (current <= 0) return 'empty';
-  if (current >= capacity) return 'full';
-  return 'half-full';
-};
-
-const mapStatusToOccupancy = (status: 'empty' | 'half-full' | 'full', capacity: number): number => {
-  if (status === 'full') return capacity;
-  if (status === 'half-full') return Math.ceil(capacity / 2);
-  return 0;
-};
 
 export default function DriverDashboard() {
   const [driver, setDriver] = useState<any>(null);
@@ -29,7 +34,6 @@ export default function DriverDashboard() {
 
   const [trip, setTrip] = useState<any>(null);
   const [driverOccupancy, setDriverOccupancy] = useState<any>(null);
-  const [occupancyStatus, setOccupancyStatus] = useState<'empty' | 'half-full' | 'full'>('empty');
   const [tickets, setTickets] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [messageText, setMessageText] = useState('');
@@ -40,6 +44,16 @@ export default function DriverDashboard() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const driverIdRef = useRef<number | null>(null);
   const adminIdRef = useRef<number | null>(null);
+
+  // Payment dialog state
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [routes, setRoutes] = useState<any[]>([]);
+  const [paymentForm, setPaymentForm] = useState({
+    routeId: '',
+    phoneNumber: '',
+    amount: '',
+    paymentMethod: 'cash' // 'cash' or 'mpesa'
+  });
 
   const refreshDriverData = async () => {
     const token = localStorage.getItem('token');
@@ -93,9 +107,6 @@ export default function DriverDashboard() {
         if (tRes.ok) {
           const tdata = await tRes.json();
           setTrip(tdata.trip);
-          const capacity = Number(tdata.trip?.capacity || 14);
-          const current = Number(tdata.trip?.current_occupancy ?? 0);
-          setOccupancyStatus(mapOccupancyToStatus(current, capacity));
         } else {
           setTrip(null);
         }
@@ -108,9 +119,6 @@ export default function DriverDashboard() {
             setTrip(odata.trip);
           }
           setDriverOccupancy(odata?.occupancy || null);
-          const capacity = Number(odata?.occupancy?.capacity || odata?.trip?.capacity || 14);
-          const current = Number(odata?.occupancy?.current_occupancy ?? odata?.trip?.current_occupancy ?? 0);
-          setOccupancyStatus(mapOccupancyToStatus(current, capacity));
         }
 
         // fetch vehicle tickets
@@ -139,6 +147,19 @@ export default function DriverDashboard() {
         }
       } catch (err) {
         // ignore
+      }
+    })();
+
+    // Fetch routes for payment dialog
+    (async () => {
+      try {
+        const res = await fetch(API_BASE + '/api/routes');
+        if (res.ok) {
+          const data = await res.json();
+          setRoutes(data.routes || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch routes:', err);
       }
     })();
 
@@ -183,8 +204,29 @@ export default function DriverDashboard() {
       console.log('driver.statusUpdated', payload);
     });
 
+    socket.on('vehicle.occupancyUpdated', (payload: any) => {
+      if (!payload) return;
+      // Update local occupancy state when a payment triggers it
+      const updatedVehicleId = Number(payload.vehicle_id);
+      setDriverOccupancy((prev: any) => {
+        const prevVehicleId = Number(prev?.vehicle_id ?? driver?.assigned_vehicle_id);
+        if (prevVehicleId && prevVehicleId === updatedVehicleId) {
+          return { ...(prev || {}), current_occupancy: payload.current_occupancy, capacity: payload.capacity };
+        }
+        return prev;
+      });
+      setTrip((prev: any) => {
+        if (prev && Number(prev.vehicle_id) === updatedVehicleId) {
+          return { ...prev, current_occupancy: payload.current_occupancy, capacity: payload.capacity };
+        }
+        return prev;
+      });
+      toast({ title: 'Passenger boarded', description: `Occupancy: ${payload.current_occupancy} / ${payload.capacity}` });
+    });
+
     return () => {
       socket.off('driver.statusUpdated');
+      socket.off('vehicle.occupancyUpdated');
       socket.off('chat.message');
       socket.off('chat.notification');
       socket.off('chat.typing');
@@ -416,21 +458,133 @@ export default function DriverDashboard() {
       const res = await fetch(API_BASE + `/api/drivers/me/occupancy`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
       const data = await res.json();
       if (res.ok) {
-        if (data.trip) {
-          setTrip(data.trip);
-        }
-        if (data.occupancy) {
-          setDriverOccupancy(data.occupancy);
-        }
+        if (data.trip) setTrip(data.trip);
+        if (data.occupancy) setDriverOccupancy(data.occupancy);
         const nextValue = data?.trip?.current_occupancy ?? data?.occupancy?.current_occupancy ?? 0;
-        const nextCapacity = Number(data?.trip?.capacity || data?.occupancy?.capacity || 14);
-        setOccupancyStatus(mapOccupancyToStatus(Number(nextValue), nextCapacity));
-        toast({ title: 'Occupancy updated', description: `Now ${nextValue}` });
+        toast({ title: 'Occupancy updated', description: `Now ${nextValue} passengers` });
       } else {
         toast({ title: 'Failed', description: data.message || 'Could not update occupancy' });
       }
     } catch (err: any) {
       toast({ title: 'Error', description: err.message || 'Network error' });
+    }
+  };
+
+  // Open payment dialog and set default route if trip exists
+  const openPaymentDialog = () => {
+    if (trip?.route_id) {
+      setPaymentForm(prev => ({ ...prev, routeId: String(trip.route_id) }));
+      const route = routes.find(r => r.id === trip.route_id);
+      if (route) {
+        setPaymentForm(prev => ({ ...prev, amount: String(route.fare) }));
+      }
+    }
+    setShowPaymentDialog(true);
+  };
+
+  // Handle route selection - auto-fill fare
+  const handleRouteChange = (routeId: string) => {
+    const route = routes.find(r => r.id === Number(routeId));
+    setPaymentForm(prev => ({
+      ...prev,
+      routeId,
+      amount: route ? String(route.fare) : ''
+    }));
+  };
+
+  // Submit payment (driver adds passenger with payment)
+  const submitDriverPayment = async () => {
+    // Validate form
+    if (!paymentForm.routeId || !paymentForm.amount) {
+      toast({ title: 'Incomplete form', description: 'Please select route and amount', variant: 'destructive' });
+      return;
+    }
+
+    // Validate phone number
+    const phoneError = getPhoneValidationError(paymentForm.phoneNumber);
+    if (phoneError) {
+      toast({ title: 'Invalid phone number', description: phoneError, variant: 'destructive' });
+      return;
+    }
+
+    const normalizedPhone = normalizeKenyanPhone(paymentForm.phoneNumber);
+    if (!normalizedPhone) {
+      toast({ title: 'Invalid phone', description: 'Could not normalize phone number', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      // If M-Pesa selected, initiate STK push
+      if (paymentForm.paymentMethod === 'mpesa') {
+        const res = await fetch(API_BASE + '/api/payments/initiate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            routeId: Number(paymentForm.routeId),
+            amount: Number(paymentForm.amount),
+            phoneNumber: normalizedPhone,
+            vehicleId: driver?.assigned_vehicle_id
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          toast({
+            title: 'M-Pesa prompt sent',
+            description: `Check phone ${paymentForm.phoneNumber} to complete payment`,
+            icon: <Phone className="h-4 w-4 text-blue-600" />
+          });
+          
+          setShowPaymentDialog(false);
+          setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
+          
+          // Note: Occupancy will be incremented automatically when payment completes
+        } else {
+          toast({ title: 'M-Pesa failed', description: data.message || 'Could not send payment prompt', variant: 'destructive' });
+        }
+      } else {
+        // Cash payment - direct recording
+        const res = await fetch(API_BASE + '/api/drivers/me/add-passenger-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            routeId: Number(paymentForm.routeId),
+            phoneNumber: normalizedPhone,
+            amount: Number(paymentForm.amount),
+            paymentMethod: 'cash',
+            vehicleId: driver?.assigned_vehicle_id
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          toast({
+            title: 'Payment recorded',
+            description: `Cash payment of KSh ${paymentForm.amount}`,
+            icon: <CheckCircle className="h-4 w-4 text-green-600" />
+          });
+          
+          // Update occupancy
+          if (data.trip) setTrip(data.trip);
+          if (data.occupancy) setDriverOccupancy(data.occupancy);
+          
+          // Close dialog and reset form
+          setShowPaymentDialog(false);
+          setPaymentForm({ routeId: '', phoneNumber: '', amount: '', paymentMethod: 'cash' });
+        } else {
+          toast({ title: 'Failed', description: data.message || 'Could not record payment', variant: 'destructive' });
+        }
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Network error', variant: 'destructive' });
     }
   };
 
@@ -499,12 +653,7 @@ export default function DriverDashboard() {
 
   const effectiveCapacity = Number(trip?.capacity || driverOccupancy?.capacity || 14);
   const effectiveOccupancy = Number(trip?.current_occupancy ?? driverOccupancy?.current_occupancy ?? 0);
-  const effectiveStatus = mapOccupancyToStatus(effectiveOccupancy, effectiveCapacity);
-
-  const handleUpdateOccupancyStatus = () => {
-    const value = mapStatusToOccupancy(occupancyStatus, effectiveCapacity);
-    adjustOccupancy('set', value);
-  };
+  const isFull = effectiveOccupancy >= effectiveCapacity;
 
 
   return (
@@ -626,29 +775,52 @@ export default function DriverDashboard() {
                   <p className="text-xs md:text-sm text-green-600 flex items-center gap-1">
                     <CheckCircle className="h-4 w-4" /> Vehicle assigned
                   </p>
+                  
+                  {/* Route Information */}
+                  {driver.route_name && (
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                      <p className="text-xs font-semibold text-blue-700 mb-1 flex items-center gap-1">
+                        <Navigation className="h-3 w-3" /> Current Route
+                      </p>
+                      <p className="text-sm font-bold text-blue-900">{driver.route_name}</p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        {driver.start_location} → {driver.end_location}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                    <p className="text-xs text-slate-600 font-medium mb-2">ASSIGNED VEHICLE OCCUPANCY</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl font-bold text-slate-900">{effectiveOccupancy}</span>
-                      <span className="text-slate-600">/ {effectiveCapacity}</span>
+                    <p className="text-xs text-slate-600 font-medium mb-2">CURRENT PASSENGERS</p>
+                    {/* Big numeric display */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`text-4xl font-bold ${isFull ? 'text-red-600' : 'text-green-700'}`}>{effectiveOccupancy}</span>
+                      <span className="text-slate-500 text-lg">/ {effectiveCapacity}</span>
+                      {isFull && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">FULL</span>}
                     </div>
-                    <p className="text-xs text-slate-500 mt-1 mb-2">Current status: <span className="font-medium text-slate-700">{effectiveStatus}</span></p>
-                    <div className="space-y-2 mt-2">
-                      <select
-                        className="w-full rounded-md border px-3 py-2 bg-white text-sm"
-                        value={occupancyStatus}
-                        onChange={(e) => setOccupancyStatus(e.target.value as 'empty' | 'half-full' | 'full')}
+                    {/* +/- controls for driver to adjust (e.g. passenger got off) */}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                        onClick={() => adjustOccupancy('decrement')}
+                        disabled={effectiveOccupancy <= 0}
                       >
-                        <option value="empty">Empty</option>
-                        <option value="half-full">Half-full</option>
-                        <option value="full">Full</option>
-                      </select>
-                      <Button onClick={handleUpdateOccupancyStatus} className="w-full" variant="hero" size="sm">
-                        Update Occupancy
+                        <Minus className="h-4 w-4 mr-1" /> Passenger Off
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-green-400 text-green-700 hover:bg-green-50"
+                        onClick={openPaymentDialog}
+                        disabled={isFull}
+                      >
+                        <Plus className="h-4 w-4 mr-1" /> Add Passenger
                       </Button>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-2">You and Admin can coordinate these updates in chat.</p>
+                    <p className="text-[11px] text-slate-500 mt-2">
+                      Count updates automatically from M-Pesa payments. Use "Passenger Off" when someone alights.
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -788,6 +960,103 @@ export default function DriverDashboard() {
       ) : (
         <p>Loading driver profile...</p>
       )}
+
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-green-600" />
+              Add Passenger & Record Payment
+            </DialogTitle>
+            <DialogDescription>
+              Select route and enter passenger details to record payment
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 pt-4">
+            {/* Route Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="route">Route</Label>
+              <Select value={paymentForm.routeId} onValueChange={handleRouteChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select route" />
+                </SelectTrigger>
+                <SelectContent>
+                  {routes.map(route => (
+                    <SelectItem key={route.id} value={String(route.id)}>
+                      {route.route_name} - KSh {route.fare}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Phone Number */}
+            <div className="space-y-2">
+              <Label htmlFor="phone">Passenger Phone Number</Label>
+              <Input
+                id="phone"
+                placeholder="0712345678"
+                value={paymentForm.phoneNumber}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
+              />
+            </div>
+
+            {/* Amount */}
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount (KSh)</Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="0"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
+              />
+            </div>
+
+            {/* Payment Method */}
+            <div className="space-y-2">
+              <Label>Payment Method</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={paymentForm.paymentMethod === 'cash' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => setPaymentForm(prev => ({ ...prev, paymentMethod: 'cash' }))}
+                >
+                  Cash
+                </Button>
+                <Button
+                  type="button"
+                  variant={paymentForm.paymentMethod === 'mpesa' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => setPaymentForm(prev => ({ ...prev, paymentMethod: 'mpesa' }))}
+                >
+                  M-Pesa
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mt-6">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setShowPaymentDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              onClick={submitDriverPayment}
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Record Payment
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -566,6 +566,107 @@ class DriverController {
       res.status(500).json({ message: 'Failed to fetch tickets', error: error.message });
     }
   }
+
+  // Driver: Add passenger with payment tracking
+  static async addPassengerPayment(req, res) {
+    try {
+      const userId = req.userId;
+      const { routeId, phoneNumber, amount, paymentMethod, vehicleId } = req.body;
+
+      // Validate input
+      if (!routeId || !phoneNumber || !amount) {
+        return res.status(400).json({ message: 'Missing required fields' });
+      }
+
+      // Validate phone number
+      const { validatePhoneOrThrow, normalizeKenyanPhone } = require('../utils/phoneValidation');
+      try {
+        validatePhoneOrThrow(phoneNumber);
+      } catch (error) {
+        return res.status(400).json({ message: error.message });
+      }
+
+      const normalizedPhone = normalizeKenyanPhone(phoneNumber);
+
+      // Get driver and trip
+      const { driver, trip } = await DriverController.getAssignedDriverAndTrip(userId);
+      if (!driver) {
+        return res.status(404).json({ message: 'Driver not found' });
+      }
+
+      const finalVehicleId = vehicleId || driver.assigned_vehicle_id;
+      if (!finalVehicleId) {
+        return res.status(400).json({ message: 'No vehicle assigned' });
+      }
+
+      const PaymentModel = require('../models/paymentModel');
+      
+      // Create payment record
+      const transactionId = `DRV-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      const pool = require('../config/database');
+      
+      const insertQuery = `
+        INSERT INTO payments (
+          user_id, route_id, vehicle_id, amount, phone_number, 
+          status, payment_method, transaction_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *;
+      `;
+      
+      const result = await pool.query(insertQuery, [
+        null, // user_id can be null for driver-initiated payments
+        routeId,
+        finalVehicleId,
+        amount,
+        normalizedPhone,
+        'completed', // Driver records are pre-completed
+        paymentMethod || 'cash',
+        transactionId
+      ]);
+
+      const payment = result.rows[0];
+
+      // Increment occupancy
+      let updatedTrip = null;
+      let occupancy = null;
+
+      if (trip) {
+        const TripModel = require('../models/tripModel');
+        updatedTrip = await TripModel.incrementOccupancy(trip.id);
+      }
+
+      // Also update occupancy table
+      const OccupancyModel = require('../models/occupancyModel');
+      occupancy = await OccupancyModel.incrementOccupancy(finalVehicleId);
+
+      // Send WhatsApp confirmation if available
+      try {
+        const RouteModel = require('../models/routeModel');
+        const route = await RouteModel.getRouteById(routeId);
+        
+        const whatsappService = require('../services/whatsappService');
+        const message = `Payment confirmed! Route: ${route?.route_name || 'N/A'}, Amount: KSh ${amount}, Transaction: ${transactionId}. Thank you for traveling with us!`;
+        
+        await whatsappService.sendMessage(normalizedPhone, message);
+      } catch (whatsappErr) {
+        console.error('WhatsApp notification failed:', whatsappErr.message);
+        // Don't fail the whole request if WhatsApp fails
+      }
+
+      res.json({
+        message: 'Payment recorded and passenger added',
+        payment,
+        trip: updatedTrip || trip,
+        occupancy,
+        transactionId
+      });
+
+    } catch (error) {
+      console.error('Add passenger payment error:', error.message);
+      res.status(500).json({ message: 'Failed to record payment', error: error.message });
+    }
+  }
 }
 
 

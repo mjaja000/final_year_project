@@ -31,7 +31,7 @@ const initialForm = {
   distance_km: "",
 };
 
-const RouteManager = () => {
+const RouteManager = ({ station = '' }: { station?: string }) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -54,8 +54,11 @@ const RouteManager = () => {
         ...r,
         id: Number(r.id ?? r.route_id ?? r.routeId ?? 0),
       }))
-      .filter((r: RouteRecord) => Number.isFinite(r.id) && r.status !== "inactive");
-  }, [routesQuery.data]);
+      .filter((r: RouteRecord) => Number.isFinite(r.id) && r.status !== "inactive")
+      .filter((r: RouteRecord) =>
+        !station || r.start_location === station || r.end_location === station
+      );
+  }, [routesQuery.data, station]);
 
   const createRoute = useMutation({
     mutationFn: (payload: any) => api.routes.create(payload),

@@ -49,4 +49,20 @@ router.get('/whatsapp/joiners', adminOnly, AdminController.getWhatsAppJoiners);
 // WhatsApp participants from Twilio
 router.get('/whatsapp/participants', adminOnly, AdminController.getWhatsAppParticipants);
 
+// Stations (derived from routes)
+router.get('/stations', adminOnly, AdminController.getStations);
+
+// SACCO Settings - GET is public, PUT is admin only
+router.get('/settings', AdminController.getSettings);
+router.put('/settings', adminOnly, AdminController.updateSettings);
+
+// Manual Payment
+router.post('/manual-payment', adminOnly, AdminController.createManualPayment);
+
+// Payment Analytics
+router.get('/payment-analytics', adminOnly, AdminController.getPaymentAnalytics);
+
+// Get active vehicle for route
+router.get('/routes/:routeId/active-vehicle', adminOnly, AdminController.getActiveVehicleForRoute);
+
 module.exports = router;
