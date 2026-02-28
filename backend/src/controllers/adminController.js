@@ -620,6 +620,459 @@ class AdminController {
       res.status(500).json({ message: 'Failed to update setting', error: error.message });
     }
   }
+
+  // Manual payment processing (admin creates payment for station customer)
+  static async createManualPayment(req, res) {
+    try {
+      const { routeId, phoneNumber, amount, paymentMethod, station } = req.body;
+
+      // Validate input
+      if (!routeId || !phoneNumber || !amount) {
+        return res.status(400).json({ message: 'Missing required fields: routeId, phoneNumber, amount' });
+      }
+
+      // Validate phone number
+      const { validatePhoneOrThrow, normalizeKenyanPhone } = require('../utils/phoneValidation');
+      try {
+        validatePhoneOrThrow(phoneNumber);
+      } catch (error) {
+        return res.status(400).json({ message: error.message });
+      }
+
+      const normalizedPhone = normalizeKenyanPhone(phoneNumber);
+
+      // Get active vehicle for this route to link payment
+      const VehicleModel = require('../models/vehicleModel');
+      const activeVehicle = await VehicleModel.getActiveVehicleForRoute(routeId);
+      
+      if (!activeVehicle) {
+        return res.status(400).json({ message: 'No active vehicle available for this route' });
+      }
+
+      // Generate transaction ID
+      const transactionId = `ADMIN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+      // Create payment record with vehicle_id
+      const insertQuery = `
+        INSERT INTO payments (
+          route_id, phone_number, amount, status, payment_method, transaction_id, vehicle_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *;
+      `;
+
+      const result = await pool.query(insertQuery, [
+        routeId,
+        normalizedPhone,
+        amount,
+        'completed', // Admin payments are pre-completed
+        paymentMethod || 'cash',
+        transactionId,
+        activeVehicle.id
+      ]);
+
+      const payment = result.rows[0];
+
+      // Increment vehicle occupancy
+      const occupancyQuery = `
+        INSERT INTO vehicle_occupancy (vehicle_id, current_occupancy, occupancy_status)
+        VALUES ($1, 1, CASE WHEN 1 >= $2 THEN 'full' ELSE 'available' END)
+        ON CONFLICT (vehicle_id)
+        DO UPDATE SET
+          current_occupancy = vehicle_occupancy.current_occupancy + 1,
+          occupancy_status = CASE
+            WHEN vehicle_occupancy.current_occupancy + 1 >= $2 THEN 'full'
+            ELSE 'available'
+          END,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *;
+      `;
+
+      await pool.query(occupancyQuery, [activeVehicle.id, activeVehicle.capacity]);
+
+      // Get route details for WhatsApp
+      const route = await RouteModel.getRouteById(routeId);
+
+      // Send WhatsApp confirmation
+      try {
+        const whatsappService = require('../services/whatsappService');
+        const saccoName = await SaccoSettingsModel.get('sacco_name') || 'MatatuConnect';
+        const message = `Payment confirmed! Route: ${route?.route_name || 'N/A'}, Amount: KSh ${amount}, Transaction: ${transactionId}. Thank you for using ${saccoName}!`;
+        
+        await whatsappService.sendMessage(normalizedPhone, message);
+      } catch (whatsappErr) {
+        console.error('WhatsApp notification failed:', whatsappErr.message);
+        // Don't fail the whole request if WhatsApp fails
+      }
+
+      res.json({
+        message: 'Payment recorded successfully',
+        payment,
+        route,
+        transactionId,
+        station: station || null,
+        vehicle: {
+          id: activeVehicle.id,
+          registration_number: activeVehicle.registration_number,
+          current_occupancy: (activeVehicle.current_occupancy || 0) + 1,
+          capacity: activeVehicle.capacity
+        }
+      });
+
+    } catch (error) {
+      console.error('Manual payment error:', error.message);
+      res.status(500).json({ message: 'Failed to process payment', error: error.message });
+    }
+  }
+
+  // Payment Analytics - Comprehensive payment analysis
+  static async getPaymentAnalytics(req, res) {
+    try {
+      const { startDate, endDate, station, period = 'daily' } = req.query;
+
+      // Build date filter
+      let dateFilter = '';
+      const params = [];
+      let paramIndex = 1;
+
+      if (startDate) {
+        dateFilter += ` AND p.created_at >= $${paramIndex}`;
+        params.push(startDate);
+        paramIndex++;
+      }
+
+      if (endDate) {
+        dateFilter += ` AND p.created_at <= $${paramIndex}`;
+        params.push(endDate);
+        paramIndex++;
+      }
+
+      // Total Revenue & Payment Counts
+      const summaryQuery = `
+        SELECT 
+          COUNT(*) as total_payments,
+          COUNT(CASE WHEN payment_method = 'cash' THEN 1 END) as cash_count,
+          COUNT(CASE WHEN payment_method = 'mpesa' THEN 1 END) as mpesa_count,
+          COALESCE(SUM(amount), 0) as total_revenue,
+          COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN amount ELSE 0 END), 0) as cash_revenue,
+          COALESCE(SUM(CASE WHEN payment_method = 'mpesa' THEN amount ELSE 0 END), 0) as mpesa_revenue,
+          COALESCE(AVG(amount), 0) as average_payment
+        FROM payments p
+        WHERE status = 'completed' ${dateFilter}
+      `;
+
+      const summaryResult = await pool.query(summaryQuery, params);
+      const summary = summaryResult.rows[0];
+
+      // Payment Trends Over Time
+      let groupByClause = '';
+      if (period === 'hourly') {
+        groupByClause = "DATE_TRUNC('hour', p.created_at)";
+      } else if (period === 'daily') {
+        groupByClause = "DATE_TRUNC('day', p.created_at)";
+      } else if (period === 'weekly') {
+        groupByClause = "DATE_TRUNC('week', p.created_at)";
+      } else if (period === 'monthly') {
+        groupByClause = "DATE_TRUNC('month', p.created_at)";
+      } else {
+        groupByClause = "DATE_TRUNC('day', p.created_at)";
+      }
+
+      const trendsQuery = `
+        SELECT 
+          ${groupByClause} as period,
+          COUNT(*) as payment_count,
+          COALESCE(SUM(amount), 0) as revenue
+        FROM payments p
+        WHERE status = 'completed' ${dateFilter}
+        GROUP BY ${groupByClause}
+        ORDER BY period ASC
+        LIMIT 100
+      `;
+
+      const trendsResult = await pool.query(trendsQuery, params);
+      const trends = trendsResult.rows;
+
+      // Route-wise Revenue
+      const routeRevenueQuery = `
+        SELECT 
+          r.id as route_id,
+          r.route_name,
+          r.start_location,
+          r.end_location,
+          COUNT(p.id) as payment_count,
+          COALESCE(SUM(p.amount), 0) as total_revenue,
+          COALESCE(AVG(p.amount), 0) as average_fare
+        FROM payments p
+        JOIN routes r ON p.route_id = r.id
+        WHERE p.status = 'completed' ${dateFilter}
+        GROUP BY r.id, r.route_name, r.start_location, r.end_location
+        ORDER BY total_revenue DESC
+        LIMIT 20
+      `;
+
+      const routeRevenueResult = await pool.query(routeRevenueQuery, params);
+      const routeRevenue = routeRevenueResult.rows;
+
+      // Station-wise Revenue (if applicable)
+      let stationRevenue = [];
+      if (!station) {
+        const stationRevenueQuery = `
+          SELECT 
+            r.start_location as station,
+            COUNT(p.id) as payment_count,
+            COALESCE(SUM(p.amount), 0) as total_revenue
+          FROM payments p
+          JOIN routes r ON p.route_id = r.id
+          WHERE p.status = 'completed' ${dateFilter}
+          GROUP BY r.start_location
+          ORDER BY total_revenue DESC
+        `;
+
+        const stationRevenueResult = await pool.query(stationRevenueQuery, params);
+        stationRevenue = stationRevenueResult.rows;
+      }
+
+      // Payment Method Breakdown
+      const paymentMethodBreakdown = {
+        cash: {
+          count: parseInt(summary.cash_count || 0),
+          revenue: parseFloat(summary.cash_revenue || 0),
+          percentage: summary.total_revenue > 0 
+            ? (parseFloat(summary.cash_revenue || 0) / parseFloat(summary.total_revenue)) * 100 
+            : 0
+        },
+        mpesa: {
+          count: parseInt(summary.mpesa_count || 0),
+          revenue: parseFloat(summary.mpesa_revenue || 0),
+          percentage: summary.total_revenue > 0 
+            ? (parseFloat(summary.mpesa_revenue || 0) / parseFloat(summary.total_revenue)) * 100 
+            : 0
+        }
+      };
+
+      res.json({
+        summary: {
+          totalPayments: parseInt(summary.total_payments || 0),
+          totalRevenue: parseFloat(summary.total_revenue || 0),
+          averagePayment: parseFloat(summary.average_payment || 0)
+        },
+        paymentMethodBreakdown,
+        trends: trends.map(t => ({
+          period: t.period,
+          paymentCount: parseInt(t.payment_count || 0),
+          revenue: parseFloat(t.revenue || 0)
+        })),
+        routeRevenue: routeRevenue.map(r => ({
+          routeId: r.route_id,
+          routeName: r.route_name,
+          startLocation: r.start_location,
+          endLocation: r.end_location,
+          paymentCount: parseInt(r.payment_count || 0),
+          totalRevenue: parseFloat(r.total_revenue || 0),
+          averageFare: parseFloat(r.average_fare || 0)
+        })),
+        stationRevenue: stationRevenue.map(s => ({
+          station: s.station,
+          paymentCount: parseInt(s.payment_count || 0),
+          totalRevenue: parseFloat(s.total_revenue || 0)
+        }))
+      });
+
+    } catch (error) {
+      console.error('Payment analytics error:', error.message);
+      res.status(500).json({ message: 'Failed to fetch payment analytics', error: error.message });
+    }
+  }
+
+  // Get active vehicle for a route
+  static async getActiveVehicleForRoute(req, res) {
+    try {
+      const { routeId } = req.params;
+      const VehicleModel = require('../models/vehicleModel');
+      
+      const activeVehicle = await VehicleModel.getActiveVehicleForRoute(routeId);
+      
+      if (!activeVehicle) {
+        return res.json({ vehicle: null, message: 'No active vehicle available for this route' });
+      }
+
+      res.json({ 
+        vehicle: {
+          id: activeVehicle.id,
+          registration_number: activeVehicle.registration_number,
+          vehicle_type: activeVehicle.vehicle_type,
+          make: activeVehicle.make,
+          model: activeVehicle.model,
+          color: activeVehicle.color,
+          capacity: activeVehicle.capacity,
+          current_occupancy: activeVehicle.current_occupancy || 0
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching active vehicle:', error.message);
+      res.status(500).json({ message: 'Failed to fetch active vehicle', error: error.message });
+    }
+  }
+
+  // Get comprehensive occupancy overview for station
+  static async getOccupancyOverview(req, res) {
+    try {
+      const { station } = req.query;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // 1. Get all routes (filter by station if provided)
+      let routesQuery = `
+        SELECT id, route_name, start_location, end_location, fare, distance
+        FROM routes
+        WHERE 1=1
+      `;
+      const routesParams = [];
+      
+      if (station) {
+        routesQuery += ` AND (start_location = $1 OR end_location = $1)`;
+        routesParams.push(station);
+      }
+      
+      routesQuery += ` ORDER BY route_name`;
+      const routesResult = await pool.query(routesQuery, routesParams);
+      const routes = routesResult.rows;
+
+      // 2. Get all vehicles with their occupancy and driver info
+      const vehiclesQuery = `
+        SELECT 
+          v.id,
+          v.registration_number,
+          v.vehicle_type,
+          v.make,
+          v.model,
+          v.color,
+          v.capacity,
+          v.route_id,
+          v.status,
+          r.route_name,
+          r.start_location,
+          r.end_location,
+          vo.current_occupancy,
+          vo.occupancy_status,
+          vo.updated_at as occupancy_updated_at,
+          u.name as driver_name,
+          u.phone as driver_phone,
+          d.status as driver_status
+        FROM vehicles v
+        LEFT JOIN routes r ON v.route_id = r.id
+        LEFT JOIN vehicle_occupancy vo ON v.id = vo.vehicle_id
+        LEFT JOIN drivers d ON v.id = d.assigned_vehicle_id
+        LEFT JOIN users u ON d.user_id = u.id
+        WHERE v.status = 'active'
+        ORDER BY v.route_id, v.id
+      `;
+      const vehiclesResult = await pool.query(vehiclesQuery);
+      const vehicles = vehiclesResult.rows;
+
+      // 3. Get today's revenue by route
+      const revenueQuery = `
+        SELECT 
+          r.id as route_id,
+          r.route_name,
+          COUNT(p.id) as total_trips,
+          SUM(p.amount) as total_revenue,
+          COUNT(DISTINCT p.vehicle_id) as active_vehicles
+        FROM routes r
+        LEFT JOIN payments p ON r.id = p.route_id 
+          AND p.status = 'completed' 
+          AND p.created_at >= $1
+        GROUP BY r.id, r.route_name
+        ORDER BY total_revenue DESC NULLS LAST
+      `;
+      const revenueResult = await pool.query(revenueQuery, [today]);
+      const routeStats = revenueResult.rows;
+
+      // 4. Get overall stats for today
+      const overallStatsQuery = `
+        SELECT 
+          COUNT(DISTINCT p.route_id) as active_routes,
+          COUNT(DISTINCT p.vehicle_id) as vehicles_used,
+          COUNT(p.id) as total_trips,
+          SUM(p.amount) as total_revenue,
+          AVG(p.amount) as avg_trip_cost
+        FROM payments p
+        WHERE p.status = 'completed' AND p.created_at >= $1
+      `;
+      const overallStatsResult = await pool.query(overallStatsQuery, [today]);
+      const overallStats = overallStatsResult.rows[0];
+
+      // 5. Group vehicles by route with queue order
+      const vehiclesByRoute = {};
+      vehicles.forEach(vehicle => {
+        const routeId = vehicle.route_id;
+        if (!routeId) return;
+        
+        if (!vehiclesByRoute[routeId]) {
+          vehiclesByRoute[routeId] = {
+            route_name: vehicle.route_name,
+            vehicles: []
+          };
+        }
+
+        const currentOccupancy = vehicle.current_occupancy || 0;
+        const capacity = vehicle.capacity || 14;
+        const isFull = currentOccupancy >= capacity;
+        const hasDriver = !!vehicle.driver_name;
+        const isActive = currentOccupancy > 0 && currentOccupancy < capacity;
+
+        vehiclesByRoute[routeId].vehicles.push({
+          id: vehicle.id,
+          registration_number: vehicle.registration_number,
+          vehicle_type: vehicle.vehicle_type,
+          make: vehicle.make,
+          model: vehicle.model,
+          color: vehicle.color,
+          capacity: capacity,
+          current_occupancy: currentOccupancy,
+          occupancy_status: vehicle.occupancy_status || (isFull ? 'full' : (currentOccupancy > 0 ? 'filling' : 'empty')),
+          driver_name: vehicle.driver_name,
+          driver_phone: vehicle.driver_phone,
+          driver_status: vehicle.driver_status,
+          has_driver: hasDriver,
+          is_filling: isActive,
+          is_full: isFull,
+          is_next_in_line: !isActive && !isFull && hasDriver,
+          updated_at: vehicle.occupancy_updated_at
+        });
+      });
+
+      // Sort vehicles within each route: filling first, then next in line, then others
+      Object.keys(vehiclesByRoute).forEach(routeId => {
+        vehiclesByRoute[routeId].vehicles.sort((a, b) => {
+          if (a.is_filling && !b.is_filling) return -1;
+          if (!a.is_filling && b.is_filling) return 1;
+          if (a.is_next_in_line && !b.is_next_in_line) return -1;
+          if (!a.is_next_in_line && b.is_next_in_line) return 1;
+          return a.id - b.id;
+        });
+      });
+
+      res.json({
+        routes,
+        vehiclesByRoute,
+        routeStats,
+        overallStats: {
+          active_routes: parseInt(overallStats.active_routes) || 0,
+          vehicles_used: parseInt(overallStats.vehicles_used) || 0,
+          total_trips: parseInt(overallStats.total_trips) || 0,
+          total_revenue: parseFloat(overallStats.total_revenue) || 0,
+          avg_trip_cost: parseFloat(overallStats.avg_trip_cost) || 0
+        },
+        date: today.toISOString()
+      });
+
+    } catch (error) {
+      console.error('Error fetching occupancy overview:', error.message);
+      res.status(500).json({ message: 'Failed to fetch occupancy overview', error: error.message });
+    }
+  }
 }
 
 module.exports = AdminController;

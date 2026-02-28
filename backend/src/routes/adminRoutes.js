@@ -56,4 +56,16 @@ router.get('/stations', adminOnly, AdminController.getStations);
 router.get('/settings', AdminController.getSettings);
 router.put('/settings', adminOnly, AdminController.updateSettings);
 
+// Manual Payment
+router.post('/manual-payment', adminOnly, AdminController.createManualPayment);
+
+// Payment Analytics
+router.get('/payment-analytics', adminOnly, AdminController.getPaymentAnalytics);
+
+// Get active vehicle for route
+router.get('/routes/:routeId/active-vehicle', adminOnly, AdminController.getActiveVehicleForRoute);
+
+// Get occupancy overview
+router.get('/occupancy/overview', adminOnly, AdminController.getOccupancyOverview);
+
 module.exports = router;

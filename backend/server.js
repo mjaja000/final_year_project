@@ -93,6 +93,10 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       }
     });
 
+    // Import in-memory vehicle locations cache from locationController
+    const locationController = require('./src/controllers/locationController');
+    const { vehicleLocations } = locationController;
+
     const presenceCounts = new Map();
     const updatePresence = (userId, delta) => {
       if (!userId) return;
@@ -115,43 +119,70 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
       });
 
       socket.on('driver:updateStatus', (payload) => {
-        // payload should include { userId, status, vehicleId, latitude, longitude }
-        // broadcast to admin/dashboard and occupancy rooms
+        // payload should include { userId, status, vehicleId, latitude, longitude, driverName }
         console.log('Socket driver:updateStatus', payload);
         io.to('admin').emit('driver.statusUpdated', payload);
         io.to(`route_${payload.routeId || 'all'}`).emit('driver.statusUpdated', payload);
         
-        // Broadcast location update for map
-        if (payload.latitude && payload.longitude) {
-          io.emit('vehicle:locationUpdate', {
-            id: payload.vehicleId,
-            vehicleId: payload.vehicleId,
-            latitude: payload.latitude,
-            longitude: payload.longitude,
-            is_online: payload.status === 'online',
-            isOnline: payload.status === 'online',
-            driver_id: payload.userId,
-            last_update: new Date().toISOString()
-          });
+        const isOnline = payload.status === 'online';
+
+        if (payload.vehicleId) {
+          if (!isOnline) {
+            // Remove from cache when driver goes offline
+            vehicleLocations.delete(payload.vehicleId);
+            io.emit('driver:statusUpdate', { vehicleId: payload.vehicleId, userId: payload.userId, status: 'offline' });
+          } else if (payload.latitude && payload.longitude) {
+            // Update cache when going online with location
+            const locEntry = {
+              id: payload.vehicleId,
+              driver_id: payload.userId,
+              driver_name: payload.driverName || payload.driver_name || 'Unknown Driver',
+              latitude: parseFloat(payload.latitude),
+              longitude: parseFloat(payload.longitude),
+              accuracy: payload.accuracy || null,
+              is_online: true,
+              last_update: new Date().toISOString()
+            };
+            vehicleLocations.set(payload.vehicleId, locEntry);
+            io.emit('vehicle:locationUpdate', {
+              ...locEntry,
+              vehicleId: payload.vehicleId,
+              isOnline: true,
+            });
+          }
         }
       });
 
       // Real-time location updates from drivers
       socket.on('driver:updateLocation', (payload) => {
-        // payload: { userId, vehicleId, latitude, longitude, accuracy }
+        // payload: { userId, vehicleId, latitude, longitude, accuracy, driverName }
         console.log('Socket driver:updateLocation', payload);
+        
+        if (!payload.latitude || !payload.longitude) return;
+
+        const vehicleId = payload.vehicleId;
+        const locEntry = {
+          id: vehicleId,
+          driver_id: payload.userId,
+          driver_name: payload.driverName || payload.driver_name || 
+            (vehicleLocations.get(vehicleId)?.driver_name) || 'Unknown Driver',
+          latitude: parseFloat(payload.latitude),
+          longitude: parseFloat(payload.longitude),
+          accuracy: payload.accuracy || null,
+          is_online: true,
+          last_update: new Date().toISOString()
+        };
+
+        // Update the in-memory cache so REST API /api/locations/locations reflects current positions
+        if (vehicleId) {
+          vehicleLocations.set(vehicleId, locEntry);
+        }
         
         // Broadcast to all clients (for live map)
         io.emit('vehicle:locationUpdate', {
-          id: payload.vehicleId,
-          vehicleId: payload.vehicleId,
-          latitude: payload.latitude,
-          longitude: payload.longitude,
-          accuracy: payload.accuracy,
-          is_online: true,
+          ...locEntry,
+          vehicleId,
           isOnline: true,
-          driver_id: payload.userId,
-          last_update: new Date().toISOString()
         });
       });
 
