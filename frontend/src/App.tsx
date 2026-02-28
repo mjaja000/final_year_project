@@ -20,7 +20,6 @@ import DriverDashboard from "./pages/DriverDashboard";
 import Drivers from "./pages/Drivers";
 import LiveMapPage from "./pages/LiveMapPage";
 import NotFound from "./pages/NotFound";
-import ComplaintDemo from "./pages/ComplaintDemo";
 import Footer from "@/components/Footer";
 import ScrollToTop from "@/components/ScrollToTop";
 
@@ -52,7 +51,7 @@ const AppWithSessionValidation = () => {
       <Route path="/admin/dashboard" element={<AdminDashboard />} />
       <Route path="/admin/lost-and-found" element={<LostAndFoundAdmin />} />
       <Route path="/lost-and-found" element={<LostAndFound />} />
-      <Route path="/complaint-demo" element={<ComplaintDemo />} />
+      <Route path="/complaint-demo" element={<Navigate to="/feedback" replace />} />
       <Route path="/feedback" element={<Feedback />} />
       <Route
         path="/driver/admn"

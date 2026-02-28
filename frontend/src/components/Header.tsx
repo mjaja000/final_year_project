@@ -67,7 +67,7 @@ function MenuButton() {
             </Link>
             
             <Link 
-              to="/complaint-demo" 
+              to="/feedback" 
               className="flex items-center gap-3 text-sm py-2.5 px-4 text-black dark:text-white hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 transition-all group" 
               onClick={() => setNavOpen(false)}
             >
@@ -174,7 +174,7 @@ const Header = () => {
           <Link to="/" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
             Home
           </Link>
-          <Link to="/complaint-demo" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
+          <Link to="/feedback" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">
             Complaint/Feedback
           </Link>
           <Link to="/payment" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-lg transition-all">

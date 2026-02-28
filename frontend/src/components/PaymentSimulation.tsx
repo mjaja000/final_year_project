@@ -325,6 +325,7 @@ const PaymentSimulation = ({
         routeId: routeIdNumber,
         amount: fare,
         phoneNumber: phoneNumber,
+        vehicle: vehicleNumber,
       };
 
       const res = await api.payments.create(payload);

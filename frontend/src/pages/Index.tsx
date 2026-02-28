@@ -434,10 +434,10 @@ export default function Index() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </div>
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 group-hover:text-purple-600 transition-colors">24/7 Support</h3>
-                  <p className="text-sm sm:text-base text-gray-600">Get help anytime via phone, chat, or email. We're here for you round the clock.</p>
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 group-hover:text-purple-600 transition-colors">Support & Feedback</h3>
+                  <p className="text-sm sm:text-base text-gray-600">Submit complaints or compliments anytime so our team can respond and improve service quality.</p>
                   <div className="mt-4 flex items-center text-purple-600 font-semibold text-sm group-hover:gap-2 transition-all">
-                    <span>Contact us</span>
+                    <span>Open feedback</span>
                     <span className="opacity-0 group-hover:opacity-100 transition-opacity">→</span>
                   </div>
                 </div>

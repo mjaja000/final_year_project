@@ -426,7 +426,7 @@ class PaymentController {
   static async simulatePayment(req, res) {
     try {
       const userId = req.userId || null;
-      const { routeId, amount, phoneNumber } = req.body;
+      const { routeId, amount, phoneNumber, vehicle, vehicleNumber } = req.body;
 
       // Validate required fields
       if (!routeId || !amount || !phoneNumber) {
@@ -440,8 +440,21 @@ class PaymentController {
         return res.status(400).json({ message: 'Amount must be greater than 0' });
       }
 
+      let vehicleId = null;
+      const incomingVehicle = String(vehicle || vehicleNumber || '').trim().toUpperCase();
+      if (incomingVehicle) {
+        const foundVehicle = await VehicleModel.getVehicleByRegistration(incomingVehicle);
+        vehicleId = foundVehicle?.id || null;
+      }
+
+      // Auto-assign the active vehicle for this route if none specified
+      if (!vehicleId) {
+        const activeVehicle = await VehicleModel.getActiveVehicleForRoute(Number(routeId));
+        vehicleId = activeVehicle?.id || null;
+      }
+
       // Create payment record
-      const payment = await PaymentModel.initiatePayment(userId, routeId, amount, phoneNumber);
+      const payment = await PaymentModel.initiatePayment(userId, routeId, amount, phoneNumber, vehicleId);
 
       // Simulate M-Pesa STK Push (no real funds)
       // In real scenario, this would trigger an actual M-Pesa STK prompt
@@ -469,6 +482,7 @@ class PaymentController {
       try {
         const whatsappResult = await WhatsappService.sendPaymentConfirmation(phoneNumber, {
           routeName: `Route ${routeId}`,
+          vehicleNumber: incomingVehicle || undefined,
           amount: amount,
           transactionId: simulatedTransactionId
         });
