@@ -72,16 +72,58 @@ const initializeTables = async () => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
+const HTTPS_ENABLED = process.env.ENABLE_HTTPS === 'true';
 
-const server = app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`\n🚀 MatatuConnect Server Running`);
-  console.log(`📡 URL: http://localhost:${PORT}`);
-  console.log(`📡 Network: http://0.0.0.0:${PORT}`);
-  console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}\n`);
+let server;
 
-  // Initialize database
-  await initializeTables();
+if (HTTPS_ENABLED) {
+  // HTTPS mode (optional - for production-like testing)
+  const https = require('https');
+  const fs = require('fs');
+  const path = require('path');
+  
+  const certDir = path.join(__dirname, '.cert');
+  const certPath = path.join(certDir, 'cert.pem');
+  const keyPath = path.join(certDir, 'key.pem');
+  
+  if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+    const httpsOptions = {
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath)
+    };
+    
+    server = https.createServer(httpsOptions, app);
+    server.listen(PORT, '0.0.0.0', async () => {
+      console.log(`\n🚀 MatatuConnect Server Running (HTTPS)`);
+      console.log(`📡 URL: https://localhost:${PORT}`);
+      console.log(`📡 Network: https://0.0.0.0:${PORT}`);
+      console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}\n`);
+      await initializeTables();
+    });
+  } else {
+    console.error('\n❌ HTTPS certificates not found!');
+    console.error(`Expected certificates in: ${certDir}`);
+    console.error('Run: npm run setup:https in the frontend directory');
+    console.error('Or set ENABLE_HTTPS=false to use HTTP\n');
+    process.exit(1);
+  }
+} else {
+  // HTTP mode (default - simpler development)
+  server = app.listen(PORT, '0.0.0.0', async () => {
+    console.log(`\n🚀 MatatuConnect Server Running`);
+    console.log(`📡 URL: http://localhost:${PORT}`);
+    console.log(`📡 Network: http://0.0.0.0:${PORT}`);
+    console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}\n`);
+    await initializeTables();
+  });
+}
 
+// Initialize Socket.IO after server is created
+(async () => {
+  if (HTTPS_ENABLED) {
+    await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for HTTPS
+  }
+  
   // Initialize Socket.IO for real-time updates
   try {
     const { Server } = require('socket.io');
