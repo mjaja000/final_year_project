@@ -42,6 +42,7 @@ const initializeTables = async () => {
     const MessageModel = require('./src/models/messageModel');
     const LostAndFoundModel = require('./src/models/lostAndFoundModel');
     const SessionModel = require('./src/models/sessionModel');
+    const CustomerLocationModel = require('./src/models/customerLocationModel');
     const { createReportsTable } = require('./src/migrations/createReportsTable');
     const { createVehicleLocationsTable } = require('./src/migrations/createVehicleLocationsTable');
     const SaccoSettingsModel = require('./src/models/saccoSettingsModel');
@@ -62,6 +63,7 @@ const initializeTables = async () => {
     await createReportsTable();
     await LostAndFoundModel.createTable();
     await createVehicleLocationsTable();
+    await CustomerLocationModel.createTable();
     await SaccoSettingsModel.createTable();
 
     console.log('✓ All database tables initialized successfully');

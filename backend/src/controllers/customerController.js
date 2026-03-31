@@ -1,4 +1,4 @@
-const db = require('../config/database');
+const CustomerLocationModel = require('../models/customerLocationModel');
 
 // Store customer locations in memory for real-time tracking
 const customerLocations = new Map();
@@ -18,6 +18,7 @@ exports.saveLocation = async (req, res) => {
     // For now, use a combination of IP and timestamp
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
     const customerId = `customer_${clientIp}_${new Date().getHours()}`;
+    const userAgent = req.get('user-agent') || null;
 
     // Store location in memory
     customerLocations.set(customerId, {
@@ -27,18 +28,16 @@ exports.saveLocation = async (req, res) => {
       clientIp
     });
 
-    // Optionally save to database for historical tracking
+    // Save to database for historical tracking
     try {
-      await db.query(
-        `INSERT INTO customer_locations (latitude, longitude, recorded_at, client_ip)
-         VALUES ($1, $2, $3, $4)`,
-        [parseFloat(latitude), parseFloat(longitude), new Date(), clientIp]
-      ).catch(err => {
-        // Table might not exist, continue anyway
-        console.log('customer_locations table not available:', err.message);
-      });
+      await CustomerLocationModel.saveLocation(
+        latitude,
+        longitude,
+        clientIp,
+        userAgent
+      );
     } catch (dbError) {
-      console.log('Database save attempt:', dbError.message);
+      console.log('Database save error (non-critical):', dbError.message);
     }
 
     res.json({
