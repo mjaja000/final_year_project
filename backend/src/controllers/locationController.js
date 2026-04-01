@@ -9,7 +9,7 @@ const vehicleLocations = new Map();
  */
 exports.updateLocation = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.userId || req.user?.id; // Support both formats
     const { latitude, longitude, status, accuracy } = req.body;
 
     if (!userId) {

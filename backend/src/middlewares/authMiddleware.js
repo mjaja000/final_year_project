@@ -35,6 +35,13 @@ const authMiddleware = async (req, res, next) => {
     req.userEmail = decoded.email;
     req.userRole = decoded.role;
     req.token = token;
+    
+    // Also set req.user for compatibility with controllers expecting this format
+    req.user = {
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role
+    };
 
     next();
   } catch (error) {
