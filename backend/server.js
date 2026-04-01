@@ -45,6 +45,7 @@ const initializeTables = async () => {
     const CustomerLocationModel = require('./src/models/customerLocationModel');
     const { createReportsTable } = require('./src/migrations/createReportsTable');
     const { createVehicleLocationsTable } = require('./src/migrations/createVehicleLocationsTable');
+    const { addAssignedVehicleIdColumn } = require('./src/migrations/addAssignedVehicleId');
     const SaccoSettingsModel = require('./src/models/saccoSettingsModel');
 
     // Create tables in dependency order
@@ -52,6 +53,10 @@ const initializeTables = async () => {
     await SessionModel.createTable();
     await RouteModel.createTable();
     await VehicleModel.createTable();
+    
+    // Run migration to add assigned_vehicle_id column
+    await addAssignedVehicleIdColumn();
+    
     await DriverModel.createTable();
     await TripModel.createTable();
     await BookingModel.createTable();
