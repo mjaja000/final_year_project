@@ -763,31 +763,21 @@ export default function DriverDashboard() {
                       <span className="text-slate-500 text-lg">/ {effectiveCapacity}</span>
                       {isFull && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">FULL</span>}
                     </div>
-                    {/* +/- controls for driver to adjust (e.g. passenger got off) */}
+                    {/* Remove passenger control */}
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="flex-1 min-w-0 border-red-300 text-red-700 hover:bg-red-50 text-xs sm:text-sm"
+                        className="w-full border-red-300 text-red-700 hover:bg-red-50 text-xs sm:text-sm"
                         onClick={() => adjustOccupancy('decrement')}
                         disabled={effectiveOccupancy <= 0}
                       >
                         <Minus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 flex-shrink-0" />
                         <span className="truncate">Passenger Off</span>
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 min-w-0 border-green-400 text-green-700 hover:bg-green-50 text-xs sm:text-sm"
-                        onClick={() => adjustOccupancy('increment')}
-                        disabled={isFull}
-                      >
-                        <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 flex-shrink-0" />
-                        <span className="truncate">Add Passenger</span>
-                      </Button>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-2">
-                      Use "Add Passenger" and "Passenger Off" to keep live occupancy in sync for this vehicle.
+                      Click "Passenger Off" when a passenger alights from the vehicle.
                     </p>
                   </div>
                 </div>

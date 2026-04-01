@@ -1,39 +1,64 @@
-const axios = require('axios');
+const twilio = require('twilio');
 
 class SmsService {
   constructor() {
-    this.apiKey = process.env.AFRICAS_TALKING_API_KEY;
-    this.apiUsername = process.env.AFRICAS_TALKING_USERNAME || 'sandbox';
-    this.baseUrl = 'https://api.sandbox.africastalking.com/version1/messaging';
+    this.accountSid = process.env.TWILIO_ACCOUNT_SID;
+    this.authToken = process.env.TWILIO_AUTH_TOKEN;
+    this.smsSenderNumber = process.env.TWILIO_SMS_NUMBER || process.env.TWILIO_PHONE_NUMBER || null;
+    this.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID || null;
+    
+    if (this.accountSid && this.authToken) {
+      this.client = twilio(this.accountSid, this.authToken);
+    }
   }
 
   async sendSms(phoneNumber, message) {
     try {
-      // Format phone number to international format if needed
+      if (!this.client) {
+        throw new Error('Twilio SMS credentials not configured. Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN');
+      }
+
+      if (!this.smsSenderNumber && !this.messagingServiceSid) {
+        throw new Error('Twilio SMS sender not configured. Set TWILIO_SMS_NUMBER (recommended) or TWILIO_MESSAGING_SERVICE_SID.');
+      }
+
       const formattedPhone = this.formatPhoneNumber(phoneNumber);
+      const requestPayload = {
+        body: message,
+        to: formattedPhone,
+      };
 
-      // Prepare form data
-      const data = new URLSearchParams();
-      data.append('username', this.apiUsername);
-      data.append('to', formattedPhone);
-      data.append('message', message);
+      if (this.messagingServiceSid) {
+        requestPayload.messagingServiceSid = this.messagingServiceSid;
+      } else {
+        requestPayload.from = this.smsSenderNumber;
+      }
 
-      const response = await axios.post(
-        this.baseUrl,
-        data,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'apiKey': this.apiKey,
-          },
-        }
-      );
+      const response = await this.client.messages.create(requestPayload);
 
-      console.log('SMS sent successfully:', response.data);
-      return response.data;
+      console.log('✓ SMS sent successfully via Twilio:', { 
+        sid: response.sid, 
+        to: formattedPhone, 
+        status: response.status 
+      });
+      
+      return { 
+        success: true, 
+        messageId: response.sid, 
+        status: response.status 
+      };
     } catch (error) {
-      console.error('SMS sending error:', error.response?.data || error.message);
+      if (String(error.message || '').includes("Mismatch between the 'From' number")) {
+        throw new Error(
+          `Twilio sender mismatch: ${this.smsSenderNumber} is not in account ${this.accountSid}. Use a Twilio number from this same account, or set TWILIO_MESSAGING_SERVICE_SID.`
+        );
+      }
+      if (String(error.message || '').includes('Trial accounts cannot send messages to unverified numbers')) {
+        throw new Error(
+          'Twilio trial restriction: recipient number is not verified. Verify the destination number in Twilio Console or upgrade the account to send SMS to unverified numbers.'
+        );
+      }
+      console.error('❌ SMS sending error via Twilio:', error.message);
       throw error;
     }
   }
@@ -55,7 +80,7 @@ class SmsService {
 
   formatPhoneNumber(phoneNumber) {
     // Remove any non-digit characters except +
-    let cleaned = phoneNumber.replace(/[^\d+]/g, '');
+    let cleaned = String(phoneNumber || '').replace(/[^\d+]/g, '');
     
     // If it doesn't start with +, assume it's a Kenya number
     if (!cleaned.startsWith('+')) {

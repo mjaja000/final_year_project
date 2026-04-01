@@ -428,9 +428,10 @@ class FeedbackController {
         vehicleNumber: feedback.vehicle_registration,
         routeName: feedback.route_name,
       });
+      const destinationPhone = phoneNumber || feedback.phone_number;
 
       // Send WhatsApp notification
-      const whatsappResult = await WhatsappService.sendFeedbackConfirmation(phoneNumber || feedback.phone_number, {
+      const whatsappResult = await WhatsappService.sendFeedbackConfirmation(destinationPhone, {
         feedbackType: feedback.feedback_type,
         routeName: feedback.route_name,
         vehicleReg: feedback.vehicle_registration,
@@ -439,16 +440,33 @@ class FeedbackController {
         category: classification.category,
       });
 
+      // Send SMS confirmation together with WhatsApp.
+      await SmsService.sendSms(
+        destinationPhone,
+        `MatatuConnect: ${feedback.feedback_type} received. Ref: ${feedback.id}. Route: ${feedback.route_name || 'N/A'}.`
+      );
+
+      if (whatsappResult?.success === false && (whatsappResult.needsJoin || whatsappResult.code === 63007)) {
+        await SmsService.sendSms(
+          destinationPhone,
+          'MatatuConnect: To receive WhatsApp alerts, send "join break-additional" to +14155238886 on WhatsApp.'
+        );
+      }
+
       // If NTSA-forwarded, send additional notification
       if (classification.shouldForwardToNTSA) {
         try {
-          await WhatsappService.sendNTSAForwardNotification(phoneNumber || feedback.phone_number, {
+          await WhatsappService.sendNTSAForwardNotification(destinationPhone, {
             feedbackId: feedback.id,
             category: classification.category,
             priority: classification.priority,
             vehicleReg: feedback.vehicle_registration,
             routeName: feedback.route_name,
           });
+          await SmsService.sendSms(
+            destinationPhone,
+            `MatatuConnect: Your report ${feedback.id} has been escalated to NTSA (${classification.priority}).`
+          );
         } catch (ntsaError) {
           console.warn('Failed to send NTSA notification:', ntsaError.message);
         }

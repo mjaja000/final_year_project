@@ -1,4 +1,5 @@
 const LostAndFoundModel = require('../models/lostAndFoundModel');
+const SmsService = require('../services/smsService');
 const WhatsappService = require('../services/whatsappService');
 
 class LostAndFoundController {
@@ -49,6 +50,10 @@ class LostAndFoundController {
         messageId: null,
         joinInstructions: null,
       };
+      let smsStatus = {
+        sent: false,
+        error: null,
+      };
 
       // Send WhatsApp confirmation to customer
       try {
@@ -80,11 +85,23 @@ class LostAndFoundController {
         // Don't fail the API response - report is already created
       }
 
+      // Send SMS confirmation together with WhatsApp so customer receives notification on both channels.
+      try {
+        const smsMessage = `MatatuConnect: Lost item report received. Report ID: ${report.id}. Item: ${report.item_description}. We will contact you with updates.`;
+        await SmsService.sendSms(phoneNumber, smsMessage);
+        smsStatus.sent = true;
+      } catch (smsError) {
+        smsStatus.sent = false;
+        smsStatus.error = smsError.message;
+        console.error('Failed to send Lost and Found SMS confirmation:', smsError.message);
+      }
+
       res.status(201).json({
         success: true,
         message: 'Lost item report submitted successfully',
         data: report,
         whatsapp: whatsappStatus,
+        sms: smsStatus,
       });
     } catch (error) {
       console.error('Error creating lost and found report:', error);
