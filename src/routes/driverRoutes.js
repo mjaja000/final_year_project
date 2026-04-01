@@ -43,6 +43,7 @@ router.get('/public', DriverController.listDriversPublic);
 router.post('/', authMiddleware, adminOnly, DriverController.createDriver);
 router.get('/', authMiddleware, adminOnly, DriverController.listDrivers);
 router.post('/assign', authMiddleware, adminOnly, DriverController.assignVehicle);
+router.get('/:userId/assignment-status', authMiddleware, adminOnly, DriverController.getDriverAssignmentStatus);
 // Update or delete specific driver (by user id)
 router.put('/:userId', authMiddleware, adminOnly, DriverController.updateDriver);
 router.delete('/:userId', authMiddleware, adminOnly, DriverController.deleteDriver);

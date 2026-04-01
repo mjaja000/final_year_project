@@ -18,7 +18,10 @@ exports.updateLocation = async (req, res) => {
 
     // Pull driver identity for live-map payload and assigned vehicle guardrails.
     const driverResult = await db.query(
-      'SELECT id, name, assigned_vehicle_id FROM users WHERE id = $1 AND role = $2',
+      `SELECT u.id, u.name, d.assigned_vehicle_id
+       FROM users u
+       LEFT JOIN drivers d ON d.user_id = u.id
+       WHERE u.id = $1 AND u.role = $2`,
       [userId, 'driver']
     );
 

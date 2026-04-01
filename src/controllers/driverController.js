@@ -4,6 +4,40 @@ const ActivityLogModel = require('../models/activityLogModel');
 const VehicleModel = require('../models/vehicleModel');
 
 class DriverController {
+  static async getDriverAssignmentStatus(req, res) {
+    try {
+      const userId = parseInt(req.params.userId, 10);
+      if (!userId) return res.status(400).json({ message: 'Invalid userId' });
+
+      const driver = await DriverModel.getDriverByUserId(userId);
+      if (!driver) {
+        return res.status(404).json({ message: 'Driver not found' });
+      }
+
+      const hasVehicleAssigned = Boolean(driver.assigned_vehicle_id);
+
+      return res.json({
+        message: 'Driver assignment status fetched',
+        assignment: {
+          user_id: driver.user_id,
+          driver_id: driver.id,
+          driver_name: driver.name,
+          driver_email: driver.email,
+          assigned_vehicle_id: driver.assigned_vehicle_id || null,
+          vehicle_registration: driver.vehicle_reg || null,
+          route_id: driver.route_id || null,
+          route_name: driver.route_name || null,
+          start_location: driver.start_location || null,
+          end_location: driver.end_location || null,
+          has_vehicle_assigned: hasVehicleAssigned,
+        },
+      });
+    } catch (error) {
+      console.error('Get driver assignment status error:', error.message);
+      return res.status(500).json({ message: 'Failed to fetch driver assignment status', error: error.message });
+    }
+  }
+
   // Resolves the driver's currently assigned vehicle and best matching active trip.
   static async getAssignedDriverAndTrip(userId) {
     const driver = await DriverModel.getDriverByUserId(userId);
