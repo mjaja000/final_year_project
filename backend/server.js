@@ -67,6 +67,10 @@ const initializeTables = async () => {
     await SaccoSettingsModel.createTable();
 
     console.log('✓ All database tables initialized successfully');
+    
+    // Restore recent vehicle locations to in-memory cache
+    const locationController = require('./src/controllers/locationController');
+    await locationController.restoreVehicleLocationsFromDB();
   } catch (error) {
     console.error('✗ Error initializing database tables:', error.message);
   }
