@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: matatuconnect-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: 5432
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL
+        value: require
+      - key: DB_CHANNEL_BINDING
+        value: require
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: CORS_ORIGIN
+        sync: false
+
+  - type: static
+    name: matatuconnect-frontend
+    rootDir: frontend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: true
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
