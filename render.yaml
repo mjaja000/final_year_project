@@ -1,0 +1,66 @@
+# Render Blueprint Configuration for MatatuConnect
+
+databases:
+  - name: matatuconnect-db
+    databaseName: matatuconnect
+    user: postgres
+    plan: standard
+    version: "15"
+
+services:
+  - type: web
+    name: matatuconnect-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        fromDatabase:
+          name: matatuconnect-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: matatuconnect-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: matatuconnect-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: matatuconnect-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: matatuconnect-db
+          property: password
+      - key: DB_SSL
+        value: require
+      - key: DB_CHANNEL_BINDING
+        value: require
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: CORS_ORIGIN
+        value: https://matatuconnect-frontend.onrender.com
+
+staticSites:
+  - name: matatuconnect-frontend
+    rootDir: frontend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    publishPath: dist
+    pullRequestPreviewsEnabled: true
+    envVars:
+      - key: VITE_API_URL
+        value: https://matatuconnect-backend.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
