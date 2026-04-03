@@ -5,11 +5,63 @@ const db = require('../config/database');
 const vehicleLocations = new Map();
 
 /**
+ * Restore vehicle locations from database on server startup
+ * This populates the in-memory cache with recent locations
+ */
+const restoreVehicleLocationsFromDB = async () => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        vl.vehicle_id,
+        vl.driver_id,
+        vl.latitude,
+        vl.longitude,
+        vl.accuracy,
+        vl.recorded_at,
+        u.name as driver_name,
+        v.registration_number,
+        v.vehicle_type
+      FROM vehicle_locations vl
+      JOIN users u ON u.id = vl.driver_id
+      JOIN vehicles v ON v.id = vl.vehicle_id
+      WHERE vl.recorded_at > NOW() - INTERVAL '2 hours'
+      ORDER BY vl.recorded_at DESC
+    `);
+    
+    // Add unique vehicles to the map (most recent location for each)
+    const added = new Set();
+    result.rows.forEach(row => {
+      if (!added.has(row.vehicle_id)) {
+        vehicleLocations.set(row.vehicle_id, {
+          id: row.vehicle_id,
+          driver_id: row.driver_id,
+          driver_name: row.driver_name,
+          latitude: parseFloat(row.latitude),
+          longitude: parseFloat(row.longitude),
+          accuracy: row.accuracy,
+          is_online: true, // Assume online if updated within last 2 hours
+          last_update: row.recorded_at,
+          registration_number: row.registration_number,
+          vehicle_type: row.vehicle_type
+        });
+        added.add(row.vehicle_id);
+      }
+    });
+    
+    if (result.rowCount > 0) {
+      console.log(`✓ Restored ${added.size} vehicle locations from database`);
+    }
+  } catch (error) {
+    console.log('Note: Could not restore vehicle locations from database:', error.message);
+  }
+};
+
+/**
  * Update driver/vehicle location
  */
 exports.updateLocation = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.userId || req.user?.id; // Support both formats
     const { latitude, longitude, status, accuracy } = req.body;
 
     if (!userId) {
@@ -45,7 +97,7 @@ exports.updateLocation = async (req, res) => {
         latitude: parseFloat(latitude),
         longitude: parseFloat(longitude),
         accuracy: accuracy || null,
-        is_online: status === 'online',
+        is_online: status !== 'offline', // Default to online if status not explicitly offline
         last_update: new Date().toISOString()
       });
 
@@ -258,3 +310,4 @@ exports.getNearbyVehicles = async (req, res) => {
 
 // Export vehicle locations map for use in socket events
 exports.vehicleLocations = vehicleLocations;
+exports.restoreVehicleLocationsFromDB = restoreVehicleLocationsFromDB;

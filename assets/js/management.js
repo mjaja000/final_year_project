@@ -2,7 +2,7 @@
    MATATUCONNECT MANAGEMENT DASHBOARD - FUNCTIONALITY
    ===================================================== */
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'https://final-year-project-wzom.onrender.com/api';
 const ADMIN_USERNAME = 'admin';
 const ADMIN_PASSWORD = 'admin';
 
@@ -124,7 +124,7 @@ function addWhatsAppJoinerToClients(joiner) {
 
 function initSocket() {
     if (socket || typeof io === 'undefined') return;
-    socket = io('http://localhost:5000');
+    socket = io('https://final-year-project-wzom.onrender.com');
 
     socket.on('connect', () => {
         socket.emit('join', 'admin');
@@ -1043,7 +1043,7 @@ function displayTableDetails() {
 // ===== SERVER STATUS =====
 async function checkServerStatus() {
     try {
-        const response = await fetch('http://localhost:5000/health');
+        const response = await fetch('https://final-year-project-wzom.onrender.com/health');
         if (response.ok) {
             document.getElementById('serverStatus').className = 'status-dot online';
             document.getElementById('serverText').textContent = 'Server: Online ✓';

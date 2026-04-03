@@ -42,8 +42,10 @@ const initializeTables = async () => {
     const MessageModel = require('./src/models/messageModel');
     const LostAndFoundModel = require('./src/models/lostAndFoundModel');
     const SessionModel = require('./src/models/sessionModel');
+    const CustomerLocationModel = require('./src/models/customerLocationModel');
     const { createReportsTable } = require('./src/migrations/createReportsTable');
     const { createVehicleLocationsTable } = require('./src/migrations/createVehicleLocationsTable');
+    const { addAssignedVehicleIdColumn } = require('./src/migrations/addAssignedVehicleId');
     const SaccoSettingsModel = require('./src/models/saccoSettingsModel');
 
     // Create tables in dependency order
@@ -51,6 +53,10 @@ const initializeTables = async () => {
     await SessionModel.createTable();
     await RouteModel.createTable();
     await VehicleModel.createTable();
+    
+    // Run migration to add assigned_vehicle_id column
+    await addAssignedVehicleIdColumn();
+    
     await DriverModel.createTable();
     await TripModel.createTable();
     await BookingModel.createTable();
@@ -62,9 +68,14 @@ const initializeTables = async () => {
     await createReportsTable();
     await LostAndFoundModel.createTable();
     await createVehicleLocationsTable();
+    await CustomerLocationModel.createTable();
     await SaccoSettingsModel.createTable();
 
     console.log('✓ All database tables initialized successfully');
+    
+    // Restore recent vehicle locations to in-memory cache
+    const locationController = require('./src/controllers/locationController');
+    await locationController.restoreVehicleLocationsFromDB();
   } catch (error) {
     console.error('✗ Error initializing database tables:', error.message);
   }
@@ -72,16 +83,58 @@ const initializeTables = async () => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
+const HTTPS_ENABLED = process.env.ENABLE_HTTPS === 'true';
 
-const server = app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`\n🚀 MatatuConnect Server Running`);
-  console.log(`📡 URL: http://localhost:${PORT}`);
-  console.log(`📡 Network: http://0.0.0.0:${PORT}`);
-  console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}\n`);
+let server;
 
-  // Initialize database
-  await initializeTables();
+if (HTTPS_ENABLED) {
+  // HTTPS mode (optional - for production-like testing)
+  const https = require('https');
+  const fs = require('fs');
+  const path = require('path');
+  
+  const certDir = path.join(__dirname, '.cert');
+  const certPath = path.join(certDir, 'cert.pem');
+  const keyPath = path.join(certDir, 'key.pem');
+  
+  if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+    const httpsOptions = {
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath)
+    };
+    
+    server = https.createServer(httpsOptions, app);
+    server.listen(PORT, '0.0.0.0', async () => {
+      console.log(`\n🚀 MatatuConnect Server Running (HTTPS)`);
+      console.log(`📡 URL: https://localhost:${PORT}`);
+      console.log(`📡 Network: https://0.0.0.0:${PORT}`);
+      console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}\n`);
+      await initializeTables();
+    });
+  } else {
+    console.error('\n❌ HTTPS certificates not found!');
+    console.error(`Expected certificates in: ${certDir}`);
+    console.error('Run: npm run setup:https in the frontend directory');
+    console.error('Or set ENABLE_HTTPS=false to use HTTP\n');
+    process.exit(1);
+  }
+} else {
+  // HTTP mode (default - simpler development)
+  server = app.listen(PORT, '0.0.0.0', async () => {
+    console.log(`\n🚀 MatatuConnect Server Running`);
+    console.log(`📡 URL: http://localhost:${PORT}`);
+    console.log(`📡 Network: http://0.0.0.0:${PORT}`);
+    console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}\n`);
+    await initializeTables();
+  });
+}
 
+// Initialize Socket.IO after server is created
+(async () => {
+  if (HTTPS_ENABLED) {
+    await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for HTTPS
+  }
+  
   // Initialize Socket.IO for real-time updates
   try {
     const { Server } = require('socket.io');
