@@ -36,7 +36,7 @@ import AdminMessages from '@/components/admin/AdminMessages';
 import WhatsAppChats from '@/components/admin/WhatsAppChats';
 import FeedbackManager from '@/components/admin/FeedbackManager';
 import ManualPayment from '@/components/admin/ManualPayment';
-import io from 'socket.io-client';
+import { createAppSocket } from '@/lib/socket';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import OccupancyDisplay from '@/components/OccupancyDisplay';
 import api from '@/lib/api';
@@ -390,9 +390,7 @@ const AdminDashboard = () => {
     refetchInterval: 15000,
   });
   useEffect(() => {
-    const socket = API_BASE
-      ? io(API_BASE, { transports: ['websocket', 'polling'] })
-      : io();
+    const socket = createAppSocket();
 
     socket.on('connect', () => {
       socket.emit('join', 'admin');

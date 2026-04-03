@@ -1,0 +1,325 @@
+const UserModel = require('../models/userModel');
+const SessionModel = require('../models/sessionModel');
+const jwt = require('jsonwebtoken');
+
+class AuthController {
+  // Register
+  static async register(req, res) {
+    try {
+      const { name, email, phone, password, confirmPassword } = req.body;
+
+      // Validation
+      if (!name || !email || !phone || !password) {
+        return res.status(400).json({ message: 'All fields are required' });
+      }
+
+      if (password !== confirmPassword) {
+        return res.status(400).json({ message: 'Passwords do not match' });
+      }
+
+      // Check if user exists
+      const existingUser = await UserModel.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(409).json({ message: 'Email already registered' });
+      }
+
+      // Register user
+      const user = await UserModel.register(name, email, phone, password);
+
+      res.status(201).json({
+        message: 'User registered successfully',
+        user,
+      });
+    } catch (error) {
+      console.error('Registration error:', error);
+      res.status(500).json({ message: 'Registration failed', error: error.message });
+    }
+  }
+
+  // Login
+  static async login(req, res) {
+    try {
+      const { email, identifier, username, password } = req.body;
+      const loginIdentifier = (identifier || email || username || '').trim();
+
+      if (!loginIdentifier || !password) {
+        return res.status(400).json({ message: 'Username/email and password are required' });
+      }
+
+      // Get user by email or username
+      const user = await UserModel.getUserByIdentifier(loginIdentifier);
+      if (!user) {
+        return res.status(401).json({ message: 'Invalid username/email or password' });
+      }
+
+      // Verify password
+      const isPasswordValid = await UserModel.verifyPassword(password, user.password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: 'Invalid username/email or password' });
+      }
+
+      // Build JWT expiry metadata once and reuse for both token and persisted session.
+      const expiresIn = process.env.JWT_EXPIRE || '7d';
+      const expiresInMS = AuthController.parseExpireTime(expiresIn);
+      const expiresAt = new Date(Date.now() + expiresInMS);
+
+      // Generate token
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn }
+      );
+
+      // Get device info and IP address
+      const deviceInfo = req.headers['user-agent'] || 'Unknown Device';
+      const ipAddress = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+
+      // Save session state in DB so middleware can enforce single-device rules for drivers.
+      await SessionModel.saveSession(user.id, token, deviceInfo, ipAddress, expiresAt, user.role);
+
+      // Check if was logged in from another device (only relevant for drivers)
+      const oldSessions = await SessionModel.getUserSessions(user.id);
+      const isNewDevice = user.role === 'driver' && oldSessions.filter(s => s.is_active).length === 1; // Only current session is active
+
+      res.json({
+        message: 'Login successful',
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+        info: isNewDevice ? 'Previous session ended as you logged in from a new device' : null
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).json({ message: 'Login failed', error: error.message });
+    }
+  }
+
+  // Helper to parse expiration time
+  static parseExpireTime(expiresIn) {
+    if (typeof expiresIn === 'number') return expiresIn * 1000; // seconds to ms
+    
+    const units = { d: 86400000, h: 3600000, m: 60000, s: 1000 };
+    const match = String(expiresIn).match(/^(\d+)([dhms])$/);
+    if (!match) return 7 * 86400000; // default 7 days
+    return parseInt(match[1]) * units[match[2]];
+  }
+
+  // Get profile
+  static async getProfile(req, res) {
+    try {
+      const userId = req.userId;
+      const user = await UserModel.getUserById(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      // If user is a driver, fetch driver details including assigned vehicle
+      if (user.role === 'driver') {
+        try {
+          const DriverModel = require('../models/driverModel');
+          const driverDetails = await DriverModel.getDriverByUserId(userId);
+          if (driverDetails) {
+            // Merge driver details with user data
+            user.assigned_vehicle_id = driverDetails.assigned_vehicle_id;
+            user.vehicle_reg = driverDetails.vehicle_reg;
+            user.driving_license = driverDetails.driving_license;
+            user.driver_status = driverDetails.status;
+            user.route_id = driverDetails.route_id;
+            user.route_name = driverDetails.route_name;
+            user.start_location = driverDetails.start_location;
+            user.end_location = driverDetails.end_location;
+          }
+        } catch (driverError) {
+          console.error('Error fetching driver details:', driverError.message);
+          // Continue without driver details
+        }
+      }
+
+      res.json({ message: 'Profile fetched', user });
+    } catch (error) {
+      console.error('Get profile error:', error);
+      res.status(500).json({ message: 'Failed to fetch profile', error: error.message });
+    }
+  }
+
+  // Update profile
+  static async updateProfile(req, res) {
+    try {
+      const userId = req.userId;
+      const { name, phone } = req.body;
+      const profileImage = req.file ? req.file.path : null;
+
+      const updatedUser = await UserModel.updateUser(userId, name, phone, profileImage);
+
+      res.json({
+        message: 'Profile updated successfully',
+        user: updatedUser,
+      });
+    } catch (error) {
+      console.error('Update profile error:', error);
+      res.status(500).json({ message: 'Failed to update profile', error: error.message });
+    }
+  }
+
+  // Change password
+  static async changePassword(req, res) {
+    try {
+      const userId = req.userId;
+      const { currentPassword, newPassword, confirmPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: 'All fields are required' });
+      }
+
+      if (newPassword !== confirmPassword) {
+        return res.status(400).json({ message: 'Passwords do not match' });
+      }
+
+      // Get user and verify current password
+      const user = await UserModel.getUserByEmail(req.userEmail);
+      const isPasswordValid = await UserModel.verifyPassword(currentPassword, user.password);
+
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: 'Current password is incorrect' });
+      }
+
+      // Update password
+      await UserModel.changePassword(userId, newPassword);
+
+      res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+      console.error('Change password error:', error);
+      res.status(500).json({ message: 'Failed to change password', error: error.message });
+    }
+  }
+
+  // Logout
+  static async logout(req, res) {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      
+      if (token) {
+        // Invalidate the session
+        await SessionModel.invalidateSession(token);
+      }
+      
+      res.json({ message: 'Logged out successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Logout failed', error: error.message });
+    }
+  }
+
+  // Demo admin login: used by the demo admin UI to obtain a JWT
+  static async demoLogin(req, res) {
+    try {
+      const demoEnabled = String(process.env.ENABLE_DEMO_LOGIN || 'false').toLowerCase() === 'true';
+      if (!demoEnabled) {
+        return res.status(403).json({ message: 'Demo login is disabled' });
+      }
+
+      const DEMO_EMAIL = process.env.DEMO_ADMIN_EMAIL;
+      const DEMO_PASSWORD = process.env.DEMO_ADMIN_PASSWORD;
+      if (!DEMO_EMAIL || !DEMO_PASSWORD) {
+        return res.status(500).json({ message: 'Demo login is misconfigured' });
+      }
+
+      const { email, password } = req.body;
+
+      if (email !== DEMO_EMAIL || password !== DEMO_PASSWORD) {
+        return res.status(401).json({ message: 'Invalid demo credentials' });
+      }
+
+      // Ensure admin user exists; if not create one
+      const bcrypt = require('bcryptjs');
+      const pool = require('../config/database');
+      let adminUser = await UserModel.getUserByEmail(DEMO_EMAIL);
+      if (!adminUser) {
+        // create admin user with demo password
+        const hashed = await bcrypt.hash(DEMO_PASSWORD, 10);
+        const insert = `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, 'admin') RETURNING *;`;
+        const r = await pool.query(insert, ['Demo Admin', DEMO_EMAIL, hashed]);
+        adminUser = r.rows[0];
+      } else {
+        // Sync role and password with env vars to prevent login drift
+        const passwordMatches = await bcrypt.compare(DEMO_PASSWORD, adminUser.password);
+        if (adminUser.role !== 'admin' || !passwordMatches) {
+          const hashed = await bcrypt.hash(DEMO_PASSWORD, 10);
+          await pool.query('UPDATE users SET role = $1, password = $2 WHERE id = $3', ['admin', hashed, adminUser.id]);
+        }
+      }
+
+      const token = jwt.sign({ id: adminUser.id, email: adminUser.email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
+
+      res.json({ message: 'Demo login successful', token, user: { id: adminUser.id, email: adminUser.email, role: 'admin' } });
+    } catch (error) {
+      console.error('Demo login error:', error);
+      res.status(500).json({ message: 'Demo login failed', error: error.message });
+    }
+  }
+
+  // Demo driver login: used by the demo driver UI to obtain a JWT
+  static async demoDriverLogin(req, res) {
+    try {
+      const demoEnabled = String(process.env.ENABLE_DEMO_DRIVER_LOGIN || 'false').toLowerCase() === 'true';
+      if (!demoEnabled) {
+        return res.status(403).json({ message: 'Demo driver login is disabled' });
+      }
+
+      const DEMO_USERNAME = process.env.DEMO_DRIVER_USERNAME;
+      const DEMO_PASSWORD = process.env.DEMO_DRIVER_PASSWORD;
+      if (!DEMO_USERNAME || !DEMO_PASSWORD) {
+        return res.status(500).json({ message: 'Demo driver login is misconfigured' });
+      }
+
+      const { identifier, password } = req.body;
+
+      if (identifier !== DEMO_USERNAME || password !== DEMO_PASSWORD) {
+        return res.status(401).json({ message: 'Invalid demo credentials' });
+      }
+
+      // Ensure demo driver user exists; if not create one
+      const bcrypt = require('bcryptjs');
+      const pool = require('../config/database');
+      const DriverModel = require('../models/driverModel');
+      
+      let driverUser = await UserModel.getUserByIdentifier(DEMO_USERNAME);
+      if (!driverUser) {
+        // Create demo driver user
+        const hashed = await bcrypt.hash(DEMO_PASSWORD, 10);
+        const insert = `INSERT INTO users (name, email, username, password, role) VALUES ($1, $2, $3, $4, 'driver') RETURNING *;`;
+        const r = await pool.query(insert, ['Demo Driver', 'demo-driver@matatuconnect.test', DEMO_USERNAME, hashed]);
+        driverUser = r.rows[0];
+        
+        // Create driver profile if not exists
+        const existingDriver = await DriverModel.getDriverByUserId(driverUser.id);
+        if (!existingDriver) {
+          await pool.query(
+            `INSERT INTO drivers (user_id, driving_license, status) VALUES ($1, $2, $3)`,
+            [driverUser.id, 'DEMO-LICENSE-0007', 'active']
+          );
+        }
+      } else {
+        // Sync role and password with env vars
+        const passwordMatches = await bcrypt.compare(DEMO_PASSWORD, driverUser.password);
+        if (driverUser.role !== 'driver' || !passwordMatches) {
+          const hashed = await bcrypt.hash(DEMO_PASSWORD, 10);
+          await pool.query('UPDATE users SET role = $1, password = $2 WHERE id = $3', ['driver', hashed, driverUser.id]);
+        }
+      }
+
+      const token = jwt.sign({ id: driverUser.id, email: driverUser.email, role: 'driver' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
+
+      res.json({ message: 'Demo driver login successful', token, user: { id: driverUser.id, email: driverUser.email, role: 'driver' } });
+    } catch (error) {
+      console.error('Demo driver login error:', error);
+      res.status(500).json({ message: 'Demo driver login failed', error: error.message });
+    }
+  }
+}
+
+module.exports = AuthController;

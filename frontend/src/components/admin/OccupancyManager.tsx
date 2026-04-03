@@ -13,7 +13,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import api from "@/lib/api";
-import io from 'socket.io-client';
+import { createAppSocket } from '@/lib/socket';
+
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 interface RouteRecord {
   id: number;
@@ -132,7 +134,7 @@ const OccupancyManager = ({ station = '' }: { station?: string }) => {
 
   // Socket: listen for booking.created events and refresh occupancy if relevant
   useEffect(() => {
-    const socket = io();
+    const socket = createAppSocket();
     socket.on('connect', () => {
       socket.emit('join', 'admin');
     });

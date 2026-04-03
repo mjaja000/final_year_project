@@ -13,7 +13,7 @@ import {
   AlertCircle,
   Navigation
 } from "lucide-react";
-import io from 'socket.io-client';
+import { createAppSocket } from '@/lib/socket';
 
 interface OccupancyOverviewProps {
   station?: string;
@@ -44,8 +44,7 @@ const OccupancyOverview = ({ station = '' }: OccupancyOverviewProps) => {
 
   // Setup socket for real-time updates
   useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_URL || '';
-    const newSocket = API_BASE ? io(API_BASE) : io();
+    const newSocket = createAppSocket();
     setSocket(newSocket);
 
     newSocket.on('occupancy:updated', () => {

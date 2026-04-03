@@ -30,4 +30,3 @@ services:
         generateValue: true
       - key: JWT_EXPIRE
         value: 7d
-

@@ -4,10 +4,10 @@ import { MapPin, Navigation, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import VehicleMap from './VehicleMap';
 import { useGeolocation, findNearestVehicle, calculateDistance } from '@/hooks/useGeolocation';
-import io from 'socket.io-client';
+import { createAppSocket } from '@/lib/socket';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
-const socket = API_BASE ? io(API_BASE) : io();
+const socket = createAppSocket();
 
 interface Vehicle {
   id: number;

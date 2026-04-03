@@ -1,20 +1,50 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import io from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
+import { createAppSocket } from '@/lib/socket';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+type DriverUser = {
+  id?: number;
+  user_id?: number;
+  name?: string;
+  username?: string;
+  status?: string;
+  is_online?: boolean;
+};
+
+type ChatMessage = {
+  id: number;
+  sender_id: number;
+  receiver_id: number;
+  message: string;
+  created_at: string;
+  is_read?: boolean;
+};
+
+type TypingEvent = {
+  senderId: number;
+  receiverId: number;
+  isTyping: boolean;
+};
+
+type PresenceEvent = {
+  userId: number;
+  isOnline: boolean;
+};
+
 export default function AdminMessages() {
   const { toast } = useToast();
-  const [drivers, setDrivers] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<DriverUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
-  const [selectedDriver, setSelectedDriver] = useState<any | null>(null);
-  const [conversation, setConversation] = useState<any[]>([]);
+  const [selectedDriver, setSelectedDriver] = useState<DriverUser | null>(null);
+  const [conversation, setConversation] = useState<ChatMessage[]>([]);
   const [messageText, setMessageText] = useState('');
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [presenceMap, setPresenceMap] = useState<Record<number, boolean>>({});
-  const socketRef = useRef<ReturnType<typeof io> | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const selectedUserRef = useRef<number | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
   const lastTypingRef = useRef(false);
@@ -25,22 +55,22 @@ export default function AdminMessages() {
   try {
     if (tokenStr) adminId = JSON.parse(decodeURIComponent(escape(atob(String(tokenStr).split('.')[1] || '')))).id;
   } catch (e) {
-    // ignore
+    console.warn('Unable to parse admin id from token', e);
   }
 
-  const fetchDrivers = async () => {
+  const fetchDrivers = useCallback(async () => {
     try {
       const res = await fetch(API_BASE + '/api/drivers', { headers: { Authorization: `Bearer ${tokenStr}` } });
       const data = await res.json();
       if (res.ok) setDrivers(data.drivers || []);
     } catch (e) {
-      // ignore
+      console.warn('Failed to fetch drivers for chat', e);
     }
-  };
+  }, [tokenStr]);
 
   useEffect(() => {
     fetchDrivers();
-  }, []);
+  }, [fetchDrivers]);
 
   useEffect(() => {
     selectedUserRef.current = selectedUser;
@@ -54,14 +84,15 @@ export default function AdminMessages() {
   }, [conversation, isOtherTyping, selectedUser]);
 
   useEffect(() => {
-    const socket = io();
+    // Socket keeps conversation and typing state fresh without polling.
+    const socket = createAppSocket();
     socketRef.current = socket;
 
     socket.on('connect', () => {
       if (adminId) socket.emit('chat.join', adminId);
     });
 
-    socket.on('chat.message', (m: any) => {
+    socket.on('chat.message', (m: ChatMessage) => {
       const currentSelected = selectedUserRef.current;
       if (currentSelected && (m.sender_id === currentSelected || m.receiver_id === currentSelected)) {
         setConversation((prev) => [...prev, m]);
@@ -69,7 +100,7 @@ export default function AdminMessages() {
       fetchDrivers();
     });
 
-    socket.on('chat.typing', (payload: any) => {
+    socket.on('chat.typing', (payload: TypingEvent) => {
       const currentSelected = selectedUserRef.current;
       if (!adminId || !currentSelected) return;
       if (payload.receiverId !== adminId) return;
@@ -78,7 +109,7 @@ export default function AdminMessages() {
       }
     });
 
-    socket.on('chat.presence', (payload: any) => {
+    socket.on('chat.presence', (payload: PresenceEvent) => {
       if (!payload || typeof payload.userId !== 'number') return;
       setPresenceMap((prev) => ({ ...prev, [payload.userId]: Boolean(payload.isOnline) }));
     });
@@ -89,7 +120,7 @@ export default function AdminMessages() {
       socket.off('chat.presence');
       socket.disconnect();
     };
-  }, [adminId]);
+  }, [adminId, fetchDrivers]);
 
   const emitTyping = (isTyping: boolean) => {
     if (!socketRef.current || !selectedUser || !adminId) return;
@@ -102,7 +133,7 @@ export default function AdminMessages() {
     lastTypingRef.current = isTyping;
   };
 
-  const openConversation = async (driver: any) => {
+  const openConversation = async (driver: DriverUser) => {
     const otherId = driver.user_id || driver.id;
     setSelectedUser(Number(otherId));
     setSelectedDriver(driver);
@@ -111,16 +142,19 @@ export default function AdminMessages() {
       const res = await fetch(API_BASE + `/api/messages/conversation?otherId=${otherId}`, { headers: { Authorization: `Bearer ${tokenStr}` } });
       const data = await res.json();
       if (res.ok) {
-        setConversation(data.messages || []);
+        const messages: ChatMessage[] = Array.isArray(data.messages) ? data.messages : [];
+        setConversation(messages);
         // mark unread messages addressed to admin as read
-        const unreadIds = (data.messages || []).filter((m: any) => m.receiver_id === adminId && !m.is_read).map((m: any) => m.id);
+        const unreadIds = messages.filter((m) => m.receiver_id === adminId && !m.is_read).map((m) => m.id);
         if (unreadIds.length > 0) {
           await fetch(API_BASE + '/api/messages/mark_read', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenStr}` }, body: JSON.stringify({ ids: unreadIds }) });
         }
         // refresh drivers list
         fetchDrivers();
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.warn('Failed to open driver conversation', e);
+    }
   };
 
   const sendMessage = async () => {
@@ -137,8 +171,9 @@ export default function AdminMessages() {
       } else {
         toast({ title: 'Failed', description: data.message || 'Could not send' });
       }
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message || 'Network error' });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Network error';
+      toast({ title: 'Error', description: message });
     }
   };
 
@@ -163,7 +198,7 @@ export default function AdminMessages() {
 
   const conversationRows = (() => {
     let lastDay = '';
-    const rows: Array<{ type: 'day' | 'msg'; day?: string; msg?: any }> = [];
+    const rows: Array<{ type: 'day' | 'msg'; day?: string; msg?: ChatMessage }> = [];
     conversation.forEach((m) => {
       const day = formatDayLabel(m.created_at);
       if (day !== lastDay) {
