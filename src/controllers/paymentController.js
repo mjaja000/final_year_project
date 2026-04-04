@@ -519,7 +519,7 @@ To get your ticket via WhatsApp:
   static async initiatePayment(req, res) {
     let paymentRecord = null;
     try {
-      const { phone, phoneNumber, amount = 50, vehicle, route, routeId } = req.body || {};
+      const { phone, phoneNumber, amount = 50, vehicle, route, routeId, route_id: routeIdSnake } = req.body || {};
       const normalizedPhone = normalizePhoneNumber(phone || phoneNumber);
 
       if (!normalizedPhone) {
@@ -531,7 +531,7 @@ To get your ticket via WhatsApp:
         return res.status(400).json({ message: 'Amount must be a positive number' });
       }
 
-      const parsedRouteId = Number(route || routeId);
+      const parsedRouteId = Number(route || routeId || routeIdSnake);
       if (!Number.isFinite(parsedRouteId) || parsedRouteId <= 0) {
         return res.status(400).json({ message: 'A valid route ID is required to initiate payment' });
       }
@@ -828,10 +828,11 @@ To get your ticket via WhatsApp:
     try {
       const io = req.app.get('io') || null;
       const userId = req.userId || null;
-      const { routeId, amount, distance = 0, phoneNumber, vehicle, vehicleNumber } = req.body;
+      const { routeId, route_id: routeIdSnake, amount, distance = 0, phoneNumber, vehicle, vehicleNumber } = req.body;
+      const parsedRouteId = Number(routeId || routeIdSnake);
 
       // Validate required fields
-      if (!routeId || !amount || !phoneNumber) {
+      if (!parsedRouteId || !amount || !phoneNumber) {
         return res.status(400).json({ 
           message: 'Missing required fields: routeId, amount, phoneNumber' 
         });
@@ -866,7 +867,7 @@ To get your ticket via WhatsApp:
 
       // Auto-assign the active vehicle for this route if none specified
       if (!vehicleId) {
-        const activeVehicle = await VehicleModel.getActiveVehicleForRoute(Number(routeId));
+        const activeVehicle = await VehicleModel.getActiveVehicleForRoute(parsedRouteId);
         vehicleId = activeVehicle?.id || null;
         if (!vehicleId) {
           return res.status(409).json({
@@ -877,7 +878,7 @@ To get your ticket via WhatsApp:
       }
 
       // Create payment record with distance
-      const payment = await PaymentModel.initiatePayment(userId, routeId, amount, phoneNumber, vehicleId, distance);
+      const payment = await PaymentModel.initiatePayment(userId, parsedRouteId, amount, phoneNumber, vehicleId, distance);
 
       // Simulate M-Pesa STK Push (no real funds)
       // In real scenario, this would trigger an actual M-Pesa STK prompt
@@ -916,7 +917,7 @@ To get your ticket via WhatsApp:
         if (ENABLE_AUTO_PAYMENT_WHATSAPP) {
           try {
             const whatsappResult = await WhatsappService.sendPaymentConfirmation(phoneNumber, {
-              routeName: `Route ${routeId}`,
+              routeName: `Route ${parsedRouteId}`,
               vehicleNumber: incomingVehicle || undefined,
               amount: amount,
               transactionId: simulatedTransactionId
