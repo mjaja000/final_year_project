@@ -40,6 +40,20 @@ type Route = {
   status?: string;
 };
 
+type DriverAssignmentStatus = {
+  user_id: number;
+  driver_id: number;
+  driver_name?: string | null;
+  driver_email?: string | null;
+  assigned_vehicle_id?: number | null;
+  vehicle_registration?: string | null;
+  route_id?: number | null;
+  route_name?: string | null;
+  start_location?: string | null;
+  end_location?: string | null;
+  has_vehicle_assigned: boolean;
+};
+
 export default function DriverManager() {
   const { toast } = useToast();
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -61,6 +75,8 @@ export default function DriverManager() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editModalLoading, setEditModalLoading] = useState(false);
   const [expandedAssignmentDriver, setExpandedAssignmentDriver] = useState<number | null>(null);
+  const [assignmentStatusByDriver, setAssignmentStatusByDriver] = useState<Record<number, DriverAssignmentStatus | null>>({});
+  const [assignmentStatusLoading, setAssignmentStatusLoading] = useState<Record<number, boolean>>({});
 
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('token');
@@ -88,7 +104,11 @@ export default function DriverManager() {
     try {
       const res = await fetch(API_BASE + '/api/drivers', { headers: { ...getAuthHeaders() } });
       const data = await res.json();
-      if (res.ok) setDrivers(data.drivers || []);
+      if (res.ok) {
+        setDrivers(data.drivers || []);
+        setAssignmentStatusByDriver({});
+        setAssignmentStatusLoading({});
+      }
       else toast({ title: 'Failed to load drivers', description: data.message || 'Error' });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error';
@@ -212,6 +232,7 @@ export default function DriverManager() {
         setAssignmentDrafts((prev) => ({ ...prev, [userId]: assignedVehicleValue }));
         fetchDrivers();
         fetchVehicles(); // Refresh to update assignment status
+        fetchDriverAssignmentStatus(userId);
       } else {
         toast({ title: 'Assignment update failed', description: data.message || data.error || 'Error', variant: 'destructive' });
       }
@@ -222,6 +243,27 @@ export default function DriverManager() {
       setLoading(false);
     }
   };
+
+  const fetchDriverAssignmentStatus = useCallback(async (userId: number) => {
+    if (!userId) return;
+    setAssignmentStatusLoading((prev) => ({ ...prev, [userId]: true }));
+    try {
+      const res = await fetch(API_BASE + `/api/drivers/${userId}/assignment-status`, {
+        headers: { ...getAuthHeaders() },
+      });
+      const data = await res.json();
+      if (res.ok && data?.assignment) {
+        setAssignmentStatusByDriver((prev) => ({ ...prev, [userId]: data.assignment }));
+      } else {
+        setAssignmentStatusByDriver((prev) => ({ ...prev, [userId]: null }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch assignment status:', error);
+      setAssignmentStatusByDriver((prev) => ({ ...prev, [userId]: null }));
+    } finally {
+      setAssignmentStatusLoading((prev) => ({ ...prev, [userId]: false }));
+    }
+  }, [getAuthHeaders]);
 
   const handleEditDriver = async (updates: { name?: string; phone?: string; driving_license?: string }) => {
     if (!editingDriver) return;
@@ -345,6 +387,15 @@ export default function DriverManager() {
     setSelectedDriverId(String(getDriverUserId(drivers[nextIndex])));
     setShowAllDrivers(false);
   };
+
+  useEffect(() => {
+    visibleDrivers.forEach((driver) => {
+      const userId = getDriverUserId(driver);
+      if (!userId) return;
+      if (assignmentStatusByDriver[userId] !== undefined || assignmentStatusLoading[userId]) return;
+      fetchDriverAssignmentStatus(userId);
+    });
+  }, [visibleDrivers, assignmentStatusByDriver, assignmentStatusLoading, fetchDriverAssignmentStatus]);
 
   return (
     <div className="space-y-8">
@@ -542,6 +593,12 @@ export default function DriverManager() {
         <div className="grid gap-2 mt-2">
           {visibleDrivers.map((d) => (
             <div key={d.id} className="p-3 bg-card rounded-lg border"> 
+              {(() => {
+                const rowUserId = Number(d.user_id || d.userId);
+                const assignmentStatus = assignmentStatusByDriver[rowUserId];
+                const isCheckingStatus = Boolean(assignmentStatusLoading[rowUserId]);
+                return (
+                  <>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-14 w-14 rounded-full overflow-hidden border bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
@@ -559,9 +616,32 @@ export default function DriverManager() {
                   <div>
                   <div className="font-medium">{d.username} — {d.name}</div>
                   <div className="text-sm text-muted-foreground">{d.email} {d.phone ? `• ${d.phone}` : ''}</div>
+                  <div className="mt-1 text-xs">
+                    {isCheckingStatus ? (
+                      <span className="text-muted-foreground">Checking assignment status...</span>
+                    ) : assignmentStatus?.has_vehicle_assigned ? (
+                      <span className="text-green-700">
+                        Assignment verified: {assignmentStatus.vehicle_registration || `Vehicle ID ${assignmentStatus.assigned_vehicle_id}`}
+                        {assignmentStatus.route_name ? ` on ${assignmentStatus.route_name}` : ''}
+                      </span>
+                    ) : (
+                      <span className="text-red-600">Assignment missing in backend</span>
+                    )}
+                  </div>
                   </div>
                 </div>
-                <div className="text-sm text-muted-foreground">Vehicle: {d.vehicle_reg || 'none'}</div>
+                <div className="text-right">
+                  <div className="text-sm text-muted-foreground">Vehicle: {d.vehicle_reg || 'none'}</div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => fetchDriverAssignmentStatus(rowUserId)}
+                    disabled={isCheckingStatus || !rowUserId}
+                  >
+                    {isCheckingStatus ? 'Checking...' : 'Recheck assignment'}
+                  </Button>
+                </div>
               </div>
 
               <div className="mt-3 flex items-center gap-2">
@@ -735,6 +815,10 @@ export default function DriverManager() {
                   </p>
                 </div>
               </div>
+
+                  </>
+                );
+              })()}
 
             </div>
           ))}

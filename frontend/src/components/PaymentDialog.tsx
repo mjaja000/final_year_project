@@ -1,13 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CreditCard, DollarSign, Loader2, Phone, Smartphone, History } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import React, { useState } from 'react';
+import { CreditCard, Smartphone, Loader2, CheckCircle2, X } from 'lucide-react';
+import api from '@/lib/api';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -15,8 +8,8 @@ interface PaymentDialogProps {
   vehicleId: number;
   routeId?: number;
   routeName?: string;
-  amount?: number;
-  onPaymentSuccess: () => void;
+  amount: number;
+  onPaymentSuccess?: () => void;
 }
 
 export default function PaymentDialog({
@@ -25,414 +18,211 @@ export default function PaymentDialog({
   vehicleId,
   routeId,
   routeName = 'Standard Route',
-  amount: initialAmount = 50,
-  onPaymentSuccess
+  amount,
+  onPaymentSuccess,
 }: PaymentDialogProps) {
-  const [paymentMethod, setPaymentMethod] = useState<'manual' | 'mpesa'>('manual');
-  const [loading, setLoading] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [distance, setDistance] = useState<number>(0);
-  const [adjustedAmount, setAdjustedAmount] = useState<number>(initialAmount);
-  const [previousPhones, setPreviousPhones] = useState<string[]>([]);
-  const [loadingPhones, setLoadingPhones] = useState(false);
-  const [showPhoneHistory, setShowPhoneHistory] = useState(false);
-  const { toast } = useToast();
-
-  // Calculate amount based on distance: 50 KES base + 5 KES per km
-  const calculateAmountFromDistance = (km: number) => {
-    const calculated = initialAmount + (km * 5);
-    setAdjustedAmount(Math.max(initialAmount, calculated));
-    return Math.max(initialAmount, calculated);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mpesa'>('cash');
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  const showToast = (title: string, description: string, variant: 'default' | 'destructive' = 'default') => {
+    alert(`${title}\n${description}`);
   };
 
-  // Fetch previous M-Pesa phone numbers
-  const fetchPreviousPhones = async () => {
-    setLoadingPhones(true);
+  const validatePhone = (phone: string): boolean => {
+    const digitsOnly = phone.replace(/\D/g, '');
+    
+    // Valid Kenyan formats: 07xxxxxxxx, 2547xxxxxxxx, 7xxxxxxxx
+    if (digitsOnly.startsWith('254') && digitsOnly.length === 12) return true;
+    if (digitsOnly.startsWith('0') && digitsOnly.length === 10) return true;
+    if (digitsOnly.startsWith('7') && digitsOnly.length === 9) return true;
+    
+    return false;
+  };
+
+  const handlePayment = async () => {
+    // Validate phone number
+    if (!phoneNumber || !validatePhone(phoneNumber)) {
+      showToast('Invalid Phone Number', 'Please enter a valid Kenyan phone number (e.g., 0712345678)', 'destructive');
+      return;
+    }
+
+    if (!routeId) {
+      showToast('Error', 'Route information is missing', 'destructive');
+      return;
+    }
+
+    setIsProcessing(true);
+
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(API_BASE + '/api/payments/previous-phones', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        setPreviousPhones(data.phones || []);
-        setShowPhoneHistory(true);
+      const payload = {
+        routeId,
+        phoneNumber,
+        amount,
+        paymentMethod,
+        vehicleId,
+      };
+
+      const response = await api.driver.addPassengerPayment(payload);
+
+      if (response.success || response.payment) {
+        showToast('✅ Payment Recorded', paymentMethod === 'cash' 
+          ? `Cash payment of KES ${amount} recorded successfully`
+          : `M-Pesa payment of KES ${amount} completed`);
+
+        // Reset form
+        setPhoneNumber('');
+        setPaymentMethod('cash');
+        onOpenChange(false);
+
+        // Trigger success callback
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+      } else {
+        throw new Error(response.message || 'Payment failed');
       }
-    } catch (error) {
-      console.error('Error fetching previous phones:', error);
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      showToast('Payment Failed', error.message || 'Failed to process payment. Please try again.', 'destructive');
     } finally {
-      setLoadingPhones(false);
+      setIsProcessing(false);
     }
   };
 
-  const selectPreviousPhone = (phone: string) => {
-    setPhoneNumber(phone);
-    setShowPhoneHistory(false);
-  };
-
-  useEffect(() => {
-    setAdjustedAmount(initialAmount);
-  }, [initialAmount]);
-
-  const handleManualPayment = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      
-      // Record manual payment using simulatePayment endpoint with immediate completion
-      const res = await fetch(API_BASE + '/api/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          routeId: routeId || 1,
-          amount: adjustedAmount,
-          distance,
-          phoneNumber: 'MANUAL-CASH',
-          vehicle: null, // Let backend auto-assign vehicle
-          vehicleId: vehicleId
-        })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        toast({
-          title: 'Payment Recorded',
-          description: `Manual payment of KES ${adjustedAmount} recorded successfully`,
-          duration: 3000
-        });
-        
-        // Wait a moment for backend to process occupancy increment
-        setTimeout(() => {
-          onPaymentSuccess();
-          onOpenChange(false);
-          resetForm();
-        }, 2500);
-      } else {
-        throw new Error(data.message || 'Failed to record payment');
-      }
-    } catch (error: any) {
-      console.error('Manual payment error:', error);
-      toast({
-        title: 'Payment Failed',
-        description: error.message || 'Could not record payment',
-        variant: 'destructive'
-      });
-      setLoading(false);
-    }
-  };
-
-  const handleMpesaPayment = async () => {
-    if (!phoneNumber || phoneNumber.trim().length === 0) {
-      toast({
-        title: 'Phone Number Required',
-        description: 'Please enter a valid phone number',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    // Normalize phone number
-    const normalizedPhone = normalizePhoneNumber(phoneNumber);
-    if (!normalizedPhone) {
-      toast({
-        title: 'Invalid Phone Number',
-        description: 'Please enter a valid Kenyan phone number (e.g., 0712345678 or 254712345678)',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      
-      // Initiate M-Pesa payment using the simulate endpoint
-      const res = await fetch(API_BASE + '/api/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          routeId: routeId || 1,
-          amount: adjustedAmount,
-          distance,
-          phoneNumber: normalizedPhone,
-          vehicleId: vehicleId
-        })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        toast({
-          title: 'M-Pesa Prompt Sent',
-          description: `Check phone ${normalizedPhone} for M-Pesa prompt`,
-          duration: 5000
-        });
-        
-        // Payment will auto-complete after 2 seconds (simulated)
-        // Wait for backend to process payment and increment occupancy
-        setTimeout(() => {
-          toast({
-            title: 'Payment Successful',
-            description: `M-Pesa payment of KES ${adjustedAmount} completed`,
-            duration: 3000
-          });
-          onPaymentSuccess();
-          onOpenChange(false);
-          resetForm();
-        }, 3000);
-      } else {
-        throw new Error(data.message || 'Failed to initiate payment');
-      }
-    } catch (error: any) {
-      console.error('M-Pesa payment error:', error);
-      toast({
-        title: 'Payment Failed',
-        description: error.message || 'Could not initiate M-Pesa payment',
-        variant: 'destructive'
-      });
-      setLoading(false);
-    }
-  };
-
-  const normalizePhoneNumber = (phone: string): string | null => {
-    const digitsOnly = phone.trim().replace(/[^0-9]/g, '');
-    
-    // 0712345678 -> 254712345678
-    if (digitsOnly.startsWith('0') && digitsOnly.length === 10) {
-      return `254${digitsOnly.slice(1)}`;
-    }
-    
-    // 712345678 -> 254712345678
-    if (digitsOnly.startsWith('7') && digitsOnly.length === 9) {
-      return `254${digitsOnly}`;
-    }
-    
-    // 254712345678 -> 254712345678
-    if (digitsOnly.startsWith('254') && digitsOnly.length === 12) {
-      return digitsOnly;
-    }
-    
-    return null;
-  };
-
-  const resetForm = () => {
-    setPhoneNumber('');
-    setDistance(0);
-    setAdjustedAmount(initialAmount);
-    setPaymentMethod('manual');
-    setLoading(false);
-    setShowPhoneHistory(false);
-  };
-
-  const handleCancel = () => {
-    if (!loading) {
-      onOpenChange(false);
-      resetForm();
-    }
-  };
+  if (!open) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-green-600" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => onOpenChange(false)}>
+      <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full m-4 p-6" onClick={(e) => e.stopPropagation()}>
+        {/* Close button */}
+        <button
+          onClick={() => onOpenChange(false)}
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+          disabled={isProcessing}
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Header */}
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold flex items-center gap-2 mb-2">
+            <CreditCard className="w-5 h-5" />
             Passenger Payment
-          </DialogTitle>
-          <DialogDescription>
-            Collect payment for the passenger boarding {routeName}
-          </DialogDescription>
-        </DialogHeader>
+          </h2>
+          <p className="text-sm text-slate-600">
+            Record payment for {routeName} - KES {amount}
+          </p>
+        </div>
 
-        {/* Distance & Amount Adjustment Section */}
-        <div className="space-y-4 border-b pb-4">
-          <div>
-            <Label htmlFor="distance">Distance from main stage (km)</Label>
-            <Input
-              id="distance"
-              type="number"
-              min="0"
-              step="0.5"
-              value={distance}
-              onChange={(e) => {
-                const km = parseFloat(e.target.value) || 0;
-                setDistance(km);
-                calculateAmountFromDistance(km);
-              }}
-              placeholder="0"
-              disabled={loading}
-              className="mt-2"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Base fare: KES {initialAmount} + KES 5 per km
-            </p>
-          </div>
+        {/* Phone Number Input */}
+        <div className="mb-4">
+          <label htmlFor="phone" className="block text-sm font-medium text-slate-700 mb-2">
+            Phone Number
+          </label>
+          <input
+            id="phone"
+            type="tel"
+            placeholder="e.g., 0712345678"
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
+            disabled={isProcessing}
+            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            Enter passenger's phone number for payment confirmation
+          </p>
+        </div>
 
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-amber-900">Adjusted Amount</p>
-                <p className="text-2xl font-bold text-amber-700">KES {adjustedAmount}</p>
-              </div>
-              {distance > 0 && (
-                <div className="text-sm text-amber-700">
-                  +KES {(distance * 5).toFixed(0)} for {distance} km
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <Label>Manually adjust amount (optional)</Label>
-            <Input
-              type="number"
-              min={initialAmount}
-              step="10"
-              value={adjustedAmount}
-              onChange={(e) => setAdjustedAmount(Math.max(initialAmount, parseFloat(e.target.value) || initialAmount))}
-              placeholder={String(initialAmount)}
-              disabled={loading}
-              className="mt-2"
-            />
+        {/* Payment Method Selection */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-slate-700 mb-3">Payment Method</label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setPaymentMethod('cash')}
+              disabled={isProcessing}
+              className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-md transition ${
+                paymentMethod === 'cash'
+                  ? 'bg-blue-50 border-blue-500 text-blue-700'
+                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+              } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <CreditCard className="w-4 h-4" />
+              Cash
+            </button>
+            <button
+              onClick={() => setPaymentMethod('mpesa')}
+              disabled={isProcessing}
+              className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-md transition ${
+                paymentMethod === 'mpesa'
+                  ? 'bg-green-50 border-green-500 text-green-700'
+                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+              } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <Smartphone className="w-4 h-4" />
+              M-Pesa
+            </button>
           </div>
         </div>
 
-        <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'manual' | 'mpesa')} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="manual" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Manual
-            </TabsTrigger>
-            <TabsTrigger value="mpesa" className="flex items-center gap-2">
-              <Smartphone className="h-4 w-4" />
-              M-Pesa
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="manual" className="space-y-4">
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-                  <DollarSign className="h-6 w-6 text-blue-600" />
-                </div>
+        {/* Payment Method Info */}
+        <div className="mb-6">
+          {paymentMethod === 'cash' ? (
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <CreditCard className="w-6 h-6 text-slate-600 flex-shrink-0 mt-1" />
+              <div>
+                <p className="font-medium text-sm mb-1">Cash Payment</p>
+                <p className="text-xs text-slate-600">
+                  Record that passenger paid KES {amount} in cash. This will immediately increment occupancy.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-start gap-3 p-4 bg-green-50 rounded-lg border border-green-200 mb-3">
+                <Smartphone className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
                 <div>
-                  <p className="font-semibold text-blue-900">Cash Payment</p>
-                  <p className="text-2xl font-bold text-blue-700">KES {adjustedAmount}</p>
+                  <p className="font-medium text-sm mb-1">M-Pesa Payment</p>
+                  <p className="text-xs text-slate-600">
+                    Passenger will receive M-Pesa prompt on their phone
+                  </p>
                 </div>
+              </div>
+              <div className="text-xs text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                ⚠️ <strong>Sandbox Mode:</strong> Using test M-Pesa credentials. No real money will be charged.
               </div>
             </div>
-            <p className="text-sm text-gray-600">
-              Record that the passenger paid <strong>KES {adjustedAmount}</strong> in cash. Click "Record Payment" to confirm.
-            </p>
-          </TabsContent>
+          )}
+        </div>
 
-          <TabsContent value="mpesa" className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label htmlFor="phone">Passenger Phone Number</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={fetchPreviousPhones}
-                  disabled={loadingPhones || loading}
-                  className="flex items-center gap-1 text-xs"
-                >
-                  <History className="h-3 w-3" />
-                  {loadingPhones ? 'Loading...' : 'Use Previous'}
-                </Button>
-              </div>
-
-              {showPhoneHistory && previousPhones.length > 0 && (
-                <div className="border rounded-md p-2 bg-gray-50 max-h-32 overflow-y-auto">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">Recent phone numbers:</p>
-                  {previousPhones.map((phone, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => selectPreviousPhone(phone)}
-                      className="block w-full text-left px-2 py-1 text-sm hover:bg-blue-100 rounded"
-                    >
-                      {phone}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="relative">
-                <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="0712345678 or 254712345678"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="pl-10"
-                  disabled={loading}
-                />
-              </div>
-              <p className="text-xs text-gray-500">
-                Enter the passenger's phone number to send M-Pesa STK push prompt
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-                  <Smartphone className="h-6 w-6 text-green-600" />
-                </div>
-                <div>
-                  <p className="font-semibold text-green-900">M-Pesa Payment</p>
-                  <p className="text-2xl font-bold text-green-700">KES {adjustedAmount}</p>
-                </div>
-              </div>
-            </div>
-            <p className="text-sm text-gray-600">
-              The passenger will receive an M-Pesa prompt on their phone to pay <strong>KES {adjustedAmount}</strong>.
-            </p>
-          </TabsContent>
-        </Tabs>
-
-        <DialogFooter className="gap-2">
-          <Button
-            variant="outline"
-            onClick={handleCancel}
-            disabled={loading}
+        {/* Action Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => onOpenChange(false)}
+            disabled={isProcessing}
+            className="flex-1 px-4 py-2 border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
-          </Button>
-          <Button
-            onClick={paymentMethod === 'manual' ? handleManualPayment : handleMpesaPayment}
-            disabled={loading}
-            className="bg-green-600 hover:bg-green-700"
+          </button>
+          <button
+            onClick={handlePayment}
+            disabled={isProcessing || !phoneNumber}
+            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loading ? (
+            {isProcessing ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
                 Processing...
-              </>
-            ) : paymentMethod === 'manual' ? (
-              <>
-                <DollarSign className="h-4 w-4 mr-2" />
-                Record Payment
               </>
             ) : (
               <>
-                <Smartphone className="h-4 w-4 mr-2" />
-                Send M-Pesa Prompt
+                <CheckCircle2 className="w-4 h-4" />
+                {paymentMethod === 'cash' ? 'Record Payment' : 'Send M-Pesa Prompt'}
               </>
             )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

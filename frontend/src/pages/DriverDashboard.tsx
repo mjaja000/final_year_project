@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import io from 'socket.io-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import { AlertCircle, CheckCircle, Circle, CreditCard, LogOut, Mail, MapPin, Minus, Navigation, Phone, Plus, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PaymentDialog from '@/components/PaymentDialog';
+import { createAppSocket } from '@/lib/socket';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
-const socket = API_BASE ? io(API_BASE) : io(); // fall back to same host
+const socket = createAppSocket();
 
 export default function DriverDashboard() {
   const [driver, setDriver] = useState<any>(null);
@@ -304,6 +304,45 @@ export default function DriverDashboard() {
     }
   };
 
+  const persistLocationToServer = async (
+    payload: { latitude: number; longitude: number; status: 'online' | 'offline'; accuracy?: number | null },
+    endpoint: '/api/locations/location' | '/api/drivers/location' = '/api/locations/location',
+    showErrorToast = false
+  ) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(API_BASE + endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const message = data?.message || `Location sync failed (${res.status})`;
+        if (showErrorToast) {
+          toast({
+            title: 'Location update failed',
+            description: message,
+            variant: 'destructive',
+          });
+        }
+        return false;
+      }
+
+      return true;
+    } catch (error: any) {
+      if (showErrorToast) {
+        toast({
+          title: 'Location update failed',
+          description: error?.message || 'Network error while syncing location',
+          variant: 'destructive',
+        });
+      }
+      return false;
+    }
+  };
+
   const emitLocationUpdate = (pos: GeolocationPosition) => {
     if (!driver) return;
     const newLoc = {
@@ -323,12 +362,16 @@ export default function DriverDashboard() {
 
     // Also persist location to server REST cache so new page loads pick it up
     if (vehicleId) {
-      const token = localStorage.getItem('token');
-      fetch(API_BASE + '/api/locations/location', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ latitude: newLoc.latitude, longitude: newLoc.longitude, status: 'online', accuracy: pos.coords.accuracy })
-      }).catch(() => {}); // fire-and-forget
+      persistLocationToServer(
+        {
+          latitude: newLoc.latitude,
+          longitude: newLoc.longitude,
+          status: 'online',
+          accuracy: pos.coords.accuracy,
+        },
+        '/api/locations/location',
+        false
+      );
     }
   };
 
@@ -382,6 +425,16 @@ export default function DriverDashboard() {
       });
     } else {
       // Turn on location
+      const assignedVehicleId = driver.assigned_vehicle_id || driver.vehicleId;
+      if (!assignedVehicleId) {
+        toast({
+          title: 'Vehicle assignment required',
+          description: 'You must be assigned to a vehicle before sharing location.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       if (!navigator.geolocation) {
         toast({
           title: 'Location not supported',
@@ -393,6 +446,19 @@ export default function DriverDashboard() {
 
       try {
         const position = await resolvePosition();
+        const initialSyncOk = await persistLocationToServer(
+          {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            status: 'online',
+            accuracy: position.coords.accuracy,
+          },
+          '/api/locations/location',
+          true
+        );
+
+        if (!initialSyncOk) return;
+
         setLocationEnabled(true);
         emitLocationUpdate(position);
         startLocationWatch();
@@ -430,6 +496,42 @@ export default function DriverDashboard() {
     if (!driver) return;
     
     const newStatus = status === 'online' ? 'offline' : 'online';
+
+    if (newStatus === 'online') {
+      const assignedVehicleId = driver.assigned_vehicle_id || driver.vehicleId;
+      if (!assignedVehicleId) {
+        toast({
+          title: 'Cannot go online',
+          description: 'No vehicle assigned. Ask admin to assign a vehicle first.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!locationEnabled || !currentLocation) {
+        toast({
+          title: 'Cannot go online',
+          description: 'Share your location first, then go online.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const locationSynced = await persistLocationToServer(
+        {
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude,
+          status: 'online',
+        },
+        '/api/drivers/location',
+        true
+      );
+
+      if (!locationSynced) {
+        return;
+      }
+    }
+
     setStatus(newStatus);
     
     socket.emit('driver:updateStatus', { 
@@ -443,19 +545,15 @@ export default function DriverDashboard() {
     if (currentLocation) {
       // Update server with location
       try {
-        const token = localStorage.getItem('token');
-        await fetch(API_BASE + '/api/drivers/location', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json', 
-            Authorization: `Bearer ${token}` 
-          },
-          body: JSON.stringify({
+        await persistLocationToServer(
+          {
             latitude: currentLocation.latitude,
             longitude: currentLocation.longitude,
-            status: newStatus
-          })
-        });
+            status: newStatus,
+          },
+          '/api/drivers/location',
+          newStatus !== 'online'
+        );
       } catch (err) {
         console.error('Failed to update location on server:', err);
       }

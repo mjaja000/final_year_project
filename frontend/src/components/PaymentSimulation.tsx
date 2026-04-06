@@ -8,7 +8,8 @@ import DigitalTicket from '@/components/DigitalTicket';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
-import io, { type Socket } from 'socket.io-client';
+import { type Socket } from 'socket.io-client';
+import { createAppSocket } from '@/lib/socket';
 
 interface PaymentSimulationProps {
   initialRouteId?: string;
@@ -289,9 +290,7 @@ const PaymentSimulation = ({
   const setupPaymentSocket = (paymentId: number) => {
     closePaymentSocket();
 
-    const socket = io(import.meta.env.VITE_API_URL || undefined, {
-      transports: ['websocket', 'polling'],
-    });
+    const socket = createAppSocket();
 
     socket.on('connect', () => {
       socket.emit('join', `payment_${paymentId}`);

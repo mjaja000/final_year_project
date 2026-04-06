@@ -1,5 +1,7 @@
 # HTTPS Mixed Content Issue - FIXED ✅
 
+> **📖 For complete HTTPS setup instructions, see [HTTPS_SETUP.md](./HTTPS_SETUP.md)**
+
 ## Problem Identified
 The frontend was hardcoded to use `http://172.31.232.5:5000` in the `.env` file. This caused **mixed content errors** when the frontend ran on HTTPS (`https://localhost:8080`) because browsers block insecure HTTP requests from secure HTTPS pages.
 
@@ -112,15 +114,12 @@ fetch('/api')
 - SSL certificates are in `frontend/.cert/` directory (generated for development)
 - Backend does NOT need HTTPS certificates for local development when using the proxy
 
-## Troubleshooting
+## Additional Resources
 
-If you see mixed content errors:
-1. Ensure `VITE_API_URL` is empty in `frontend/.env`
-2. Restart the frontend server: `cd frontend && npm run dev`
-3. Clear browser cache and reload
-4. Check browser console for any hardcoded HTTP URLs
+- **[HTTPS_SETUP.md](./HTTPS_SETUP.md)** - Complete HTTPS setup guide with installation, usage, and troubleshooting
+- **[CORS_FINAL_SOLUTION.md](./CORS_FINAL_SOLUTION.md)** - CORS configuration guide
 
-If API calls fail:
-1. Verify backend is running: `curl http://localhost:5000/api`
-2. Verify proxy: `curl -k https://localhost:8080/api`
-3. Check Vite proxy logs in the terminal
+---
+
+**Last Updated**: March 2026
+**MatatuConnect Development Team**

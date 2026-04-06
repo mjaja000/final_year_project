@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import io from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
+import { createAppSocket } from '@/lib/socket';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -43,7 +44,7 @@ export default function AdminMessages() {
   const [messageText, setMessageText] = useState('');
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [presenceMap, setPresenceMap] = useState<Record<number, boolean>>({});
-  const socketRef = useRef<ReturnType<typeof io> | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const selectedUserRef = useRef<number | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
   const lastTypingRef = useRef(false);
@@ -84,7 +85,7 @@ export default function AdminMessages() {
 
   useEffect(() => {
     // Socket keeps conversation and typing state fresh without polling.
-    const socket = io(API_BASE, { transports: ['websocket', 'polling'] });
+    const socket = createAppSocket();
     socketRef.current = socket;
 
     socket.on('connect', () => {
