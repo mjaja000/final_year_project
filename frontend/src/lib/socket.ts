@@ -5,7 +5,7 @@ const USE_VITE_PROXY = API_BASE.length === 0;
 
 const DEFAULT_TRANSPORTS: Array<'polling' | 'websocket'> = USE_VITE_PROXY
   ? ['polling']
-  : ['websocket', 'polling'];
+  : ['websocket'];
 
 type AppSocketOptions = Partial<ManagerOptions & SocketOptions>;
 
