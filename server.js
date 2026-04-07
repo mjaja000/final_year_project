@@ -91,6 +91,39 @@ const initializeTables = async () => {
 const PORT = process.env.PORT || 5000;
 const HTTPS_ENABLED = process.env.ENABLE_HTTPS === 'true';
 
+const socketCorsOriginSetting = (process.env.CORS_ORIGIN || 'auto').trim();
+const socketConfiguredOrigins = socketCorsOriginSetting === 'auto'
+  ? []
+  : socketCorsOriginSetting.split(',').map((origin) => origin.trim()).filter(Boolean);
+const socketAllowedOrigins = socketConfiguredOrigins.length
+  ? socketConfiguredOrigins
+  : (process.env.NODE_ENV === 'production' ? ['https://matconnect-client.vercel.app'] : []);
+const socketPrivateNetworkPatterns = [
+  /^https?:\/\/localhost(:\d+)?$/,
+  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+  /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+  /^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+  /^https?:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+];
+
+const socketOriginValidator = (origin, callback) => {
+  if (!origin) return callback(null, true);
+
+  if (socketAllowedOrigins.includes('*') || socketAllowedOrigins.includes(origin)) {
+    return callback(null, true);
+  }
+
+  if ((process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev') && socketCorsOriginSetting === 'auto') {
+    const isPrivateNetwork = socketPrivateNetworkPatterns.some((pattern) => pattern.test(origin));
+    if (isPrivateNetwork) {
+      return callback(null, true);
+    }
+  }
+
+  console.warn(`[Socket.IO CORS] Blocked origin: ${origin}`);
+  return callback(new Error(`Not allowed by Socket.IO CORS: ${origin}`));
+};
+
 let server;
 
 if (HTTPS_ENABLED) {
@@ -146,11 +179,11 @@ const initializeSocketIO = async () => {
     console.log(`\n🔌 Initializing Socket.IO...`);
     console.log(`   Server: ${HTTPS_ENABLED ? 'HTTPS' : 'HTTP'}`);
     console.log(`   Port: ${PORT}`);
-    console.log(`   CORS Origin: ${process.env.CORS_ORIGIN || 'auto (allows all private networks)'}`);
+    console.log(`   CORS Origin: ${socketAllowedOrigins.length ? socketAllowedOrigins.join(', ') : socketCorsOriginSetting}`);
     
     const io = new Server(server, {
       cors: {
-        origin: (process.env.CORS_ORIGIN || '*').split(',').map(o => o.trim()),
+        origin: socketOriginValidator,
         methods: ['GET', 'POST'],
         credentials: true
       }
