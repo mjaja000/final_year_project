@@ -132,16 +132,14 @@ if (HTTPS_ENABLED) {
     console.log(`📡 Network: http://0.0.0.0:${PORT}`);
     console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}\n`);
     await initializeTables();
+    
+    // Initialize Socket.IO inside the listen callback so server is guaranteed to be listening
+    initializeSocketIO();
   });
 }
 
-// Initialize Socket.IO after server is created
-(async () => {
-  if (HTTPS_ENABLED) {
-    await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for HTTPS
-  }
-  
-  // Initialize Socket.IO for real-time updates
+// Define Socket.IO initialization as a separate function that runs once server is listening
+const initializeSocketIO = async () => {
   try {
     const { Server } = require('socket.io');
     
@@ -292,11 +290,21 @@ if (HTTPS_ENABLED) {
 
     // Attach io to app for use in controllers/services
     app.set('io', io);
-    console.log('✓ Socket.IO initialized');
+    console.log('✓ Socket.IO ready for real-time updates');
   } catch (err) {
     console.error('✗ Failed to initialize Socket.IO:', err.message);
+    console.error('  Clients will not receive real-time updates.');
   }
-});
+};
+
+// Also initialize Socket.IO for HTTPS mode
+if (HTTPS_ENABLED) {
+  setTimeout(() => {
+    initializeSocketIO().catch(err => {
+      console.error('Deferred Socket.IO init failed:', err.message);
+    });
+  }, 100);
+}
 
 // Keep the server alive
 server.on('close', () => {
