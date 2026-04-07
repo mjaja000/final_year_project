@@ -125,6 +125,20 @@ class PaymentController {
         transactionId: ticketReference,
       });
 
+      let smsResult = { success: false };
+      try {
+        smsResult = await SmsService.sendSms(
+          payment.phone_number,
+          `MatatuConnect ticket: ${ticketReference}. Route: ${payment.route_name || `Route ${payment.route_id}`}. Amount: KSh ${payment.amount}.`
+        );
+      } catch (smsTicketError) {
+        console.error('Failed to send SMS ticket copy:', smsTicketError.message);
+        smsResult = { success: false, error: smsTicketError.message };
+      }
+
+      const smsTrialBlocked = !smsResult?.success
+        && String(smsResult?.error || '').toLowerCase().includes('twilio trial restriction');
+
       if (whatsappResult?.success === false) {
         // If user is not in sandbox, automatically send SMS with join instructions
         if (whatsappResult?.code === 63007 || whatsappResult?.needsJoin) {
@@ -166,9 +180,13 @@ To get your ticket via WhatsApp:
       }
 
       return res.status(200).json({
-        message: 'Ticket sent to WhatsApp',
+        message: smsResult?.success ? 'Ticket sent to WhatsApp and SMS' : 'Ticket sent to WhatsApp',
         ticket_reference: ticketReference,
         whatsapp: whatsappResult || { success: true },
+        sms: smsResult,
+        smsActionRequired: smsTrialBlocked
+          ? 'Verify recipient number in Twilio Console or upgrade Twilio account to send SMS to unverified numbers.'
+          : null,
       });
     } catch (error) {
       console.error('Send ticket to WhatsApp error:', error);
@@ -214,6 +232,15 @@ To get your ticket via WhatsApp:
           amount: paymentRecord.amount,
           transactionId: ticketReference,
         });
+
+        try {
+          await SmsService.sendSms(
+            paymentRecord.phone_number,
+            `MatatuConnect ticket: ${ticketReference}. Route: ${paymentRecord.route_name || `Route ${paymentRecord.route_id}`}. Amount: KSh ${paymentRecord.amount}.`
+          );
+        } catch (customerSmsError) {
+          console.error('[SendPaymentWhatsApp] Failed to send SMS ticket to customer:', customerSmsError.message);
+        }
         
         // If user is not in sandbox, send SMS with join instructions
         if (whatsappResult?.code === 63007 || whatsappResult?.needsJoin) {
@@ -242,6 +269,15 @@ To get your ticket via WhatsApp:
             transactionId: ticketReference,
             recipientType: 'driver',
           });
+
+          try {
+            await SmsService.sendSms(
+              driver.phone,
+              `MatatuConnect payment alert: ${ticketReference}. Route: ${paymentRecord.route_name || `Route ${paymentRecord.route_id}`}. Amount: KSh ${paymentRecord.amount}.`
+            );
+          } catch (driverSmsError) {
+            console.error('[SendPaymentWhatsApp] Failed to send SMS ticket to driver:', driverSmsError.message);
+          }
           
           // If driver is not in sandbox, send SMS with join instructions
           if (driverWhatsappResult?.code === 63007 || driverWhatsappResult?.needsJoin) {

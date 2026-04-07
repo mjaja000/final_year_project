@@ -9,6 +9,8 @@ const DatabaseStatsModel = require('../models/databaseStatsModel');
 const MessageModel = require('../models/messageModel');
 const ReportService = require('../services/reportService');
 const SaccoSettingsModel = require('../models/saccoSettingsModel');
+const SmsService = require('../services/smsService');
+const WhatsappService = require('../services/whatsappService');
 const twilio = require('twilio');
 const pool = require('../config/database');
 
@@ -694,13 +696,21 @@ class AdminController {
       // Get route details for WhatsApp
       const route = await RouteModel.getRouteById(routeId);
 
-      // Send WhatsApp confirmation
+      // Send WhatsApp + SMS confirmation
       try {
-        const whatsappService = require('../services/whatsappService');
         const saccoName = await SaccoSettingsModel.get('sacco_name') || 'MatatuConnect';
         const message = `Payment confirmed! Route: ${route?.route_name || 'N/A'}, Amount: KSh ${amount}, Transaction: ${transactionId}. Thank you for using ${saccoName}!`;
         
-        await whatsappService.sendMessage(normalizedPhone, message);
+        const whatsappResult = await WhatsappService.sendMessage(normalizedPhone, message);
+
+        if (whatsappResult?.success === false && (whatsappResult.needsJoin || whatsappResult.code === 63007)) {
+          await SmsService.sendSms(
+            normalizedPhone,
+            'MatatuConnect: To receive WhatsApp alerts, send "join break-additional" to +14155238886 on WhatsApp.'
+          );
+        }
+
+        await SmsService.sendSms(normalizedPhone, message);
       } catch (whatsappErr) {
         console.error('WhatsApp notification failed:', whatsappErr.message);
         // Don't fail the whole request if WhatsApp fails

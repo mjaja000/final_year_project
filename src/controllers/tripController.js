@@ -1,5 +1,7 @@
 const TripModel = require('../models/tripModel');
 const BookingModel = require('../models/bookingModel');
+const SmsService = require('../services/smsService');
+const WhatsappService = require('../services/whatsappService');
 
 class TripController {
   // Create a schedulable trip tied to route + vehicle.
@@ -83,13 +85,36 @@ class TripController {
       const io = req.app.get('io');
       if (io) io.to('admin').emit('booking.created', { booking, trip });
 
-      // Send ticket via WhatsApp (if configured)
+      // Send ticket via WhatsApp and SMS together.
       try {
-        const WhatsappService = require('../services/whatsappService');
-        await WhatsappService.sendPaymentConfirmation(phoneNumber, { routeName: route?.route_name || `Route ${trip.route_id}`, amount, transactionId: ticketCode });
+        const whatsappResult = await WhatsappService.sendPaymentConfirmation(phoneNumber, {
+          routeName: route?.route_name || `Route ${trip.route_id}`,
+          amount,
+          transactionId: ticketCode,
+        });
+
+        if (whatsappResult?.success === false && (whatsappResult.needsJoin || whatsappResult.code === 63007)) {
+          try {
+            await SmsService.sendSms(
+              phoneNumber,
+              'MatatuConnect: To receive WhatsApp alerts, send "join break-additional" to +14155238886 on WhatsApp.'
+            );
+          } catch (smsFallbackError) {
+            console.warn('Could not send WhatsApp join instructions via SMS:', smsFallbackError.message);
+          }
+        }
       } catch (err) {
         // log only
-        console.warn('Could not send whatsapp ticket:', err.message);
+        console.warn('Could not send WhatsApp ticket:', err.message);
+      }
+
+      try {
+        await SmsService.sendSms(
+          phoneNumber,
+          `MatatuConnect ticket: ${ticketCode}. Route: ${route?.route_name || `Route ${trip.route_id}`}. Fare: KSh ${amount}.`
+        );
+      } catch (smsError) {
+        console.warn('Could not send SMS ticket:', smsError.message);
       }
 
       res.status(201).json({ message: 'Booking created', booking, trip });

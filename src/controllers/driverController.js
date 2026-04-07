@@ -2,6 +2,8 @@ const UserModel = require('../models/userModel');
 const DriverModel = require('../models/driverModel');
 const ActivityLogModel = require('../models/activityLogModel');
 const VehicleModel = require('../models/vehicleModel');
+const SmsService = require('../services/smsService');
+const WhatsappService = require('../services/whatsappService');
 
 class DriverController {
   static async getDriverAssignmentStatus(req, res) {
@@ -727,15 +729,21 @@ class DriverController {
         });
       }
 
-      // Send WhatsApp confirmation if available
+      // Send WhatsApp + SMS confirmation if available
       try {
         const RouteModel = require('../models/routeModel');
         const route = await RouteModel.getRouteById(routeId);
         
-        const whatsappService = require('../services/whatsappService');
         const message = `Payment confirmed! Route: ${route?.route_name || 'N/A'}, Amount: KSh ${amount}, Transaction: ${transactionId}. Thank you for traveling with us!`;
         
-        await whatsappService.sendMessage(normalizedPhone, message);
+        const whatsappResult = await WhatsappService.sendMessage(normalizedPhone, message);
+        if (whatsappResult?.success === false && (whatsappResult.needsJoin || whatsappResult.code === 63007)) {
+          await SmsService.sendSms(
+            normalizedPhone,
+            'MatatuConnect: To receive WhatsApp alerts, send "join break-additional" to +14155238886 on WhatsApp.'
+          );
+        }
+        await SmsService.sendSms(normalizedPhone, message);
       } catch (whatsappErr) {
         console.error('WhatsApp notification failed:', whatsappErr.message);
         // Don't fail the whole request if WhatsApp fails
