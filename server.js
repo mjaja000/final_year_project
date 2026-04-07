@@ -28,6 +28,12 @@ const pool = require('./src/config/database');
 // Initialize database tables
 const initializeTables = async () => {
   try {
+    const dbReady = await pool.waitForDatabaseReady();
+    if (!dbReady) {
+      console.error('✗ Skipping table initialization because database connection is unavailable.');
+      return;
+    }
+
     const UserModel = require('./src/models/userModel');
     const VehicleModel = require('./src/models/vehicleModel');
     const RouteModel = require('./src/models/routeModel');
@@ -138,6 +144,12 @@ if (HTTPS_ENABLED) {
   // Initialize Socket.IO for real-time updates
   try {
     const { Server } = require('socket.io');
+    
+    console.log(`\n🔌 Initializing Socket.IO...`);
+    console.log(`   Server: ${HTTPS_ENABLED ? 'HTTPS' : 'HTTP'}`);
+    console.log(`   Port: ${PORT}`);
+    console.log(`   CORS Origin: ${process.env.CORS_ORIGIN || 'auto (allows all private networks)'}`);
+    
     const io = new Server(server, {
       cors: {
         origin: (process.env.CORS_ORIGIN || '*').split(',').map(o => o.trim()),
@@ -145,6 +157,9 @@ if (HTTPS_ENABLED) {
         credentials: true
       }
     });
+
+    console.log(`✓ Socket.IO initialized successfully`);
+    console.log(`📍 WebSocket URL: ws${HTTPS_ENABLED ? 's' : ''}://localhost:${PORT}/socket.io/`);
 
     // Import in-memory vehicle locations cache from locationController
     const locationController = require('./src/controllers/locationController');

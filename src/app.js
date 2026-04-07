@@ -81,10 +81,34 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // Expose uploaded assets (driver photos, evidence files) under a stable URL prefix.
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+// Serve the management dashboard and its static assets locally.
+app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
+
+app.get('/management.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'management.html'));
+});
 
 // Health check
 app.get('/health', (req, res) => {
   res.json({ message: 'API is running', timestamp: new Date() });
+});
+
+// Diagnostic endpoint for Socket.IO testing
+app.get('/diagnostics', (req, res) => {
+  res.json({
+    message: 'MatatuConnect Server Diagnostics',
+    status: 'operational',
+    socketIOEnabled: true,
+    environment: process.env.NODE_ENV || 'development',
+    port: process.env.PORT || 5000,
+    corsOrigin: process.env.CORS_ORIGIN || 'auto',
+    timestamp: new Date().toISOString(),
+    tips: {
+      testSocketIO: 'Try: new WebSocket("ws://localhost:5000/socket.io")',
+      testAPI: 'Try: curl http://localhost:5000/api',
+      dashboard: 'Open: http://localhost:5000/management.html'
+    }
+  });
 });
 
 // Route mounting by feature area keeps handlers small and domain-focused.

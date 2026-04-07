@@ -76,6 +76,11 @@ const createPool = (config, label) => {
 
 let activePool = createPool(dbConfig, activeLabel);
 
+let dbReadyResolve;
+const dbReady = new Promise((resolve) => {
+  dbReadyResolve = resolve;
+});
+
 const queryWithRetry = async (...args) => {
   const maxRetries = 2;
   let lastError;
@@ -104,7 +109,7 @@ const queryWithRetry = async (...args) => {
 };
 
 // Test connection and try cloud if available
-(async () => {
+const initializeDatabaseConnection = async () => {
   console.log(`🔄 Attempting to connect to ${activeLabel}...`);
 
   let retries = 3;
@@ -114,7 +119,7 @@ const queryWithRetry = async (...args) => {
       console.log(`✓ ${activeLabel} connection successful`);
       console.log(`  Database: ${activePool.options?.database || dbConfig.database}`);
       client.release();
-      return;
+      return true;
     } catch (err) {
       retries--;
       console.error(`✗ ${activeLabel} connection failed (${3 - retries}/3):`, err.message);
@@ -145,11 +150,11 @@ const queryWithRetry = async (...args) => {
           console.log(`✓ ${activeLabel} connection successful`);
           console.log(`  Database: ${activePool.options?.database || process.env.DB_NAME_LOCAL || 'matatuconnect'}`);
           localClient.release();
-          return;
+          return true;
         } catch (localErr) {
           console.error('✗ Local PostgreSQL connection failed:', localErr.message);
           console.error('  Hint: Ensure local PostgreSQL is running and DB_*_LOCAL credentials are correct.');
-          return;
+          return false;
         }
       }
 
@@ -158,9 +163,20 @@ const queryWithRetry = async (...args) => {
       } else {
         console.error('  Hint: Check DB_HOST/DB_NAME/DB_USER/DB_PASSWORD (cloud credentials) in .env.');
       }
+      return false;
     }
   }
-})();
+  return false;
+};
+
+initializeDatabaseConnection()
+  .then((ready) => {
+    dbReadyResolve(ready);
+  })
+  .catch((err) => {
+    console.error('✗ Unexpected database initialization error:', err.message);
+    dbReadyResolve(false);
+  });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
@@ -179,6 +195,10 @@ process.on('SIGINT', async () => {
 // Export a dynamic proxy so consumers always hit the current active pool (cloud or local fallback).
 const pool = new Proxy({}, {
   get(_target, prop, _receiver) {
+    if (prop in _target) {
+      return _target[prop];
+    }
+
     if (prop === 'query') {
       return (...args) => queryWithRetry(...args);
     }
@@ -194,4 +214,5 @@ const pool = new Proxy({}, {
   },
 });
 module.exports = pool;
+module.exports.waitForDatabaseReady = () => dbReady;
 

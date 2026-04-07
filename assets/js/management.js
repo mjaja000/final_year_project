@@ -2,7 +2,6 @@
    MATATUCONNECT MANAGEMENT DASHBOARD - FUNCTIONALITY
    ===================================================== */
 
-const API_URL = 'https://final-year-project-wzom.onrender.com/api';
 const ADMIN_USERNAME = 'admin';
 const ADMIN_PASSWORD = 'admin';
 
@@ -20,8 +19,14 @@ let databaseOnlineTime = null;
 let serverUptimeInterval = null;
 let databaseUptimeInterval = null;
 
+// Detect if running locally or on Render
+const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_URL = isDev ? 'http://localhost:5000/api' : 'https://final-year-project-wzom.onrender.com/api';
+
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
+    console.log(`[Dashboard] Running in ${isDev ? 'LOCAL' : 'PRODUCTION'} mode`);
+    console.log(`[Dashboard] API URL: ${API_URL}`);
     initializeDashboard();
     loadChartLibrary();
 });
@@ -124,15 +129,41 @@ function addWhatsAppJoinerToClients(joiner) {
 
 function initSocket() {
     if (socket || typeof io === 'undefined') return;
-    socket = io('https://final-year-project-wzom.onrender.com');
+    
+    try {
+        const socketURL = isDev ? 'http://localhost:5000' : 'https://final-year-project-wzom.onrender.com';
+        
+        socket = io(socketURL, {
+            reconnection: true,
+            reconnectionDelay: 5000,
+            reconnectionDelayMax: 30000,
+            reconnectionAttempts: 3
+        });
 
-    socket.on('connect', () => {
-        socket.emit('join', 'admin');
-    });
+        socket.on('connect', () => {
+            console.log('✓ Socket.IO connected');
+            socket.emit('join', 'admin');
+        });
 
-    socket.on('whatsapp.join_request', (payload) => {
-        addWhatsAppJoinerToClients(payload);
-    });
+        socket.on('error', (error) => {
+            console.warn('⚠ Socket.IO connection error (real-time features unavailable):', error);
+        });
+
+        socket.on('connect_error', (error) => {
+            console.warn('⚠ Socket.IO connection error:', error.message);
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('Socket.IO disconnected:', reason);
+        });
+
+        socket.on('whatsapp.join_request', (payload) => {
+            addWhatsAppJoinerToClients(payload);
+        });
+    } catch (error) {
+        console.warn('⚠ Socket.IO initialization failed (real-time updates disabled):', error.message);
+        socket = null;
+    }
 }
 
 // ===== TAB NAVIGATION =====
