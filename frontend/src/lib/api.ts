@@ -48,7 +48,8 @@ const api = {
         phoneNumber: payload.phone,
         amount: payload.amount,
         vehicle: payload.vehicle,
-        route_id: payload.route,
+        route: payload.route,
+        routeId: payload.route,
       });
       return data;
     },
@@ -62,6 +63,7 @@ const api = {
         phoneNumber: payload.phone,
         amount: payload.amount,
         vehicle: payload.vehicle,
+        routeId: payload.route,
         route_id: payload.route,
       });
       return data;
