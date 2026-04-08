@@ -8,8 +8,8 @@ import DigitalTicket from '@/components/DigitalTicket';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
-import { type Socket } from 'socket.io-client';
-import { createAppSocket } from '@/lib/socket';
+import createAppSocket from '@/lib/socket';
+import type { Socket } from 'socket.io-client';
 
 interface PaymentSimulationProps {
   initialRouteId?: string;

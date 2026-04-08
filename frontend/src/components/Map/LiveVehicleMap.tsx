@@ -4,7 +4,7 @@ import { MapPin, Navigation, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import VehicleMap from './VehicleMap';
 import { useGeolocation, findNearestVehicle, calculateDistance } from '@/hooks/useGeolocation';
-import { createAppSocket } from '@/lib/socket';
+import createAppSocket from '@/lib/socket';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const socket = createAppSocket();

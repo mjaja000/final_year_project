@@ -13,9 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import api from "@/lib/api";
-import { createAppSocket } from '@/lib/socket';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import createAppSocket from '@/lib/socket';
 
 interface RouteRecord {
   id: number;

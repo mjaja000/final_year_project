@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
-import { AlertCircle, CheckCircle, Circle, CreditCard, LogOut, Mail, MapPin, Minus, Navigation, Phone, Plus, Truck } from 'lucide-react';
+import { AlertCircle, CheckCircle, Circle, CreditCard, LogOut, Mail, MapPin, Minus, Navigation, Phone, Plus, Printer, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PaymentDialog from '@/components/PaymentDialog';
-import { createAppSocket } from '@/lib/socket';
+import createAppSocket from '@/lib/socket';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const socket = createAppSocket();
@@ -37,6 +37,14 @@ export default function DriverDashboard() {
   // Payment dialog state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(50);
+
+  const resolveFareValue = (...values: any[]) => {
+    for (const value of values) {
+      const num = Number(value);
+      if (Number.isFinite(num) && num > 0) return num;
+    }
+    return null;
+  };
 
   const normalizePlate = (value: any) =>
     String(value || '')
@@ -110,10 +118,12 @@ export default function DriverDashboard() {
         }
 
         // fetch active trip
+        let tripData: any = null;
         const tRes = await fetch(API_BASE + '/api/drivers/me/trip', { headers });
         if (tRes.ok) {
           const tdata = await tRes.json();
-          setTrip(tdata.trip);
+          tripData = tdata?.trip || null;
+          setTrip(tripData);
         } else {
           setTrip(null);
         }
@@ -126,6 +136,56 @@ export default function DriverDashboard() {
             setTrip(odata.trip);
           }
           setDriverOccupancy(odata?.occupancy || null);
+
+          // Keep payment amount aligned with the assigned vehicle route fare shown in occupancy context
+          let routeIdForFare = Number(
+            odata?.trip?.route_id ||
+            tripData?.route_id ||
+            data?.user?.route_id ||
+            0
+          );
+
+          const inlineFare = resolveFareValue(
+            odata?.trip?.base_fare,
+            odata?.trip?.fare,
+            tripData?.base_fare,
+            tripData?.fare,
+            data?.user?.base_fare,
+            data?.user?.fare
+          );
+
+          if (inlineFare) {
+            setPaymentAmount(inlineFare);
+          } else {
+            if (routeIdForFare <= 0 && data?.user?.assigned_vehicle_id) {
+              try {
+                const vehicleRes = await fetch(API_BASE + `/api/vehicles/${data.user.assigned_vehicle_id}`, { headers });
+                if (vehicleRes.ok) {
+                  const vehicleData = await vehicleRes.json();
+                  const vehicle = vehicleData?.vehicle || vehicleData;
+                  routeIdForFare = Number(vehicle?.route_id || routeIdForFare || 0);
+                }
+              } catch {
+                // keep fallback value
+              }
+            }
+
+            if (routeIdForFare > 0) {
+            try {
+              const routeRes = await fetch(API_BASE + `/api/routes/${routeIdForFare}`, { headers });
+              if (routeRes.ok) {
+                const routeData = await routeRes.json();
+                const route = routeData?.route || routeData;
+                const fetchedFare = resolveFareValue(route?.base_fare, route?.baseFare, route?.fare, route?.price);
+                if (fetchedFare) {
+                  setPaymentAmount(fetchedFare);
+                }
+              }
+            } catch {
+              // keep existing amount if route fare fetch fails
+            }
+            }
+          }
         }
 
         await fetchVehicleTickets();
@@ -245,6 +305,13 @@ export default function DriverDashboard() {
   }, [messages, adminTyping]);
 
   useEffect(() => {
+    const derivedFare = resolveFareValue((trip as any)?.base_fare, (trip as any)?.fare);
+    if (derivedFare) {
+      setPaymentAmount(derivedFare);
+    }
+  }, [trip]);
+
+  useEffect(() => {
     if (!adminUser?.id) return;
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -304,45 +371,6 @@ export default function DriverDashboard() {
     }
   };
 
-  const persistLocationToServer = async (
-    payload: { latitude: number; longitude: number; status: 'online' | 'offline'; accuracy?: number | null },
-    endpoint: '/api/locations/location' | '/api/drivers/location' = '/api/locations/location',
-    showErrorToast = false
-  ) => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(API_BASE + endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const message = data?.message || `Location sync failed (${res.status})`;
-        if (showErrorToast) {
-          toast({
-            title: 'Location update failed',
-            description: message,
-            variant: 'destructive',
-          });
-        }
-        return false;
-      }
-
-      return true;
-    } catch (error: any) {
-      if (showErrorToast) {
-        toast({
-          title: 'Location update failed',
-          description: error?.message || 'Network error while syncing location',
-          variant: 'destructive',
-        });
-      }
-      return false;
-    }
-  };
-
   const emitLocationUpdate = (pos: GeolocationPosition) => {
     if (!driver) return;
     const newLoc = {
@@ -362,16 +390,12 @@ export default function DriverDashboard() {
 
     // Also persist location to server REST cache so new page loads pick it up
     if (vehicleId) {
-      persistLocationToServer(
-        {
-          latitude: newLoc.latitude,
-          longitude: newLoc.longitude,
-          status: 'online',
-          accuracy: pos.coords.accuracy,
-        },
-        '/api/locations/location',
-        false
-      );
+      const token = localStorage.getItem('token');
+      fetch(API_BASE + '/api/locations/location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ latitude: newLoc.latitude, longitude: newLoc.longitude, status: 'online', accuracy: pos.coords.accuracy })
+      }).catch(() => {}); // fire-and-forget
     }
   };
 
@@ -425,16 +449,6 @@ export default function DriverDashboard() {
       });
     } else {
       // Turn on location
-      const assignedVehicleId = driver.assigned_vehicle_id || driver.vehicleId;
-      if (!assignedVehicleId) {
-        toast({
-          title: 'Vehicle assignment required',
-          description: 'You must be assigned to a vehicle before sharing location.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
       if (!navigator.geolocation) {
         toast({
           title: 'Location not supported',
@@ -446,19 +460,6 @@ export default function DriverDashboard() {
 
       try {
         const position = await resolvePosition();
-        const initialSyncOk = await persistLocationToServer(
-          {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            status: 'online',
-            accuracy: position.coords.accuracy,
-          },
-          '/api/locations/location',
-          true
-        );
-
-        if (!initialSyncOk) return;
-
         setLocationEnabled(true);
         emitLocationUpdate(position);
         startLocationWatch();
@@ -496,42 +497,6 @@ export default function DriverDashboard() {
     if (!driver) return;
     
     const newStatus = status === 'online' ? 'offline' : 'online';
-
-    if (newStatus === 'online') {
-      const assignedVehicleId = driver.assigned_vehicle_id || driver.vehicleId;
-      if (!assignedVehicleId) {
-        toast({
-          title: 'Cannot go online',
-          description: 'No vehicle assigned. Ask admin to assign a vehicle first.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (!locationEnabled || !currentLocation) {
-        toast({
-          title: 'Cannot go online',
-          description: 'Share your location first, then go online.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const locationSynced = await persistLocationToServer(
-        {
-          latitude: currentLocation.latitude,
-          longitude: currentLocation.longitude,
-          status: 'online',
-        },
-        '/api/drivers/location',
-        true
-      );
-
-      if (!locationSynced) {
-        return;
-      }
-    }
-
     setStatus(newStatus);
     
     socket.emit('driver:updateStatus', { 
@@ -545,15 +510,19 @@ export default function DriverDashboard() {
     if (currentLocation) {
       // Update server with location
       try {
-        await persistLocationToServer(
-          {
+        const token = localStorage.getItem('token');
+        await fetch(API_BASE + '/api/drivers/location', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({
             latitude: currentLocation.latitude,
             longitude: currentLocation.longitude,
-            status: newStatus,
-          },
-          '/api/drivers/location',
-          newStatus !== 'online'
-        );
+            status: newStatus
+          })
+        });
       } catch (err) {
         console.error('Failed to update location on server:', err);
       }
@@ -697,6 +666,70 @@ export default function DriverDashboard() {
     localStorage.removeItem('user');
     toast({ title: 'Logged out', description: 'Your session has ended.' });
     navigate('/driver/login');
+  };
+
+  const printTicket = (ticket: any) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+      toast({
+        title: 'Print blocked',
+        description: 'Please allow pop-ups to print tickets.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const paidAt = new Date(ticket?.created_at || Date.now());
+    const dateText = paidAt.toLocaleDateString('en-KE', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    const timeText = paidAt.toLocaleTimeString('en-KE', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const transactionId = ticket?.transaction_id || ticket?.checkout_request_id || `DRV-${ticket?.id || Date.now()}`;
+    const status = String(ticket?.status || 'completed').toUpperCase();
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Ticket - ${transactionId}</title>
+          <style>
+            body { font-family: Arial, sans-serif; background: #f5f7fb; margin: 0; padding: 24px; color: #111827; }
+            .ticket { max-width: 520px; margin: 0 auto; background: #ffffff; border: 2px dashed #9ca3af; border-radius: 16px; padding: 24px; }
+            .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+            .title { font-size: 20px; font-weight: 700; }
+            .status { font-size: 12px; font-weight: 600; color: #065f46; background: #d1fae5; border-radius: 999px; padding: 4px 10px; }
+            .row { display: flex; justify-content: space-between; margin: 10px 0; font-size: 14px; }
+            .label { color: #6b7280; }
+            .value { font-weight: 600; }
+            .amount { margin-top: 16px; padding-top: 14px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 18px; font-weight: 700; }
+            .footer { margin-top: 22px; font-size: 12px; color: #6b7280; text-align: center; }
+            @media print { body { background: #ffffff; padding: 0; } .ticket { border: 2px dashed #9ca3af; box-shadow: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="ticket">
+            <div class="header">
+              <div class="title">MatatuConnect Ticket</div>
+              <div class="status">${status}</div>
+            </div>
+            <div class="row"><span class="label">Transaction ID</span><span class="value">${transactionId}</span></div>
+            <div class="row"><span class="label">Vehicle</span><span class="value">${ticket?.vehicle_number || driver?.vehicle_reg || 'N/A'}</span></div>
+            <div class="row"><span class="label">Route</span><span class="value">${ticket?.route_name || `Route ${ticket?.route_id || 'N/A'}`}</span></div>
+            <div class="row"><span class="label">Date</span><span class="value">${dateText}</span></div>
+            <div class="row"><span class="label">Time</span><span class="value">${timeText}</span></div>
+            <div class="amount"><span>Amount Paid</span><span>KES ${Number(ticket?.amount || 0)}</span></div>
+            <div class="footer">Printed by Driver Dashboard • ${new Date().toLocaleString('en-KE')}</div>
+          </div>
+          <script>window.onload = function(){ window.print(); };</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
 
@@ -861,21 +894,31 @@ export default function DriverDashboard() {
                       <span className="text-slate-500 text-lg">/ {effectiveCapacity}</span>
                       {isFull && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">FULL</span>}
                     </div>
-                    {/* Remove passenger control */}
+                    {/* +/- controls for driver to adjust (e.g. passenger got off) */}
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="w-full border-red-300 text-red-700 hover:bg-red-50 text-xs sm:text-sm"
+                        className="flex-1 min-w-0 border-red-300 text-red-700 hover:bg-red-50 text-xs sm:text-sm"
                         onClick={() => adjustOccupancy('decrement')}
                         disabled={effectiveOccupancy <= 0}
                       >
                         <Minus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 flex-shrink-0" />
                         <span className="truncate">Passenger Off</span>
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 min-w-0 border-green-400 text-green-700 hover:bg-green-50 text-xs sm:text-sm"
+                        onClick={() => adjustOccupancy('increment')}
+                        disabled={isFull}
+                      >
+                        <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 flex-shrink-0" />
+                        <span className="truncate">Add Passenger</span>
+                      </Button>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-2">
-                      Click "Passenger Off" when a passenger alights from the vehicle.
+                      Use "Add Passenger" and "Passenger Off" to keep live occupancy in sync for this vehicle.
                     </p>
                   </div>
                 </div>
@@ -918,6 +961,15 @@ export default function DriverDashboard() {
                         <div className="text-left xs:text-right flex-shrink-0">
                           <div className="text-xs font-mono text-green-700 font-semibold break-all">{t.transaction_id || t.checkout_request_id?.slice(-8)}</div>
                           <div className="text-xs text-slate-600">{new Date(t.created_at).toLocaleDateString('en-KE', { day: '2-digit', month: 'short' })}</div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-1 h-7 px-2 text-xs"
+                            onClick={() => printTicket(t)}
+                          >
+                            <Printer className="h-3 w-3 mr-1" />
+                            Print
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -1030,8 +1082,9 @@ export default function DriverDashboard() {
           open={showPaymentDialog}
           onOpenChange={setShowPaymentDialog}
           vehicleId={driver.assigned_vehicle_id}
-          routeId={trip?.route_id}
-          routeName={trip?.route_name || 'Standard Route'}
+          vehicleReg={driver.vehicle_reg}
+          routeId={trip?.route_id || driver?.route_id}
+          routeName={trip?.route_name || driver?.route_name || 'Standard Route'}
           amount={paymentAmount}
           onPaymentSuccess={handlePaymentSuccess}
         />

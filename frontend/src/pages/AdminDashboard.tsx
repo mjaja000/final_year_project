@@ -36,7 +36,7 @@ import AdminMessages from '@/components/admin/AdminMessages';
 import WhatsAppChats from '@/components/admin/WhatsAppChats';
 import FeedbackManager from '@/components/admin/FeedbackManager';
 import ManualPayment from '@/components/admin/ManualPayment';
-import { createAppSocket } from '@/lib/socket';
+import createAppSocket from '@/lib/socket';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import OccupancyDisplay from '@/components/OccupancyDisplay';
 import api from '@/lib/api';

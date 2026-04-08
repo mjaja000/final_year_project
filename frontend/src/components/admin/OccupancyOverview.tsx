@@ -13,7 +13,7 @@ import {
   AlertCircle,
   Navigation
 } from "lucide-react";
-import { createAppSocket } from '@/lib/socket';
+import createAppSocket from '@/lib/socket';
 
 interface OccupancyOverviewProps {
   station?: string;
